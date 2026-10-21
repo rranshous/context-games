@@ -23,10 +23,11 @@ const RESULT_CHARS = 6000;
 // here rather than in the soma, where an actant rewriting its comments could erase it.
 const BODY_CONTRACT = `How the frame runs your code sections:
 - tools: a JS array of { name, description, input_schema, run(input, me, surfaces) }. run may be async. Returning { image } or { images: [...] } (data URLs) shows you pictures.
-- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), input { keys: Set, pressed: Set (this frame), pointer { x, y, down, clicked } }.
+- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), caption (set it to a short line about what's happening: every look reports it), input { keys: Set, pressed: Set (this frame), pointer { x, y, down, clicked } }.
 - hooks: function (on, me, surfaces). on(pattern, fn) listens to surface events ('chat.posted', 'stage.*', '*'). Runs anew whenever hooks changes.
-- me: name, audience, game (the running game object), wake(event), section(name).read()/.write(text), sections(), note(text), surfaces.
+- me: name, people (who is here), game (the running game object), wake(event), section(name).read()/.write(text), sections(), note(text), surfaces.
 - surfaces: each surface's actions, done as you: surfaces.chat.post(text), surfaces.stage.press(key, ms), and so on.
+- Testing yourself: surfaces.stage.advance(seconds) runs your game that far ahead at once (for seeing what happens later). Put test helpers on your game object, reachable as me.game from your tools, not on keys a person might press: everything on the stage is something people will play.
 - write_section and edit_section are always yours, whatever happens to your tools.`;
 
 const compile = (src) => new Function(`return (${src}\n)`)();
@@ -34,7 +35,7 @@ const compile = (src) => new Function(`return (${src}\n)`)();
 export class Actant {
   constructor(frame, soma) {
     this.frame = frame;
-    this.soma = soma;
+    this.soma = soma;   // replaced whole when someone restores a checkpoint
     this.faults = {};        // section -> error message from compiling or starting it
     this.pending = [];       // events waiting for the next think
     this.thinking = false;
@@ -52,7 +53,7 @@ export class Actant {
     const actant = this;
     return {
       get name() { return actant.soma.name; },
-      get audience() { return actant.frame.audience; },
+      get people() { return [...actant.frame.people]; },
       get game() { return actant.game; },
       get surfaces() { return actant.frame.surfacesFor(actant.soma.name); },
       wake: (event) => this.wake(event),
@@ -126,17 +127,26 @@ export class Actant {
   // ---------- waking ----------
 
   wake(event) {
-    const human = this.frame.isHuman(event?.who) || this.frame.isHuman(event?.from) || event?.type === 'frame.audience';
+    const human = this.frame.isPerson(event?.who) || this.frame.isPerson(event?.from);
     this.restless = human ? 0 : this.restless + 1;
     this.pending.push(event);
     this.frame.inspector.note('wake', describeEvent(event));
     if (this.thinking) return;   // it joins the think already under way
     if (this.restless > RESTLESS_LIMIT) {
-      this.frame.status.setLife('resting', 'woke itself too often; waiting for a human');
+      this.frame.status.setLife('resting', 'woke itself too often; waiting for someone to act');
       return;
     }
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.think(), 400);   // let a burst of events arrive together
+  }
+
+  /** Resolves once it's asleep with nothing waiting (or resting), or after three minutes. */
+  async idle(timeoutMs = 180000) {
+    const end = Date.now() + timeoutMs;
+    await new Promise((r) => setTimeout(r, 500));
+    while (Date.now() < end && (this.thinking || (this.pending.length && this.restless <= RESTLESS_LIMIT))) {
+      await new Promise((r) => setTimeout(r, 400));
+    }
   }
 
   async think() {
@@ -221,12 +231,18 @@ export class Actant {
   systemText() {
     const sections = Object.entries(this.soma.sections)
       .map(([name, content]) => `<section name="${name}"${CODE.has(name) ? ' kind="code"' : ''}>\n${content}\n</section>`).join('\n\n');
-    const surfaces = this.frame.surfaces.map((s) => s.describe()).filter(Boolean).map((d) => `- ${d}`).join('\n');
+    const surfaces = this.frame.surfaces.map((s) => s.describe(this.name)).filter(Boolean).map((d) => `- ${d}`).join('\n');
     const faults = Object.entries(this.faults).map(([k, v]) => `- ${k}: ${v}`).join('\n');
-    const audience = this.frame.audience === 'shaper'
-      ? 'You are being shaped. The human here is your shaper; they appear as "shaper".'
-      : `You are installed for a player. The human here is your player; they appear as "player".${this.frame.record.reset ? ` Your player has put you back the way you shipped ${this.frame.record.reset === 1 ? 'once' : `${this.frame.record.reset} times`}; each time, changes made at this table before then were undone, though the chat still remembers them.` : ''}`;
-    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${audience}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
+    const here = [...this.frame.people].join(', ');
+    const r = this.frame.record, l = r.lineage ?? {};
+    const lineage = l.from
+      ? `You are a copy of "${l.from.title}", published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
+      : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
+    const known = Object.keys(r.visitors ?? {});
+    const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone, though the chat may still mention it.` : '';
+    const company = `Here with you now: ${here}. ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
+    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
   }
 
   toolSchemas() {

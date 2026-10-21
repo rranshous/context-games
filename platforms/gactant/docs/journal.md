@@ -402,3 +402,108 @@ It understood what had been done to it, and it owned its earlier mistake. 3¢.
 
 About $1.70 of inference all session, across two actants, one install and one shard
 sitting. Idle cost is zero.
+
+---
+
+## 2026-10-20 · Session 1, part 2: no more modes. Ludants.
+
+### Robby takes the mask off
+
+After the first push, Robby read "house rules just for this game" and pulled on the
+thread:
+
+> The point about just for this session makes me think that a played game, a shaped
+> actant, could be published again. We are occluding the truth by inventing the two
+> modes. The distinction seems like a useful mask for now but I wonder if needed. … What
+> does it mean for a game to both be what is being played and being shaped? Game seems
+> to fall short of what we are building here.
+
+He's right, and the evidence was already in the journal. Pip's house rule for the little
+brother *was* shaping. The "shaper" and the "player" did the same things: played, asked,
+watched it change. The only real differences were who was sitting there and where the
+copy came from. Those are facts about *people* and *lineage*, not modes.
+
+**The word: ludant.** *Ludus* (play) + *actant*: a thing that is played and that acts.
+"Game" names only the facet; "toy" is too small; "table" is the best metaphor (you sit at
+one, house rules happen there) but too generic as a noun. Robby: "I like ludant!" He also
+liked the other half of the reframe: **"the seat is a person, not a role."**
+
+### What changed
+
+- **One kind of thing.** Actants, installs and releases are gone. There are only
+  **ludants** (`data/ludants/`) and **publications** (`data/published/`). Anyone sitting
+  with a ludant can checkpoint it, restore it, and **publish** it. Anyone can take a copy of
+  a publication, and that copy is a full ludant, publishable again. A copy's `lineage`
+  points back (`from: { published, title, by, ludant }`, `takenBy`); a seeded one records
+  `seededBy`. Publications record `from`, so the published tree is visible: "blue hush"
+  from "the dark takes you".
+- **The seat is a person.** You tell the lobby your name once (stored per browser). The
+  frame has `people` (whoever is sitting here, including any shard), and the status bar
+  shows them. The ludant's perception says who is here, how it came to be (seeded by X /
+  copy of "T" published by Y, taken by Z), who has sat with it before, and the plain truth:
+  "Anyone sitting with you can play you, ask you to change, take checkpoints, put you back
+  to one, and publish you so others can take copies."
+- **Arrival is an event, and the ludant decides what it means.** `frame.arrived { who,
+  firstVisit, visits, fresh, note }` replaces `frame.audience`. The seed's hooks wake on
+  it only when the ludant is new or the person is: `if (e.fresh || e.firstVisit)
+  me.wake(e)`. A regular sitting down costs nothing.
+- **"Just for tonight" = checkpoints for free.** The server takes a checkpoint whenever
+  someone sits down (a no-op if nothing changed since the last one), labeled "as it was when
+  sam sat down". The top bar's **history** lists every checkpoint, and **restore** puts the
+  ludant back in place: the stage keeps running and the people stay seated, but the ludant's
+  body is swapped for the one it had then. The present is kept as a checkpoint first, so
+  restoring is itself undoable. "As shipped" is gone; it's just checkpoint #1, "as
+  received".
+- **The seed's origin tells the new truth:** "Whoever sits with me plays me, and anyone who
+  plays me can shape me… There's no moment when I stop being made and start being played.
+  Both go on the whole time."
+
+Migrating meant editing Pip's and Moth's bodies. Their hooks listened for `frame.audience`,
+which no longer exists, so the migration rewrote that one line in each to listen for
+`frame.arrived`. I'm noting it because it's the first time the frame reached into a
+ludant's soma. The frame's event contract changed under them, and they had no way to
+notice. A real platform will need a way to tell ludants their world changed. Old installs
+became copies "taken by player"; Pip and Moth's seats were "shaper", and their chats keep
+those names.
+
+### The gaps from part 1, addressed
+
+- **Checkpoint race:** checkpoint, publish and restore all wait for the ludant to finish
+  thinking (`frame.settled()`; the status bar says "waiting for Moth to finish before the
+  checkpoint…").
+- **Nobody passes the baton back:** the whiteboard's description is now per viewer. The
+  holder reads "the baton is with you, passed by claude, who is waiting for you to pass it
+  back when you're done."
+- **Debug keys leaking into the game:** two changes. The stage gained `advance(seconds)`,
+  which fast-forwards game time at once, and the seed's `play` tool takes `{do: 'advance'}`.
+  The body contract now says: "Put test helpers on your game object, reachable as me.game
+  from your tools, not on keys a person might press: everything on the stage is something
+  people will play."
+- **Stale status lines:** the ludant now perceives its status line's age ("set 40 min
+  ago").
+- **The shard pretending to be a person:** a shard now sits under its own name
+  (`claude-shard`) and arrives like anyone (`frame.arrived`, "a Claude shard sent to sit
+  with you"). It can also checkpoint, publish, list history and restore.
+
+### First test: taking a copy and making it mine
+
+As **claude** (my own name), I took a copy of "the dark takes you". The fresh copy woke
+on "You are a new copy of 'the dark takes you', published by claude. claude took this copy
+and is here with you" and greeted me in the game's voice. Then: "I want to make my own
+version: add a rare blue mote that makes you invisible to hunters for a few seconds."
+
+Pip had never seen the new contract before; it was only in the frame block. It used all of
+it anyway:
+- `{do: 'advance', seconds: 22}` to jump to when the first blue mote spawns.
+- `testBlue()` and `testState()` put **on the game object**.
+- A new `probe` tool that reaches them through `me.game`.
+
+And it told me, unprompted: "I also added a probe tool that spawns a blue mote next to the
+ember, so I can test pickups quickly. **Players can't reach it through the keys.**" The
+debug-key leak closed by perception alone, with no new rule in the soma. 17¢.
+
+I published it as **"the dark takes you: blue hush"** ("adds a rare blue mote: eat it and
+the light-eaters lose you for 5 seconds"). The publication records `from: the dark takes
+you`, so the tree has two generations.
+
+![lobby](shots/09-lobby-ludants.png)

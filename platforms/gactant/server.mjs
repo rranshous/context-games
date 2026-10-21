@@ -1,8 +1,8 @@
-// gactant: a platform for game-shaped actants.
+// gactant: a platform for ludants, game-shaped actants.
 //
-// The browser window is the frame. This server only keeps things: actants being shaped,
-// their checkpoints, releases, and the installs players get. It also relays inference to
-// OpenRouter so the key never reaches a page. No dependencies.
+// The browser window is the frame. This server only keeps things: ludants, their
+// checkpoints, and publications. It also relays inference to OpenRouter so the key never
+// reaches a page. No dependencies.
 //
 //   node server.mjs [--port 7780]
 //
@@ -11,27 +11,29 @@
 //   GACTANT_MODEL=anthropic/claude-sonnet-5.5     optional
 //
 // Words
-//   actant      a soma (its sections) plus the state of the surfaces it lives with
-//   checkpoint  a frozen copy of an actant, numbered
-//   release     a checkpoint offered to players
-//   install     one player's own copy of a release; it drifts toward that player
+//   ludant      a game-shaped actant: a soma (its sections) plus the state of the surfaces
+//               it lives with. Played and shaped by whoever sits with it; there are no modes.
+//   checkpoint  a frozen copy of a ludant's soma, numbered. One is taken automatically
+//               whenever someone sits down, so anything changed while they're there can be undone.
+//   publication a checkpoint offered to anyone. Taking a copy makes a new ludant whose
+//               lineage points back; that copy can be published again.
 //
 // API (JSON)
-//   GET  /api/config                         -> { model, hasKey }
-//   GET  /api/actants                        -> [{ id, name, updated, checkpoints }]
-//   POST /api/actants        { soma, surfaces } -> { id }
-//   GET  /api/actants/<id>                   -> { id, soma, surfaces, fresh, updated }   fresh: never saved since it was seeded
-//   PUT  /api/actants/<id>   { soma, surfaces } -> {}
-//   POST /api/actants/<id>/checkpoints { label } -> { n }
-//   GET  /api/actants/<id>/checkpoints       -> [{ n, label, at }]
-//   POST /api/releases       { actant, n, title } -> { id }
-//   GET  /api/releases                       -> [{ id, title, actant, n, at, installs }]
-//   POST /api/releases/<id>/install          -> { id }     a fresh install for a new player
-//   GET  /api/installs/<id>                  -> { id, release, soma, surfaces, updated }
-//   PUT  /api/installs/<id>  { soma, surfaces } -> {}
-//   POST /api/installs/<id>/reset             -> {}     back to the release's soma (house rules undone)
+//   GET  /api/config                                -> { model, hasKey }
+//   GET  /api/ludants                               -> [{ id, name, updated, checkpoints, lineage, people }]
+//   POST /api/ludants        { soma, by }           -> { id }          seed a new one
+//   GET  /api/ludants/<id>                          -> { id, soma, surfaces, lineage, visitors, checkpoints (no somas), restored, fresh }
+//   PUT  /api/ludants/<id>   { soma, surfaces }     -> {}
+//   POST /api/ludants/<id>/arrive { who }           -> { firstVisit, visits, checkpoint, people }
+//   GET  /api/ludants/<id>/checkpoints              -> [{ n, label, by, at }]
+//   POST /api/ludants/<id>/checkpoints { label, by } -> { n }          no-op if nothing changed
+//   POST /api/ludants/<id>/restore { n, by }        -> { restored }    checkpoints the present first
+//   GET  /api/published                             -> [{ id, title, name, by, note, ludant, n, from, at, copies }]
+//   POST /api/published      { ludant, title, by, note?, n? } -> { id }   n omitted: checkpoint now and publish that
+//   GET  /api/published/<id>                        -> metadata
+//   POST /api/published/<id>/copy { by }            -> { id }          a new ludant, descended from it
 //   POST /api/infer          { who, model?, messages, tools?, max_tokens? } -> OpenRouter chat completion
-//   GET  /api/log/<who>?n=20                 -> last n inference records for an actant or install
+//   GET  /api/log/<who>?n=20                        -> last n inference records
 import { randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -47,7 +49,7 @@ loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
 
-for (const d of ['actants', 'releases', 'installs', 'log']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'log']) mkdirSync(join(DATA, d), { recursive: true });
 
 function loadEnv(path) {
   if (!existsSync(path)) return;
@@ -125,73 +127,110 @@ function tail(who, n) {
 
 // ---------- routes ----------
 
+const now = () => new Date().toISOString();
+const sameSoma = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Take a checkpoint, unless the soma is exactly what the last one holds. */
+function checkpoint(ludant, label, by) {
+  const last = ludant.checkpoints.at(-1);
+  if (last && sameSoma(last.soma, ludant.soma)) return last.n;
+  const n = (last?.n ?? 0) + 1;
+  ludant.checkpoints.push({ n, label: label || '', by: by || null, at: now(), soma: structuredClone(ludant.soma) });
+  return n;
+}
+
+const summary = (x) => ({
+  id: x.id, name: x.soma?.name, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
+  lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}),
+});
+
 async function route(method, parts, body, query) {
-  const [a, b, c, d] = parts;
+  const [a, b, c] = parts;
   if (a === 'config') return { model: MODEL, hasKey: Boolean(process.env.OPENROUTER_API_KEY) };
   if (a === 'infer' && method === 'POST') return infer(body);
   if (a === 'log' && b) return tail(b, Number(query.get('n')) || 20);
 
-  if (a === 'actants') {
-    if (!b && method === 'GET') {
-      return list('actants').map((x) => ({ id: x.id, name: x.soma?.name, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0 }))
-        .sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
-    }
+  if (a === 'ludants') {
+    if (!b && method === 'GET') return list('ludants').map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
     if (!b && method === 'POST') {
       const id = newId(body.soma?.name);
-      write('actants', id, { id, soma: body.soma, surfaces: body.surfaces ?? {}, checkpoints: [], fresh: true, created: new Date().toISOString(), updated: new Date().toISOString() });
+      const ludant = { id, soma: body.soma, surfaces: {}, checkpoints: [], visitors: {}, lineage: { seededBy: body.by || null }, fresh: true, created: now(), updated: now() };
+      checkpoint(ludant, 'as seeded', body.by);
+      write('ludants', id, ludant);
       return { id };
     }
-    const actant = read('actants', b);
-    if (!c && method === 'GET') return { id: actant.id, soma: actant.soma, surfaces: actant.surfaces, fresh: actant.fresh, updated: actant.updated };
+    const ludant = read('ludants', b);
+    if (!c && method === 'GET') {
+      const { checkpoints, ...rest } = ludant;
+      return { ...rest, checkpoints: checkpoints.map(({ soma, ...meta }) => meta) };
+    }
     if (!c && method === 'PUT') {
-      write('actants', b, { ...actant, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: new Date().toISOString() });
+      write('ludants', b, { ...ludant, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: now() });
       return {};
     }
-    if (c === 'checkpoints' && method === 'GET') return actant.checkpoints.map(({ n, label, at }) => ({ n, label, at }));
+    // Someone sits down. Remember them, and keep the ludant as it was right now, so
+    // whatever changes while they're here can be undone.
+    if (c === 'arrive' && method === 'POST') {
+      const who = String(body.who || 'someone').slice(0, 40);
+      const seen = ludant.visitors[who];
+      ludant.visitors[who] = { first: seen?.first ?? now(), last: now(), visits: (seen?.visits ?? 0) + 1 };
+      const n = checkpoint(ludant, `as it was when ${who} sat down`, who);
+      write('ludants', b, ludant);
+      return { firstVisit: !seen, visits: ludant.visitors[who].visits, checkpoint: n, people: Object.keys(ludant.visitors) };
+    }
+    if (c === 'checkpoints' && method === 'GET') return ludant.checkpoints.map(({ soma, ...meta }) => meta);
     if (c === 'checkpoints' && method === 'POST') {
-      const n = actant.checkpoints.length + 1;
-      actant.checkpoints.push({ n, label: body.label || '', at: new Date().toISOString(), soma: actant.soma, surfaces: actant.surfaces });
-      write('actants', b, actant);
+      const n = checkpoint(ludant, body.label, body.by);
+      write('ludants', b, ludant);
       return { n };
+    }
+    if (c === 'restore' && method === 'POST') {
+      const cp = ludant.checkpoints.find((x) => x.n === Number(body.n));
+      if (!cp) throw httpError(404, `no checkpoint ${body.n}`);
+      checkpoint(ludant, `how it was just before ${body.by || 'someone'} went back to #${cp.n}`, body.by);
+      ludant.soma = structuredClone(cp.soma);
+      ludant.restored = { n: cp.n, label: cp.label, by: body.by || null, at: now() };
+      ludant.updated = now();
+      write('ludants', b, ludant);
+      return { restored: cp.n };
     }
   }
 
-  if (a === 'releases') {
+  // Publishing: anyone sitting with a ludant can publish one of its checkpoints. Anyone
+  // can take a copy of a publication, and that copy can be published again.
+  if (a === 'published') {
     if (!b && method === 'GET') {
-      const installs = list('installs');
-      return list('releases').map(({ id, title, actant, n, at }) => ({ id, title, actant, n, at, installs: installs.filter((i) => i.release === id).length }))
+      const ludants = list('ludants');
+      return list('published').map(({ soma, ...p }) => ({ ...p, copies: ludants.filter((l) => l.lineage?.from?.published === p.id).length }))
         .sort((x, y) => y.at.localeCompare(x.at));
     }
     if (!b && method === 'POST') {
-      const actant = read('actants', body.actant);
-      const cp = actant.checkpoints.find((x) => x.n === Number(body.n));
+      const ludant = read('ludants', body.ludant);
+      const n = body.n ? Number(body.n) : checkpoint(ludant, `published as "${body.title}"`, body.by);
+      const cp = ludant.checkpoints.find((x) => x.n === n);
       if (!cp) throw httpError(404, `no checkpoint ${body.n}`);
-      const id = newId(body.title || actant.soma?.name);
-      write('releases', id, { id, title: body.title || actant.soma?.name, actant: actant.id, n: cp.n, at: new Date().toISOString(), soma: cp.soma, surfaces: cp.surfaces });
+      write('ludants', ludant.id, ludant);
+      const id = newId(body.title || ludant.soma?.name);
+      write('published', id, {
+        id, title: body.title || ludant.soma?.name, name: ludant.soma?.name, by: body.by || null, note: body.note || '',
+        ludant: ludant.id, n: cp.n, from: ludant.lineage?.from?.published ?? null, at: now(), soma: cp.soma,
+      });
       return { id };
     }
-    if (c === 'install' && method === 'POST') {
-      const release = read('releases', b);
-      const id = newId(release.title);
-      // The soma ships whole. Surfaces start fresh: the shaping conversation and sketches
-      // were between the actant and its shaper, and the player is a new audience.
-      write('installs', id, { id, release: release.id, soma: structuredClone(release.soma), surfaces: {}, fresh: true, created: new Date().toISOString(), updated: new Date().toISOString() });
+    const pub = read('published', b);
+    if (!c && method === 'GET') { const { soma, ...meta } = pub; return meta; }
+    if (c === 'copy' && method === 'POST') {
+      const id = newId(pub.name);
+      // The soma comes whole; the surfaces start fresh. What was said and sketched belonged
+      // to the people who were there.
+      const ludant = {
+        id, soma: structuredClone(pub.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
+        lineage: { from: { published: pub.id, title: pub.title, by: pub.by, ludant: pub.ludant }, takenBy: body.by || null },
+      };
+      checkpoint(ludant, `as received: "${pub.title}"`, body.by);
+      write('ludants', id, ludant);
       return { id };
     }
-    if (!c && method === 'GET') { const { soma, surfaces, ...meta } = read('releases', b); return meta; }
-  }
-
-  if (a === 'installs' && b) {
-    const install = read('installs', b);
-    if (c === 'reset' && method === 'POST') {
-      // Back to how it shipped: the release's soma, the conversation kept. House rules are
-      // undone, but what was said at this table stays said.
-      const release = read('releases', install.release);
-      write('installs', b, { ...install, soma: structuredClone(release.soma), reset: (install.reset ?? 0) + 1, updated: new Date().toISOString() });
-      return {};
-    }
-    if (method === 'GET') return install;
-    if (method === 'PUT') { write('installs', b, { ...install, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: new Date().toISOString() }); return {}; }
   }
 
   throw httpError(404, `no route ${method} /api/${parts.join('/')}`);

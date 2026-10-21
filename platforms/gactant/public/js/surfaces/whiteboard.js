@@ -35,11 +35,11 @@ export class Whiteboard {
     this.color = PALETTE[0];
   }
 
-  describe() {
+  describe(viewer) {
     const by = {};
     for (const it of this.items) by[it.by] = (by[it.by] ?? 0) + 1;
     const who = Object.entries(by).map(([k, v]) => `${v} by ${k}`).join(', ') || 'blank';
-    return `whiteboard: a shared sketch board, 100 wide by 60 tall in board units (origin top-left); ${this.items.length} marks (${who}); the baton is with ${this.baton ?? 'nobody'}.`;
+    return `whiteboard: a shared sketch board, 100 wide by 60 tall in board units (origin top-left); ${this.items.length} marks (${who}); the baton is with ${this.baton === viewer && viewer ? `you${this.batonFrom ? `, passed by ${this.batonFrom}, who is waiting for you to pass it back when you're done` : ''}` : this.baton ?? 'nobody'}.`;
   }
 
   actions(who) {
@@ -88,6 +88,7 @@ export class Whiteboard {
 
   pass(from, to, note = '') {
     this.baton = to;
+    this.batonFrom = from;
     this.note = note;
     this.renderBaton();
     this.frame.bus.emit('whiteboard.turn', { from, to, note });
@@ -199,7 +200,7 @@ export class Whiteboard {
 
   renderBaton() {
     if (!this.batonEl) return;
-    const seat = this.frame.seat, other = this.frame.actant?.name ?? 'the actant';
+    const seat = this.frame.seat, other = this.frame.actant?.name ?? 'the ludant';
     this.batonEl.replaceChildren();
     if (this.lastLook && this.lastLook.who !== seat) {
       const mins = Math.round((Date.now() - this.lastLook.at) / 60000);
@@ -214,6 +215,6 @@ export class Whiteboard {
     }
   }
 
-  toJSON() { return { items: this.items, baton: this.baton, note: this.note, lastLook: this.lastLook }; }
-  load(json) { this.items = json?.items ?? []; this.baton = json?.baton ?? null; this.note = json?.note ?? ''; this.lastLook = json?.lastLook ?? null; }
+  toJSON() { return { items: this.items, baton: this.baton, batonFrom: this.batonFrom, note: this.note, lastLook: this.lastLook }; }
+  load(json) { this.items = json?.items ?? []; this.baton = json?.baton ?? null; this.note = json?.note ?? ''; this.lastLook = json?.lastLook ?? null; this.batonFrom = json?.batonFrom ?? null; }
 }

@@ -4,6 +4,8 @@
 // For code running at frame rate, `stage.api` is the handle:
 //   ctx, width, height, t (seconds), frame (count)
 //   size(w, h)            change the logical resolution (pixels scale up crisply)
+//   caption               a line of text saying what's happening (score, who's where); every
+//                         look reports it, so anyone looking can check the picture against it
 //   input.keys            Set of keys held ('arrowleft', 'a', ' ', ...)
 //   input.pressed         Set of keys that went down since the last frame
 //   input.pointer         { x, y, down, clicked } in stage coordinates; clicked lasts one frame
@@ -14,6 +16,7 @@
 //   hold(key) / release(key)    hold a key down until released
 //   point(x, y, down?)          move the pointer to stage coordinates; down: true/false presses or lifts
 //   wait(ms)                    let the stage run
+//   advance(seconds)            run that much game time at once (max 120 s), for seeing what happens later
 // Input actions are the same input a human gives, so anyone in the frame can playtest.
 // events
 //   stage.frame    { dt, t, frame }      every display frame while running
@@ -43,13 +46,15 @@ export class Stage {
       get width() { return stage.width; }, get height() { return stage.height; },
       get t() { return stage.t; }, get frame() { return stage.count; },
       size: (w, h) => this.size(w, h),
+      get caption() { return stage.caption; }, set caption(v) { stage.caption = String(v ?? '').slice(0, 300); },
     };
+    this.caption = '';
     frame.bus.on('frame.error', (e) => { if (e.during === 'stage.frame' && !this.halted) this.halt(e.message); }, 'stage');
   }
 
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), look(), restart()).`;
+    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()).`;
   }
 
   actions() {
@@ -62,7 +67,22 @@ export class Stage {
       press: async (key, ms = 100) => { const k = String(key).toLowerCase(); this.keyDown(k); await wait(ms); this.keyUp(k); return { pressed: k, ms }; },
       point: (x, y, down) => this.point(x, y, down),
       wait: async (ms) => { await wait(ms); return { waited: ms }; },
+      advance: (seconds) => this.advance(seconds),
     };
+  }
+
+  /** Fast-forward: emit frames back to back with a fixed step. Input stays as it is, so
+   *  held keys stay held. Stops early if a frame handler halts the stage. */
+  advance(seconds) {
+    const dt = 1 / 60, n = Math.round(Math.max(0, Math.min(120, Number(seconds) || 0)) / dt);
+    let i = 0;
+    for (; i < n && !this.halted; i++) {
+      this.t += dt; this.count++;
+      this.frame.bus.emit('stage.frame', { dt, t: this.t, frame: this.count });
+      this.input.pressed.clear();
+      this.input.pointer.clicked = false;
+    }
+    return { advanced: +(i * dt).toFixed(2), halted: this.halted };
   }
 
   keyDown(k) {
@@ -113,7 +133,8 @@ export class Stage {
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
     g.drawImage(this.canvas, 0, 0, c.width, c.height);
-    return { text: `${this.describe()}${k > 1 ? ` (This picture is enlarged ${k}× so pixels are clear; coordinates are still stage coordinates, ${this.width}×${this.height}.)` : ''}`, image: c.toDataURL('image/png') };
+    const moment = ` This look is at game time ${this.t.toFixed(1)} s (frame ${this.count}).${this.caption ? ` Caption: "${this.caption}"` : ' No caption is set.'}`;
+    return { text: `${this.describe()}${moment}${k > 1 ? ` (This picture is enlarged ${k}× so pixels are clear; coordinates are still stage coordinates, ${this.width}×${this.height}.)` : ''}`, image: c.toDataURL('image/png') };
   }
 
   mount(root) {

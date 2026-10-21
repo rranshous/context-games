@@ -28,7 +28,7 @@ export function installExplorer(frame) {
     /** Read the game's own state if it chose to expose one as game.state. */
     gameState: () => frame.actant.game?.state,
     state: () => ({
-      audience: frame.audience,
+      people: [...frame.people], lineage: frame.record.lineage,
       life: frame.status.life, detail: frame.status.detail, line: frame.status.line,
       thinking: frame.actant.thinking, pending: frame.actant.pending.length, restless: frame.actant.restless,
       faults: frame.actant.faults, halted: stage.halted, fps: Math.round(stage.fps), size: [stage.width, stage.height],

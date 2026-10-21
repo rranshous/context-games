@@ -19,3 +19,8 @@ export const api = async (method, path, body) => {
   if (!res.ok) throw new Error(json.error || `${method} ${path}: ${res.status}`);
   return json;
 };
+
+/** The name this browser's person goes by, or '' if they haven't said. */
+export function myName() {
+  try { return localStorage.getItem('gactant-name') || ''; } catch { return ''; }
+}

@@ -6,17 +6,23 @@
 //   explorer.shard({ brief, turns?, budget? })   -> Promise<report>
 //   frame.html?a=<id>&shard=<brief>              starts one on load
 //
-// The actant sees the shard as the seat it sits in (shaper or player), like any human.
-// What the shard does lands in the inspector as 'shard' doings, and its inferences are
-// logged under <record>-shard.
+// The shard sits under its own name (default "claude-shard"), so the ludant can tell who
+// it is: a seat is a person, and a shard is not someone else's person. What it does lands
+// in the inspector as 'shard' doings; its inferences are logged under <record>-shard.
 
 import { api } from './ui.js';
 
 const KEEP_IMAGES = 3;
 const MODEL_TURNS = 40;
 
-export async function runShard(frame, { brief, turns = MODEL_TURNS, budget = 1.5 }) {
-  const seat = frame.seat;
+export async function runShard(frame, { brief, name = 'claude-shard', turns = MODEL_TURNS, budget = 1.5 }) {
+  const seat = name;
+  frame.people.add(seat);
+  frame.status.render();
+  // Sitting down is an arrival like anyone's, so the ludant knows who came.
+  const arrival = await api('POST', `ludants/${frame.recordId}/arrive`, { who: seat });
+  frame.bus.emit('frame.arrived', { who: seat, firstVisit: arrival.firstVisit, visits: arrival.visits, fresh: false,
+    note: `${seat}, a Claude shard sent to sit with you, ${arrival.firstVisit ? 'has sat down for the first time' : `is back (visit ${arrival.visits})`}.` });
   const s = frame.surfacesFor(seat);
   const actant = frame.actant;
   const note = (text) => frame.inspector.note('shard', text);
@@ -25,7 +31,7 @@ export async function runShard(frame, { brief, turns = MODEL_TURNS, budget = 1.5
   let seen = frame.chat.messages.length;
 
   const tools = {
-    say: { d: 'Post in the chat as the ' + seat + '.', p: { text: { type: 'string' } }, run: (i) => s.chat.post(i.text) },
+    say: { d: `Post in the chat as ${seat}.`, p: { text: { type: 'string' } }, run: (i) => s.chat.post(i.text) },
     wait_for_reply: { d: `Wait until ${actant.name} has finished thinking, then get anything new in chat (up to 4 minutes).`, p: {}, run: async () => {
       const end = Date.now() + 240000;
       await sleep(800);
@@ -35,7 +41,7 @@ export async function runShard(frame, { brief, turns = MODEL_TURNS, budget = 1.5
     } },
     read_chat: { d: 'Read the last n chat messages.', p: { n: { type: 'number' } }, run: (i) => s.chat.read(i.n || 12).map((m) => `${m.who}: ${m.text}`) },
     look_at_stage: { d: 'See the stage.', p: {}, run: () => s.stage.look() },
-    play: { d: 'Play the stage. steps: [{do:"press",key,ms} | {do:"hold",key} | {do:"release",key} | {do:"point",x,y,down} | {do:"wait",ms} | {do:"look"}]. You see every look and one at the end. Stage coordinates match its size.',
+    play: { d: 'Play the stage. steps: [{do:"press",key,ms} | {do:"hold",key} | {do:"release",key} | {do:"point",x,y,down} | {do:"wait",ms} | {do:"advance",seconds} (jump ahead in game time) | {do:"look"}]. You see every look and one at the end. Stage coordinates match its size.',
       p: { steps: { type: 'array', items: { type: 'object' } } }, run: async (i) => {
         const images = [];
         for (const a of i.steps || []) {
@@ -44,6 +50,7 @@ export async function runShard(frame, { brief, turns = MODEL_TURNS, budget = 1.5
           else if (a.do === 'release') s.stage.release(a.key);
           else if (a.do === 'point') s.stage.point(a.x, a.y, a.down);
           else if (a.do === 'wait') await s.stage.wait(a.ms ?? 100);
+          else if (a.do === 'advance') s.stage.advance(a.seconds ?? 10);
           else if (a.do === 'look') images.push(s.stage.look().image);
         }
         const end = s.stage.look();
@@ -53,23 +60,19 @@ export async function runShard(frame, { brief, turns = MODEL_TURNS, budget = 1.5
     sketch: { d: 'Draw on the whiteboard (100 wide, 60 tall, origin top-left). shapes: path {points,fill?} | line {from,to} | rect {x,y,w,h,fill?} | circle {x,y,r,fill?} | text {x,y,text,size?}; each may have color and width.',
       p: { shapes: { type: 'array', items: { type: 'object' } } }, run: (i) => s.whiteboard.draw(i.shapes) },
     pass_whiteboard: { d: `Hand the whiteboard to ${actant.name}, with a note. This wakes them.`, p: { note: { type: 'string' } }, run: (i) => s.whiteboard.pass(actant.name, i.note) },
-    ...(frame.audience === 'shaper' ? {
-      checkpoint: { d: 'Take a checkpoint of the actant as it is now, with a label.', p: { label: { type: 'string' } }, run: async (i) => {
-        await frame.save();
-        return api('POST', `actants/${frame.recordId}/checkpoints`, { label: i.label || '' });
-      } },
-    } : {}),
+    checkpoint: { d: 'Take a checkpoint of the ludant as it is now, with a label. Waits for it to finish thinking.', p: { label: { type: 'string' } }, run: (i) => frame.takeCheckpoint(i.label || '', seat) },
+    history: { d: 'List the ludant\'s checkpoints (one is taken whenever someone sits down).', p: {}, run: () => frame.checkpoints() },
+    restore: { d: 'Put the ludant back to a checkpoint by number. How it is now is kept as a checkpoint first.', p: { n: { type: 'number' } }, run: (i) => frame.restore(i.n, seat) },
+    publish: { d: 'Publish the ludant as it is now, so anyone can take a copy. Waits for it to finish thinking.', p: { title: { type: 'string' }, note: { type: 'string' } }, run: (i) => frame.publish(i.title, i.note || '', seat) },
     finish: { d: 'End your sitting with a report for the person who sent you: what happened, what you found, what you would do next.', p: { report: { type: 'string' } }, run: (i) => { report = i.report; return 'ok'; } },
   };
   const schemas = Object.entries(tools).map(([name, t]) => ({
     type: 'function', function: { name, description: t.d, parameters: { type: 'object', properties: t.p, required: Object.keys(t.p) } },
   }));
 
-  const system = `You are sitting in the ${seat}'s seat of a gactant frame, a browser window where a human works with ${actant.name}, an actant that is a game. ${frame.audience === 'shaper'
-    ? `As the shaper you help ${actant.name} grow its game: play it, say what you feel, sketch ideas, ask for changes. ${actant.name} changes itself when it changes the game.`
-    : `${actant.name} has been handed off to you as a player. Play its game. You may ask it for changes (house rules) like any player.`}
-You act only through the surfaces, as a person at the keyboard would. ${actant.name} sees you as "${seat}".
-Surfaces: ${frame.surfaces.map((x) => x.describe()).filter(Boolean).join(' ')}
+  const system = `You are ${seat}, sitting in a gactant frame: a browser window where people sit with ${actant.name}, a ludant (a game that is also an actant). Whoever sits with a ludant plays it and can shape it: ask for changes, sketch, play every version. ${actant.name} changes itself when it changes the game. Anyone here can checkpoint it or publish it so others take copies.
+You act only through the surfaces, as a person at the keyboard would. ${actant.name} sees you as "${seat}".${frame.people.size > 1 ? ` Also here: ${[...frame.people].filter((p) => p !== seat).join(', ')}.` : ''}
+Surfaces: ${frame.surfaces.map((x) => x.describe(seat)).filter(Boolean).join(' ')}
 Thinking costs real money for both of you (this sitting has a budget of $${budget}), so be purposeful, and finish when you have what you came for.
 
 Your brief from the person who sent you:
@@ -107,6 +110,8 @@ ${brief}`;
   }
   report ??= '(the shard ran out of turns or budget without a report)';
   const total = frame.status.spent - startSpend;
+  frame.people.delete(seat);
+  frame.status.render();
   note(`stood up (shard $${spent.toFixed(3)}, whole sitting $${total.toFixed(3)}): ${report}`);
   return { report, shard: +spent.toFixed(4), sitting: +total.toFixed(4) };
 }
