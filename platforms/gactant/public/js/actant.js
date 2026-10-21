@@ -134,11 +134,14 @@ export class Actant {
     this.thinking = true;
     this.frame.status.setLife('thinking');
     const messages = [{ role: 'user', content: eventsBlock(this.pending.splice(0)) }];
+    // The soma is shown as it was on waking. Re-rendering it after every edit made the
+    // actant read its own fresh edits as code that had always been there.
+    const system = [{ type: 'text', text: this.systemText(), cache_control: { type: 'ephemeral' } }];
     try {
       for (let turn = 0; turn < MAX_TURNS; turn++) {
         const res = await api('POST', 'infer', {
           who: this.frame.recordId,
-          messages: [{ role: 'system', content: [{ type: 'text', text: this.systemText(), cache_control: { type: 'ephemeral' } }] }, ...messages],
+          messages: [{ role: 'system', content: system }, ...withCacheMark(messages)],
           tools: this.toolSchemas(),
         });
         this.frame.status.addSpend(res.usage?.cost);
@@ -211,7 +214,7 @@ export class Actant {
     const audience = this.frame.audience === 'shaper'
       ? 'You are being shaped. The human here is your shaper; they appear as "shaper".'
       : 'You are installed for a player. The human here is your player; they appear as "player".';
-    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${audience}\nSurfaces in this frame:\n${surfaces}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}Text you write outside of tools stays with you; nobody else sees it.\n</frame>`;
+    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${audience}\nSurfaces in this frame:\n${surfaces}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
   }
 
   toolSchemas() {
@@ -227,6 +230,18 @@ export class Actant {
       function: { name: t.name, description: t.description ?? '', parameters: t.input_schema ?? { type: 'object', properties: {} } },
     }));
   }
+}
+
+/** Mark the newest message as a cache breakpoint, so each turn of a long wake reads the
+ *  conversation so far from cache instead of paying for it again. */
+function withCacheMark(messages) {
+  const out = messages.slice();
+  const last = out.at(-1);
+  if (last.role === 'assistant') return out;
+  const parts = typeof last.content === 'string' ? [{ type: 'text', text: last.content }] : last.content.map((p) => ({ ...p }));
+  parts[parts.length - 1] = { ...parts.at(-1), cache_control: { type: 'ephemeral' } };
+  out[out.length - 1] = { ...last, content: parts };
+  return out;
 }
 
 // ---------- events as the actant reads them ----------

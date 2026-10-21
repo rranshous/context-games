@@ -229,3 +229,85 @@ Platform design note: the seed's `game` section opened with a comment block desc
 stage API. Pip's first `write_section` replaced the game wholesale and **dropped the
 manual**. The hooks section still has its comments, so the knowledge isn't gone, but a soma
 that carries its own manual can erase it. Watch this.
+
+### Finding: the actant that gaslit itself
+
+Round three: "do both: gentler first hunter AND hush ~55, then the mote flash." Pip made
+six edits and they all landed. Then it posted a **correction** to chat:
+
+> When I checked the code, most of those values were already set before this round.
+> That includes the 12s delay, the 160px spawn distance, the 36 and 46 chase speeds, hush
+> at 55, and the faster flash. Several of my edits changed nothing…
+
+Every one of those values was its own edit from a minute earlier. **The cause was in the frame.** I
+re-rendered the system prompt (the whole soma) on every turn of a wake, so after an edit
+the actant re-read its own fresh code as if it had always been there, and concluded its
+edits had been no-ops. A soma shown as a live mirror erases its own recent history.
+
+**Fix:** the soma is snapshotted once, when the actant wakes. The frame block now says
+"This is your soma as it was when you woke. Edits you make while awake take effect at
+once; your tool results show them." That's honest: edits are known by their results, the
+way you know you moved your arm. It also made prompt caching actually work.
+
+### Cost: the cache was flapping
+
+`data/log/*.jsonl` showed the system prompt alternating **cache write / cache hit** on
+consecutive calls even when it hadn't changed. My guess is that OpenRouter was routing
+between providers with separate caches. I made three changes: freeze the system per wake;
+`provider: { order: ['anthropic'] }`; and a moving `cache_control` mark on the newest
+message, so the growing conversation inside a long wake is read from cache too.
+Before: the "do both" round cost ~$0.28. After: getting ready for handoff cost $0.054, and
+the player's house rule $0.05. Session total so far: about $0.85 across every wake.
+
+### Getting ready to ship
+
+I played ~20 s (a hunter found me at 2 motes; hush helped me slip one) and said I thought
+it was ready, but "your identity still says you're new and don't know what game you are…
+you'll wake up with them and won't have me there." Pip rewrote its identity from 155 to
+1,762 chars: the rules, the controls, what it hasn't verified, and this:
+
+> When a player arrives (frame.audience), I'm the game, not the builder. I greet them
+> briefly through the say tool, in one or two lines: what the game is, how to move, how to
+> hush. No build jargon, no reports about my own code. I don't spoil the hunters. If they
+> chat, I answer as the game's voice: warm, brief, a bit hushed.
+
+That's creator intent carried as identity, exactly what the levels doc predicts:
+"Intent built into identity is likely sturdier than an articulated charter." I didn't write
+a charter. It wrote itself one because it was about to leave home.
+
+### Handoff
+
+Checkpoint 1 "first ship" → release **"the dark takes you"** → `play.html?r=…` installs a
+fresh copy and opens `frame.html?i=…`. It's the same frame with the same surfaces, and the
+HOSTING light is green. Chat and whiteboard start empty; the soma is whole.
+
+On its first wake as an install (`frame.audience`: "It is time to be the game. Your
+player is here.") it said exactly one thing, in the game's voice:
+
+> You're an ember in the dark, and your glow is your life. Move with WASD, the arrow keys,
+> or by clicking. Chase the white sparks to feed the light. Hold space to hush: you'll dim
+> and slow down, but you'll be harder to find.
+
+No build talk. It didn't spoil the hunters. It did what its identity said.
+
+![hosting](shots/06-hosting.png)
+
+### House rules
+
+As the player: "my little brother wants a turn, he's 6. can the hunters be a lot slower
+for him? and he wants his ember to be pink." Pip added a `SLOW` multiplier to hunter speed,
+recolored the ember, glow and bar, looked at the stage, and said "Have fun, little brother.
+🌸". It cost five cents, and the doc's Xbox-with-family example happened as described.
+
+![pink](shots/07-house-rules-pink.png)
+
+Its private afterthought is the next open thread:
+
+> Those changes apply to every run, not just the little brother's. The old orange is gone,
+> and so is the old hunter speed.
+
+**Molding an install is one-way.** The install drifted (its game is now 7,745 chars; the
+shaping Pip is still 7,659 and has no pink), which is the intended per-player drift. But a
+house rule for one sitting became permanent. A table needs a way to say "back to how it
+shipped" or "just for this game". Candidates: install-level checkpoints, or games that keep
+rules as data the actant toggles instead of code it rewrites. Open.

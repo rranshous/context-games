@@ -84,6 +84,9 @@ async function infer(body) {
     messages: body.messages,
     max_tokens: body.max_tokens || 8000,
     usage: { include: true },
+    // Prefer one provider: each keeps its own prompt cache, and bouncing between them
+    // turns every other call into a cache write.
+    provider: { order: ['anthropic'], allow_fallbacks: true },
     ...(body.tools?.length ? { tools: body.tools } : {}),
   };
   const started = Date.now();
