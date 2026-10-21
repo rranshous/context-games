@@ -1,22 +1,18 @@
-// Status: lights in the top bar. The frame owns the people light (who is sitting here),
-// the ludant's life light (asleep / thinking / resting / error) and the cost meter (what
-// this sitting has cost, and its rate); the ludant may integrate by setting a line of its
-// own beside its name.
+// The lights in the top bar: the frame's own, not a surface. Who is sitting here, the
+// ludant's life (asleep / thinking / resting / error), and the cost meter (what this
+// sitting has cost, and its rate).
 //
-// actions (as an actor)   say(text)   set the actor's status line ('' clears it)
-// events                  status.said { who, text }
+// (There used to be a status surface, where a ludant could set a line beside its name.
+// Ludants set it once and forgot it, so it said "waiting for an idea" long after they had
+// one. It's gone; the chat is where a ludant says what it's up to.)
 
-import { el } from '../ui.js';
+import { el } from './ui.js';
 
-export class Status {
-  id = 'status';
-
+export class Lights {
   constructor(frame) {
     this.frame = frame;
     this.life = 'asleep';
     this.detail = '';
-    this.line = '';
-    this.lineAt = 0;
     this.spent = 0;
     this.since = Date.now();   // when this sitting began, for the rate
   }
@@ -32,23 +28,6 @@ export class Status {
     try { const v = localStorage.getItem('gactant-check-in'); return v == null ? 1 : Number(v) || 0; } catch { return 1; }
   }
 
-  describe() {
-    return `status: lights at the top of the frame showing who is here and whether you're awake; you can set a short status line beside your name${this.line ? ` (now: "${this.line}"${this.lineAt ? `, set ${ago(this.lineAt)}` : ''})` : ''}.`;
-  }
-
-  actions(who) {
-    return { say: (text) => this.say(who, text) };
-  }
-
-  say(who, text) {
-    this.line = String(text ?? '').slice(0, 80);
-    this.lineAt = Date.now();
-    this.render();
-    this.frame.bus.emit('status.said', { who, text: this.line });
-    this.frame.changed();
-    return { line: this.line };
-  }
-
   /** The frame's own lights. */
   setLife(life, detail = '') { this.life = life; this.detail = detail; this.render(); this.frame.chat?.showLife(); }
   addSpend(usd) { this.spent += usd || 0; this.render(); }
@@ -61,7 +40,6 @@ export class Status {
       el('span', { class: 'light people', title: 'sitting here' }, el('i'), [...this.frame.people].join(' · ')),
       el('span', { class: `light life ${this.life}`, title: this.detail || this.life },
         el('i'), this.frame.actant?.name ?? '…', el('em', {}, this.life)),
-      this.line ? el('span', { class: 'status-line' }, `“${this.line}”`) : null,
       this.detail ? el('span', { class: 'status-detail' }, this.detail) : null,
       this.meter(),
     ].filter(Boolean));
@@ -96,11 +74,4 @@ export class Status {
     document.body.append(pop);
   }
 
-  toJSON() { return { line: this.line, lineAt: this.lineAt }; }
-  load(json) { this.line = json?.line ?? ''; this.lineAt = json?.lineAt ?? 0; }
-}
-
-function ago(at) {
-  const m = Math.round((Date.now() - at) / 60000);
-  return m < 1 ? 'just now' : m < 90 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
 }

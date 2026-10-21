@@ -18,8 +18,8 @@ import { buildRequest, complete, connect, disconnect, key as ownKey } from './op
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
+import { Lights } from './lights.js';
 import { Stage } from './surfaces/stage.js';
-import { Status } from './surfaces/status.js';
 import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
 import { api, askName, el, remember } from './ui.js';
@@ -45,9 +45,9 @@ The idea behind it is a ladder of how an actant can relate to the program it wor
 5. Faceted: it is the program. The game is a facet of the actant's own embodiment.
 You are level 5. The test: does changing the game mean you have changed yourself? For you, yes.
 
-How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, status lights, an inspector). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can publish you, and others take copies that go on with their own people. There are no separate phases for making you and playing you; both happen in every sitting.
+How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, an inspector, and lights at the top showing who's here and whether you're awake). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can publish you, and others take copies that go on with their own people. There are no separate phases for making you and playing you; both happen in every sitting.
 
-What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the status lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
+What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the frame's lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
 
 Where you live: your whole body (your soma, your code, this thinking) runs in a sandbox inside the frame. Every surface is the frame's. Your game draws into the stage's buffer, there in the sandbox with you, and the frame's stage shows what you drew. The frame does your thinking for you when you wake, and keeps you saved. Because your code came from whoever shaped you, the sandbox keeps it apart from the page people use, so nothing you run can touch what's theirs.
 
@@ -70,10 +70,10 @@ class Frame {
     this.stage = new Stage(this);
     this.chat = new Chat(this);
     this.whiteboard = new Whiteboard(this);
-    this.status = new Status(this);
+    this.status = new Lights(this);   // the top bar's lights: the frame's, not a surface
     this.store = new Store(this);
     this.inspector = new Inspector(this);
-    this.surfaces = [this.stage, this.chat, this.whiteboard, this.status, this.store, this.inspector];
+    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.inspector];
     for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
     this.actant = new Body(this, record.soma);   // the ludant as this side sees it
     this.saveTimer = null;
@@ -209,7 +209,7 @@ class Frame {
     const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${soma.given}) has already been published under: ${r.familyNames.join(', ')}.` : '';
     const titled = nameOf(soma) !== soma.given;
     const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
-    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the status lights). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
+    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the lights at the top). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
     const rate = this.status.rate();
     const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
     const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}. The people here can see that meter.`;

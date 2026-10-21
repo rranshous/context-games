@@ -62,8 +62,10 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 | **chat** | a rolling conversation | talk: people see only the surfaces, so if it isn't said here, it wasn't heard |
 | **whiteboard** | a 100×60 sketch board with a baton | sketch ideas together; a turn brings a picture of the board if it changed |
 | **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
-| **status** | lights: who's here, awake or asleep, spend | set its own status line |
 | **inspector** | the soma, a log of what it did, the store | (for people: a window inside) |
+
+Above them, the frame's own **lights** (not a surface): who's here, whether the ludant is
+asleep or thinking (shown in the chat's header too), and the cost meter.
 
 **The ludant** is a soma: named sections.
 

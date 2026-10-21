@@ -27,9 +27,9 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   store.changed { who, key }
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
-// surfaces: chat, whiteboard, stage, status, store (their actions, done as me). They're the
-//   frame's, and I live in a sandbox beside it: the stage and the store answer at once, and so
-//   does chat.read; chat.post, the whiteboard and status return promises.
+// surfaces: chat, whiteboard, stage, store (their actions, done as me). They're the frame's,
+//   and I live in a sandbox beside it: the stage and the store answer at once, and so does
+//   chat.read; chat.post and the whiteboard return promises.
 //
 // me.wake(event) wakes my thinking with that event in hand. Thinking is slow (seconds) and
 // costs something. Everything else here runs at once, with no thinking: that's where the
@@ -175,12 +175,6 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
       if (input.op === 'keys') return st.keys(input.key || '');
       return st.all();
     },
-  },
-  {
-    name: 'set_status',
-    description: 'Set the short status line shown beside your name at the top of the frame.',
-    input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
-    run: (input, me, s) => s.status.say(input.text),
   },
 ]`;
 

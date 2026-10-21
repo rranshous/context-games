@@ -1497,3 +1497,19 @@ Yes/no answers come from A/B or a click. Every step has "skip". Each step saves 
 to `POST /api/reports` (on the public install too), and `node tools/reports.mjs` reads
 them back with the admin token. Tested on lilg with a stand-in controller: the run
 completed and the report read back.
+
+### The status surface is gone
+
+Robby: "the top bar (status?) still says waiting for an idea. assuming the surface works
+it feels like it's just not being used. lets remove that status surface."
+
+It worked. Ludants set the line once, early ("waiting for an idea"), and never again,
+so the frame went on showing it long after it was true. A surface the ludant forgets
+is worse than no surface: it shows a stale thing as if it were current. Gone: the
+surface, `status.say`, `status.said`, the seed's `set_status` tool, and its mention in
+the contract and context.
+
+The top bar's lights stay, because they're the **frame's own**, not a surface: who's
+here, the ludant's life (now also in the chat header), and the cost meter. The class
+moved to `lights.js` to say so. Ludants that already have `set_status` will get an
+error from that tool and can drop it; no compatibility shim.

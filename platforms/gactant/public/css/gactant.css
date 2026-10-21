@@ -51,7 +51,6 @@ a.top-btn { color: inherit; text-decoration: none; display: inline-flex; align-i
 .life.resting i { background: var(--amber); }
 .life.error i { background: var(--red); box-shadow: 0 0 8px var(--red); }
 @keyframes pulse { 50% { opacity: 0.35; } }
-.status-line { color: var(--ink); font-style: italic; overflow: hidden; text-overflow: ellipsis; }
 .status-detail { color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- the frame ---------- */
