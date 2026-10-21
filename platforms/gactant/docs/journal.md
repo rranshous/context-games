@@ -1726,3 +1726,84 @@ has spent. Then:
 A bug I caught in testing: opening the meter refreshed it, and redrawing it refreshed it
 again, forever. The stand-in froze the tab; real network calls would have polled
 OpenRouter without end. The meter now redraws once with the fresh numbers.
+
+## Part 9: an artist, and a way to ask
+
+Robby: "this bias toward simple looking games does not feel right." Then he suggested "a
+surface where the ludant can give visual options or things to pick from… if a user says 'i
+want it to look better' give the user some options."
+
+Why games looked simple:
+- Everything was drawn with code, so "better looking" meant more drawing code, and code
+  art comes out geometric.
+- A sketch anchors the style: Evevina's game looked like Robby's whiteboard because it
+  was his whiteboard.
+
+Robby, on the plan: "ooo, i like the point about the concept art as choices!" Art should
+persist so others get it too. No animation and no local models for now. The cost is fine.
+The ludant is free to paint on its own initiative "unless we see that becoming a
+problem". And: "make sure the frame tooling for doing so is gooood."
+
+### Trying the models first
+
+OpenRouter lists several image-output models. One sprite each ("a small red wooden
+fishing boat… on a perfectly flat solid magenta background"):
+- `gemini-3.1-flash-lite-image`: 3.4¢, 3.7 s, a JPEG, exact #FF00FF
+- `gemini-3.1-flash-image`: 6.7¢, 9 s, a PNG, close to magenta but not exact
+
+So the cutout can't assume #FF00FF: it **samples the border** (the median of its pixels)
+as the key. Then I gave lite a screenshot of Evevina's game and asked for "this same
+game… as a lush hand-painted watercolor game". It came back with the same boat, the
+same fish, the same HUD, in watercolor, for 3.4¢ in 4.6 s. Concept art from the real
+game works.
+
+### What got built
+
+- **`art` surface** (frame side, `surfaces/art.js`):
+  - `make({ name, prompt, style, transparent = true, reference, quality, size })`. The
+    frame adds the key-color instruction for sprites. `reference` is `'stage'` or art
+    names, attached as pictures.
+  - Post-processing: the key fades out between distances 60 and 115 from the sampled
+    color, the key's tint is taken back out of the edges, and the result is trimmed and
+    scaled (sprites to 256, others to 640). PNG for cutouts, JPEG otherwise.
+  - `concept({ style })`: the stage now, "reimagined… same layout, same things, same
+    moment".
+  - `look`, `list`, `remove`.
+  - The ludant sees every picture it gets back.
+- **Persistence:** `assets/l-<ludant>-<name>` on the server (each can be up to 1.5M
+  characters, at most 60 per ludant), with the list kept on the ludant. Publishing
+  copies them to `p-<pub>-<name>`, and taking a copy copies them on. Checked: a copy of
+  Little Catch had all 7.
+- **In the sandbox:** art arrives as bytes (the sandbox can't fetch) and becomes
+  ImageBitmaps before the game is built. `stage.image(name)` gives them to draw;
+  `stage.images()` lists them.
+- **`choices` surface:** `offer({ question, options: [{ label, image, note }] })` shows 2
+  to 6 options over the stage. A pick (click, tap, or d-pad and A, since the panel takes
+  the controller) is posted in the chat as the person's words, "Ukiyo-e (for 'Which
+  look…?')", so any ludant hears it, old ones included. It's also an event.
+- **Visible while painting:** the chat header and its line say "painting “look-ukiyoe”…";
+  the inspector has a **▧ art** gallery with each picture's prompt.
+- Painting counts against the frame's backstop and the meter. It goes on the person's
+  own key, or the relay (which now allows the art models besides the thinking model).
+- The seed has `make_art`, `concept_art` and `offer_choices`. The contract and context
+  say a game "can look like anything" and that showing beats describing.
+
+### The test
+
+On lilg: a ludant with Evevina's fishing game and the new seed body. "i want it to look
+better. can you show me a few different looks it could have, and let me pick?"
+1. Four `concept_art` calls (watercolor, pixel sunset, paper-cut night, ukiyo-e), then
+   `offer_choices` with the pictures, then "Here are four looks… Pick one on the stage."
+   That was 19¢.
+2. I picked Ukiyo-e. It made a woodblock sea background (1024×572), a vermilion boat and
+   a scaled purple fish, and rewrote its drawing to use them. One edit had a syntax error,
+   which it saw in the result and fixed. Then it lowered the line to check, and reported.
+   38¢ for the whole sitting.
+
+The cutouts were clean: no magenta fringe on the boat or the fish. It's the first ludant
+here that doesn't look like code.
+
+Notes:
+- The meter's per-hour rate looks alarming in a short, busy sitting ($10.48/h after a
+  few minutes of painting). It might want a longer wait before showing a rate.
+- Concept pictures stay as art (and go with publications) unless the ludant removes them.

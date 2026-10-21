@@ -62,6 +62,8 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 | **chat** | a rolling conversation | talk: people see only the surfaces, so if it isn't said here, it wasn't heard |
 | **whiteboard** | a 100×60 sketch board with a baton | sketch ideas together; a turn brings a picture of the board if it changed |
 | **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
+| **art** | pictures painted by an image model, kept with the ludant | sprites, backgrounds, its game reimagined in a style |
+| **choices** | a question with pictured options, over the stage | let people pick instead of type |
 | **inspector** | the soma, a log of what it did, the store | (for people: a window inside) |
 
 Above them, the frame's own **lights** (not a surface): who's here, whether the ludant is
@@ -187,6 +189,33 @@ publication's name honestly, because it *is* that snapshot. The lobby shows publ
 as family trees:
 
 ![family tree in the lobby](docs/shots/13-family-tree.png)
+
+## Art, and choices
+
+Ludants don't have to draw everything with shapes. The frame has an **artist**: the
+`art` surface paints pictures with an image model through OpenRouter, on whoever pays
+for thinking, at about 3¢ an image (7¢ for the best model).
+- `art.make({ name, prompt, style, transparent, reference, quality, size })` makes a
+  sprite (painted on a key color, then cut out and trimmed), a background, anything.
+  `reference` can be `'stage'` or art it already has, to match.
+- `art.concept({ style })` takes the game as it is on the stage now and reimagines it.
+- Art is kept with the ludant on the server. It goes with a publication, and copies get
+  it. The game draws it with `stage.image(name)`. The inspector has an art tab.
+
+And a way to ask without typing: **`choices.offer({ question, options })`** puts a few
+options over the stage, with pictures or just words. A pick (by click, tap or
+controller) arrives in the chat as the person's words. While it paints, the chat says
+"painting “look-ukiyoe”…".
+
+"I want it to look better" now goes like this: four concept pictures of its own game to
+pick from, then it repaints itself in the one you chose.
+
+![four looks offered as choices](docs/shots/20-choices-concepts.png)
+
+![the same game, repainted as an ukiyo-e print](docs/shots/21-ukiyoe-repainted.png)
+
+*Little Catch, a fishing game drawn from a whiteboard sketch: offered four looks, picked
+ukiyo-e, and repainted with real sprites. Seven pictures, 38¢ for the whole sitting.*
 
 ## Controllers and the couch
 
