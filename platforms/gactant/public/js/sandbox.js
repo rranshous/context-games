@@ -31,7 +31,7 @@ export class Sandbox {
 
   mount(root) {
     // The iframe shows nothing: everything the ludant shows, it shows on a surface.
-    this.iframe = el('iframe', { class: 'sandbox', src: '/sandbox.html', sandbox: 'allow-scripts', title: 'the ludant', 'aria-hidden': 'true', tabindex: '-1' });
+    this.iframe = el('iframe', { class: 'sandbox', src: `${this.frame.config?.sandbox ?? ''}/sandbox.html`, sandbox: 'allow-scripts', title: 'the ludant', 'aria-hidden': 'true', tabindex: '-1' });
     addEventListener('message', (e) => {
       if (e.source !== this.iframe.contentWindow || e.data?.gactant !== 'ready' || this.bridge) return;
       const { port1, port2 } = new MessageChannel();

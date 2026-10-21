@@ -215,17 +215,35 @@ own loop and a budget for the whole sitting. The shard plays, talks, sketches,
 checkpoints, restores and publishes, then hands back a report. Shards shaped Moth's
 seasonal garden in three rounds for $0.47, and tested "just for tonight" end to end.
 
-## Server and data
+## Running it
 
-`server.mjs` (~380 lines, no dependencies) only keeps things and relays inference. It
-serves `/sandbox.html` with the sandbox's content policy, and refuses API calls from
-other origins (a sandbox's is `null`):
-- `data/ludants/`, `data/published/`: one JSON file each.
-- `data/log/<who>.jsonl`: every inference, with image bytes stripped. Reading these is how
+**Locally:** `node server.mjs`. No dependencies. It keeps files in `data/`, serves
+`public/`, and relays thinking on the `.env` key for anyone who hasn't connected their
+own.
+
+**Hosted, on Cloudflare:** `npx wrangler deploy` (see `wrangler.toml`).
+- A Worker serves the pages and passes `/api/*` to **one Durable Object** that holds
+  every document in SQLite, plus the holds. Cloudflare keeps it durable and can restore
+  it to any point in the last 30 days, so there's no machine of ours to lose.
+- `GACTANT_PUBLIC=1`: nobody can list every ludant (an unpublished ludant is reached by
+  its link), and inference isn't logged.
+- There's no install key, so everyone thinks on their own OpenRouter account.
+- `SANDBOX_ORIGIN` names a second domain that serves only the sandbox, so a ludant's
+  code runs in its own browser process.
+
+Both hosts run the same `core.mjs`: every route, given a store (`get`/`put`/`list` of
+JSON documents by kind: `ludants`, `published`, `checkpoints`, `names`). That's about
+330 lines. `server.mjs` gives it files; `worker.mjs` gives it the Durable Object's
+SQLite.
+
+- Logs (local only): `data/log/<who>.jsonl` holds every inference, with image bytes
+  stripped, including thinks the browser made on a person's own key. Reading these is how
   Claude sees what a ludant saw and did.
-- `/api/infer`: relays to OpenRouter (prefers Anthropic as provider, so prompt caches hit,
-  and retries dropped connections). The 32k output cap leaves room to rewrite a whole game
-  at once.
+- The relay (`/api/infer`) prefers Anthropic as the provider, so prompt caches hit, and
+  retries dropped connections. The 32k output cap leaves room to rewrite a whole game at
+  once.
+- The API refuses any request whose `Origin` isn't the site itself (a sandbox's is
+  `null`), and refuses saves over 1.5M characters.
 
 While the project is young there are **no migrations**: when a contract changes, `data/`
 is wiped and the journal is the record.

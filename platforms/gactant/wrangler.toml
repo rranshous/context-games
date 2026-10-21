@@ -1,0 +1,23 @@
+# gactant on Cloudflare. Deploy: npx wrangler deploy   (local use doesn't need any of this:
+# node server.mjs)
+name = "gactant"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true   # so the Worker can add the sandbox's headers
+html_handling = "none"    # serve sandbox.html as sandbox.html, not a redirect to /sandbox
+
+[[durable_objects.bindings]]
+name = "WORLD"
+class_name = "World"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["World"]
+
+[vars]
+GACTANT_PUBLIC = "1"
+# SANDBOX_ORIGIN = "https://gactantbox.com"   # once the domains exist

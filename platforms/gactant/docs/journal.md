@@ -1265,3 +1265,48 @@ for reasons it can't perceive. So nothing is stopped from outside. Instead:
 
 Robby ran `wrangler login` and wants the platform's own name. RDAP says gactant.com,
 .net, .org, .app, .dev, .io, .xyz, .games and .fun are all unregistered.
+Robby: ".com domains as long as they cost less than $25/year." Cloudflare Registrar sells
+.com at cost (about $10–11). The sandbox needs its own registrable domain, not a
+subdomain, so the browser puts ludant code in another process. **gactant.com** and
+**gactantbox.com** are both free. Registration needs Robby's payment in the dashboard;
+wrangler's login doesn't cover the registrar.
+
+### Hosting: one core, two hosts
+
+Robby: "I'd rather do it 'right' at the beginning. for example recovering from that VPS
+going down sounds hard… i do not want to make it arduous to run locally." So:
+- **core.mjs** holds every route, written against a store of JSON documents by kind and
+  id (`get`/`put`/`list`, async).
+- **server.mjs** (local) is now ~100 lines: files on disk, static pages, the HTTP glue.
+  Still `node server.mjs`, still no dependencies.
+- **worker.mjs** (Cloudflare): a Worker serves `public/` as static assets and adds the
+  sandbox's headers. It passes `/api/*` to **one Durable Object, World**, which keeps
+  every document in its SQLite. Durable, restorable to any point in 30 days, nothing of
+  ours to fail. One object is plenty for now: a heartbeat every 5 s per sitting is a few
+  requests a second at a few dozen sittings. Ludant-per-object can come when it's needed.
+
+What the move changed:
+- **Checkpoint somas are their own documents** (`checkpoints/<ludant>-<n>`). A Durable
+  Object's SQLite row tops out at 2 MB, and a ludant carrying every soma it ever had
+  would get there. The ludant keeps the list.
+- **Given names have an index** (`names/<given>`) instead of scanning every ludant, and
+  **publications count their copies** rather than scanning every ludant on each lobby load.
+- **Play stats are buffered** and written once a minute (and on release), not on every
+  heartbeat.
+- **Saves are capped** at 1.5M characters.
+- `GACTANT_PUBLIC=1` (on for the hosted one): `GET /api/ludants` lists only the ids it's
+  asked for (the ones a browser has sat with), and nothing is logged.
+- The sandbox's content policy is now fixed (`script-src 'self'`). I checked that 'self'
+  still means the page's own URL inside an opaque-origin iframe, so a static header works.
+
+Local data moved over with a one-off script, not migration code in the product: it
+split the inline checkpoint somas out, filled the names index and counted copies. I backed
+up `data/` first. All 8 ludants, 20 checkpoints and 5 publications came through.
+Restore and checkpoints tested on Malan.
+
+`wrangler dev` ran the whole loop against the Durable Object locally: seed, sit,
+sandbox, a 640×360 stage, Anelina's greeting. Then **deployed**:
+`https://gactant.rranshous.workers.dev`. `hasKey: false` there, so a new seed's first
+wish to think brings up "Grinan wants to think… connect OpenRouter". The sandbox page
+carries its policy, and an `Origin: null` call is refused. It's staging until the domains
+exist; the lobby isn't ready for strangers yet.
