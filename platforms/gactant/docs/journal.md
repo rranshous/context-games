@@ -1669,3 +1669,20 @@ the user w/ the virtual keyboard when they go to the input box." The d-pad focus
 **highlights** a text box (real focus is what brings up the console's keyboard), and A
 starts typing. After sending a message typed that way, the box lets go and the keyboard
 closes. Tested with a stand-in controller: highlighted, not focused, until A.
+
+Two more from the Xbox:
+- "the purple border seems to stick around after the actant is done play testing it."
+  The edge stays lit while the ludant holds any key, and a playtest can end with a key
+  still held (a `hold` with no `release`, or a release under another name). Now, when
+  it stops thinking, the frame lets go of every key it was holding, and the edge goes
+  dark. A key a person presses and releases stops being the ludant's. The ludant is told.
+- "on my home lobby screen 'my ludants' is too broad a grouping… i don't like that i have
+  two items there. we _at least_ need to do some sort of tree visual and make it more
+  clear what has been published." His two items were most likely his ludant and the copy
+  his own play link had made of its publication. Same face, different things.
+  **Your ludants is now trees, one block per family:**
+  - the ludant you shape at the root, tagged "yours: you're shaping this"
+  - beneath it, each publication: "published: a snapshot others play", with players
+  - under a publication, any copy you took: "your copy: the one you play"
+  - a copy of someone else's publication is rooted at theirs ("published by Robby")
+  Tested with my ludant, a copy of its publication, and a copy of a Wovan.

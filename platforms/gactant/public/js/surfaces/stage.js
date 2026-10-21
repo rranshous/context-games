@@ -89,6 +89,15 @@ export class Stage {
     this.showPlaying();
   }
 
+  /** The ludant has stopped thinking: whatever it was still holding, it lets go of. A key
+   *  left held by a playtest would otherwise keep the game (and its edge) going. */
+  ludantDone() {
+    for (const k of this.ludantHeld) this.keyUp(k);
+    this.ludantHeld.clear();
+    this.ludantAt = 0;
+    this.showPlaying();
+  }
+
   showPlaying() {
     const on = this.ludantHeld.size > 0 || performance.now() - this.ludantAt < PLAYING_MS;
     if (on !== this.playingShown) { this.playingShown = on; this.layers?.classList.toggle('ludant-playing', on); }
@@ -114,7 +123,7 @@ export class Stage {
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
     const mode = this.three ? ' It is drawing in 3D now (three.js under a 2D overlay).' : '';
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. Controllers: ${this.controllers() ? `${this.controllers()} connected now` : 'none connected right now'}; a game reads them through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input, and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").${mode}`;
+    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. Controllers: ${this.controllers() ? `${this.controllers()} connected now` : 'none connected right now'}; a game reads them through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input (and keys you still hold are let go when you stop thinking), and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").${mode}`;
   }
 
   actions() {
@@ -206,6 +215,7 @@ export class Stage {
 
   keyUp(k, from) {
     this.input.keys.delete(k);
+    this.ludantHeld.delete(k);
     this.frame.bus.emit('stage.key', { key: k, down: false, ...(from ? { from } : {}) });
   }
 

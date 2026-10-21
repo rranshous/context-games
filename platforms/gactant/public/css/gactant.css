@@ -258,3 +258,18 @@ body.check { font-size: 20px; }
 .tree-card .yours { font: 11px var(--mono); color: var(--green); }
 .stage-layers.rebuilt { animation: rebuilt 1.6s ease-out; }
 @keyframes rebuilt { 0% { box-shadow: 0 0 0 4px var(--amber), 0 0 30px 4px rgba(232, 163, 61, 0.7); } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* your ludants, as trees */
+.ytrees { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+.ytree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ytree.root { background: var(--pane); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.ytree .ytree { margin-top: 8px; margin-left: 22px; padding-left: 12px; border-left: 2px solid var(--line); }
+.ytree-row { display: flex; gap: 10px; align-items: center; padding: 6px; border-radius: 8px; border: 1px solid transparent; color: var(--ink); text-decoration: none; }
+.ytree-row:hover { border-color: var(--amber); }
+.ytree-row .thumb { flex: 0 0 96px; width: 96px; border-radius: 6px; overflow: hidden; }
+.ytree-row .thumb-name { font-size: 9px; }
+.ytree-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ytree-text strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+.ytree-tag { font: 11px var(--mono); }
+.ytree-tag.mine { color: var(--amber); }
+.ytree-tag.pub { color: var(--green); }
+.ytree-tag.copy { color: var(--blue); }

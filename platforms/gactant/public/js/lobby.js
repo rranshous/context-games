@@ -96,6 +96,49 @@ function families(published, yours = new Set()) {
     el('ul', { class: 'tree root' }, ...roots.map(node))));
 }
 
+/** Your ludants as family trees, so what's what is visible: the ludant you shape at the
+ *  root, the snapshots it was published as beneath it, and any copy you took under the
+ *  publication it came from. A copy of someone else's publication is rooted at theirs. */
+function yourTrees(yours, published) {
+  const mineIds = new Set(yours.map((l) => l.id));
+  const pubById = new Map(published.map((p) => [p.id, p]));
+  const byTime = (a, b) => (a.at ?? a.updated ?? '').localeCompare(b.at ?? b.updated ?? '');
+  const copiesOf = (pubId) => yours.filter((l) => l.lineage?.from?.published === pubId);
+  const pubsOf = (ludantId) => published.filter((p) => p.ludant === ludantId).sort(byTime);
+
+  const row = (kind, href, thumbKind, id, name, tag, facts, kids = []) => el('li', { class: 'ytree-node' },
+    el('a', { class: `ytree-row ${kind}`, href },
+      thumb(thumbKind, id, name),
+      el('div', { class: 'ytree-text' },
+        el('strong', {}, name),
+        el('span', { class: `ytree-tag ${kind}` }, tag),
+        facts ? el('span', { class: 'card-facts' }, facts) : null)),
+    kids.length ? el('ul', { class: 'ytree' }, ...kids) : null);
+
+  const ludantNode = (l, tag) => row(l.lineage?.from ? 'copy' : 'mine', `/frame.html?l=${l.id}`, 'l', l.id, l.name, tag,
+    [l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · '),
+    pubsOf(l.id).map(pubNode));
+  const pubNode = (p) => row('pub', `/play.html?p=${p.id}`, 'p', p.id, p.name,
+    mineIds.has(p.ludant) ? 'published: a snapshot others play' : `published by ${p.by ?? 'someone'}`,
+    [`${p.copies} ${p.copies === 1 ? 'player' : 'players'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · '),
+    copiesOf(p.id).map((c) => ludantNode(c, 'your copy: the one you play')));
+
+  // Roots: ludants of yours that aren't copies of a publication shown under one of yours,
+  // and the publications (someone else's) that your copies came from.
+  const roots = [];
+  for (const l of yours.slice().sort(byTime)) {
+    const from = l.lineage?.from?.published, pub = from && pubById.get(from);
+    if (!from) roots.push(ludantNode(l, 'yours: you\'re shaping this'));
+    else if (!pub) roots.push(ludantNode(l, `your copy of ${l.lineage.from.name}`));
+    else if (!mineIds.has(pub.ludant) && !roots.some((r) => r.dataset?.pub === from)) {
+      const node = pubNode(pub);
+      node.dataset.pub = from;
+      roots.push(node);
+    }
+  }
+  return el('div', { class: 'ytrees' }, ...roots.map((r) => el('ul', { class: 'ytree root' }, r)));
+}
+
 const section = (title, hint, ...body) => el('section', { class: 'lobby-section' },
   el('h2', {}, title), hint ? el('p', { class: 'hint' }, hint) : null, ...body);
 
@@ -131,7 +174,7 @@ async function render() {
       el('h1', {}, 'Pick a game and play it. Then tell it what you\'d change.'),
       el('p', {}, 'These are ludants: games that are also AIs. A ludant can change itself while you play it: faster, stranger, kinder to your little brother. Each one you play is your own copy, and you can share what it becomes.')));
   }
-  if (returning) parts.push(section('Your ludants', null, el('div', { class: 'cards-row' }, ...yours.slice(0, 8).map((l) => mineCard(l, pubsOf(l.id))))));
+  if (returning) parts.push(section('Your ludants', 'The ones you shape, what they were published as, and the copies you play.', yourTrees(yours, published)));
   if (featured.length) {
     parts.push(section(returning ? 'Play something new' : 'Jump in', returning ? null : 'Click one to play. Ludants think with an AI model, whenever their own body decides to. That costs a few cents at a time, on your own OpenRouter account, and a meter shows what your sitting has cost.',
       el('div', { class: 'cards-grid' }, ...featured.map((p) => pubCard(p, !returning)))));

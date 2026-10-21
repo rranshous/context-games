@@ -155,7 +155,7 @@ export class Body {
 
   lived(state) {
     this.state = state;
-    if (!state.thinking) this.changing = null;
+    if (!state.thinking) { this.changing = null; this.frame.stage.ludantDone(); }
     this.frame.status.setLife(state.life, state.detail);
   }
 
