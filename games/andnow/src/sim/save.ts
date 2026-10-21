@@ -1,11 +1,14 @@
 // Save and restore a whole world (checkpoints), so a viewer can jump to tick 150,000
 // without simulating its way there. Browser-safe (no Node imports); callers gzip.
 //
-// The format is a JSON header followed by the raw bytes of every typed array:
-//   [u32 header length][header JSON (utf-8)][padding to 8][typed array bytes, each 8-aligned]
-// The header holds CONFIG, the viewer's query string, and the world as an object table:
-// every object, array, Map, Set and typed array is one entry, and a reference to it is
-// {"$r": n}, so shared objects (living list ⊂ warriors, shared specs) stay shared.
+// The format is a JSON header, the object table, then the raw bytes of every typed array:
+//   [u32 header length][header JSON (utf-8)][table: one JSON entry per line, tableBytes long]
+//   [padding to 8][typed array bytes, each 8-aligned]
+// The header holds CONFIG, the viewer's query string, and the root of the world's object
+// table: every object, array, Map, Set and typed array is one entry, and a reference to it
+// is {"$r": n}, so shared objects (living list ⊂ warriors, shared specs) stay shared. The
+// table goes a line at a time because a big world (85k bodies) is more JSON than one string
+// can hold. (Version 1 saves had the table inside the header; they still load.)
 import { makeRng } from './rng';
 import { Cells, CONFIG, DEBRIS, World } from './world';
 
@@ -14,7 +17,7 @@ const TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Fl
 type TypedName = keyof typeof TYPED;
 type Typed = InstanceType<(typeof TYPED)[TypedName]>;
 
-export interface SaveHeader { version: 1; query: string; t: number; config: Enc; root: Enc; table: Enc[]; rng: number }
+export interface SaveHeader { version: 1 | 2; query: string; t: number; config: Enc; root: Enc; table?: Enc[]; tableBytes?: number; rng: number }
 
 function num(v: number): Enc { return Number.isFinite(v) ? v : { $n: String(v) }; }
 
@@ -55,13 +58,20 @@ export function saveWorld(world: World, query: string): Uint8Array {
     return { $r: id };
   };
   const root = enc(world);
-  const header: SaveHeader = { version: 1, query, t: world.t, config: enc({ ...CONFIG }), root, table, rng: world.rng.state };
-  // (CONFIG went through the same table; that's fine, it's small.)
-  const json = new TextEncoder().encode(JSON.stringify(header));
-  const start = Math.ceil((4 + json.length) / 8) * 8;
+  const config = enc({ ...CONFIG }); // (through the same table; that's fine, it's small)
+  const te = new TextEncoder(), lines: Uint8Array[] = [];
+  let tableBytes = 0, chunk = '';
+  const flush = () => { const b = te.encode(chunk); lines.push(b); tableBytes += b.length; chunk = ''; };
+  for (const e of table) { chunk += JSON.stringify(e) + '\n'; if (chunk.length > 1 << 23) flush(); }
+  flush();
+  const header: SaveHeader = { version: 2, query, t: world.t, config, root, tableBytes, rng: world.rng.state };
+  const json = te.encode(JSON.stringify(header));
+  const start = Math.ceil((4 + json.length + tableBytes) / 8) * 8;
   const out = new Uint8Array(start + offset);
   new DataView(out.buffer).setUint32(0, json.length, true);
   out.set(json, 4);
+  let at = 4 + json.length;
+  for (const b of lines) { out.set(b, at); at += b.length; }
   let k = 0;
   for (const e of table) {
     const b = e as { $ta?: TypedName; off: number };
@@ -81,10 +91,10 @@ export function readHeader(bytes: Uint8Array): SaveHeader {
 /** Rebuild a saved world. Sets CONFIG to the saved one, as the world depends on it. */
 export function loadWorld(bytes: Uint8Array): World {
   const header = readHeader(bytes);
-  if (header.version !== 1) throw new Error(`unknown save version ${header.version}`);
+  if (header.version !== 1 && header.version !== 2) throw new Error(`unknown save version ${header.version}`);
   const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  const start = Math.ceil((4 + n) / 8) * 8;
-  const table = header.table as Record<string, Enc>[];
+  const start = Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8;
+  const table = (header.table ?? readTable(bytes.subarray(4 + n, 4 + n + header.tableBytes!))) as Record<string, Enc>[];
   // Plain objects are the ones JSON.parse made, patched in place: adding properties one by
   // one under computed keys leaves V8 slow dictionary objects, and ticks ran 3× slower.
   const rootId = (header.root as { $r: number }).$r;
@@ -136,6 +146,19 @@ export function loadWorld(bytes: Uint8Array): World {
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warrior(id)?.alive)) w.cellSets.delete(id);
   w.sortedCells.clear(); // (a cache: bodies keep theirs on their Cells now)
   return world;
+}
+
+// The table's lines, decoded a few MB at a time (cut at a newline) and parsed one by one.
+function readTable(bytes: Uint8Array): Enc[] {
+  const td = new TextDecoder(), table: Enc[] = [];
+  for (let i = 0; i < bytes.length;) {
+    let j = Math.min(i + (1 << 23), bytes.length);
+    while (j < bytes.length && bytes[j - 1] !== 10) j++;
+    const lines = td.decode(bytes.subarray(i, j)).split('\n');
+    for (const l of lines) if (l) table.push(JSON.parse(l));
+    i = j;
+  }
+  return table;
 }
 
 function restoreRng(state: number) { const r = makeRng(0); r.state = state; return r; }

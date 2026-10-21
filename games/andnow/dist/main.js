@@ -2896,10 +2896,10 @@ function readHeader(bytes) {
 }
 function loadWorld(bytes) {
   const header = readHeader(bytes);
-  if (header.version !== 1) throw new Error(`unknown save version ${header.version}`);
+  if (header.version !== 1 && header.version !== 2) throw new Error(`unknown save version ${header.version}`);
   const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  const start = Math.ceil((4 + n) / 8) * 8;
-  const table = header.table;
+  const start = Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8;
+  const table = header.table ?? readTable(bytes.subarray(4 + n, 4 + n + header.tableBytes));
   const rootId = header.root.$r;
   const objs = table.map((e) => {
     if ("$o" in e) return e.$o;
@@ -2951,6 +2951,17 @@ function loadWorld(bytes) {
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world2.warrior(id)?.alive)) w.cellSets.delete(id);
   w.sortedCells.clear();
   return world2;
+}
+function readTable(bytes) {
+  const td = new TextDecoder(), table = [];
+  for (let i = 0; i < bytes.length; ) {
+    let j = Math.min(i + (1 << 23), bytes.length);
+    while (j < bytes.length && bytes[j - 1] !== 10) j++;
+    const lines = td.decode(bytes.subarray(i, j)).split("\n");
+    for (const l of lines) if (l) table.push(JSON.parse(l));
+    i = j;
+  }
+  return table;
 }
 function restoreRng(state) {
   const r = makeRng(0);

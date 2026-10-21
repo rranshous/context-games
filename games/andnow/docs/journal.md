@@ -2395,3 +2395,15 @@ checkpoint that reads, dropping the marks after it. The three runs lost one chec
 (1,000 ticks) and carried on from 4,436k, 4,642k and 6,324k. s2, s3 and s4 resumed cleanly
 (919k, 5,392k, 777k). `bake.sh` now adds `ionice -c3` on top of `nice 19`, so the bakes get
 the disk only when nothing else wants it.
+
+## s2 and s4 outgrew the save format
+
+After the reboot s2 and s4 resumed and then died at their first checkpoint: "RangeError:
+Invalid string length" in `JSON.stringify(header)`. They had died the same way before the
+reboot, which is why they sat at 919k and 777k. The header carried the whole object table,
+and 85k bodies (about 4 KB of JSON each with the table's wrappers) is more than the
+~512 MB a V8 string can hold. Save format 2 keeps the header small and writes the table
+after it, one entry per line, encoded and decoded a few MB at a time. Version 1 saves still
+load: every checkpoint on disk is one. Checked on s2's 919k checkpoint: v1 → v2 → re-saved
+is the same bytes, and the worlds from v1 and from v2 match byte for byte after 200 ticks.
+Saving that world takes about 50 s, and the file is 866 MB unzipped.
