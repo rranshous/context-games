@@ -30,7 +30,7 @@
 //
 // API (JSON, under /api)
 //   GET  config                                  -> { model, hasKey, logs, public, sandbox }
-//   GET  ludants?ids=a,b                         -> [{ id, name, updated, checkpoints, lineage, people, cost }]
+//   GET  ludants?ids=a,b                         -> [{ id, name, updated, checkpoints, lineage, people, spent }]
 //                                                   (without ids: every ludant, unless the install is public)
 //   POST ludants        { by }                   -> { id }          seed a new one, with a fresh given name
 //   GET  ludants/<id>                            -> { id, soma, surfaces, lineage, visitors, checkpoints, restored, fresh, familyNames }
@@ -42,7 +42,7 @@
 //   GET  ludants/<id>/checkpoints                -> [{ n, label, by, at }]
 //   POST ludants/<id>/checkpoints { label, by }  -> { n }           no-op if nothing changed
 //   POST ludants/<id>/restore { n, by }          -> { restored }     checkpoints the present first
-//   GET  published                               -> [{ id, name, given, title, by, note, ludant, n, from, fromName, at, copies, cost }]
+//   GET  published                               -> [{ id, name, given, title, by, note, ludant, n, from, fromName, at, copies, cost }]   cost: per hour of play, from copies
 //   POST published      { ludant, by, note? }    -> { id, name }    publishes it as it is now, under its name;
 //                                                   409 if this snapshot or this name is already published
 //   GET  published/<id>                          -> metadata
@@ -152,9 +152,11 @@ export function createCore({ store, settings }) {
   // ---------- what play costs ----------
   //
   // Heartbeats carry how long a sitting was watched and what its thinking cost since the
-  // last one. They add up in memory and are written down once a minute: on the ludant and,
-  // while it's still exactly a published snapshot, on that publication, so anyone about to
-  // play it can see its cost per hour of play.
+  // last one. They add up in memory and are written down once a minute: on the ludant
+  // (all its sittings, shaping included), and on a publication only from **play**: copies
+  // taken of it, while they're still exactly what was published. Its maker's own sittings
+  // don't count there, being mostly shaping. So a publication's cost per hour starts unknown
+  // and means what it says: what playing it has cost.
 
   const add = (stats, seconds, spent) => ({ seconds: (stats?.seconds ?? 0) + seconds, spent: (stats?.spent ?? 0) + spent, sittings: stats?.sittings ?? 0 });
   const unwritten = new Map();   // ludant id -> { seconds, spent, since }
@@ -175,15 +177,16 @@ export function createCore({ store, settings }) {
     if (!ludant) return;
     ludant.stats = add(ludant.stats, u.seconds, u.spent);
     await store.put('ludants', id, ludant);
-    const pub = (await store.list('published')).find((p) => sameBody(p.soma, ludant.soma));
-    if (pub) { pub.stats = add(pub.stats, u.seconds, u.spent); await store.put('published', pub.id, pub); }
+    const from = ludant.lineage?.from?.published;
+    const pub = from && await store.get('published', from);
+    if (pub && sameBody(pub.soma, ludant.soma)) { pub.play = add(pub.play, u.seconds, u.spent); await store.put('published', pub.id, pub); }
   }
 
   const perHour = (stats) => (stats?.seconds > 600 ? { rate: stats.spent / (stats.seconds / 3600), hours: stats.seconds / 3600 } : null);
 
   const summary = (x) => ({
     id: x.id, name: nameOf(x.soma), given: x.soma?.given, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
-    lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}), cost: perHour(x.stats),
+    lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}), spent: +(x.stats?.spent ?? 0).toFixed(4),
   });
 
   // ---------- inference on the install's key ----------
@@ -252,7 +255,7 @@ export function createCore({ store, settings }) {
         if (!p?.id || !p.soma?.given || !p.name) continue;
         safe(p.id);
         if (await store.get('published', p.id)) continue;
-        await store.put('published', p.id, { ...p, copies: 0, stats: undefined });
+        await store.put('published', p.id, { ...p, copies: 0, stats: undefined, play: undefined });
         await store.put('names', p.soma.given.toLowerCase(), { given: p.soma.given, at: now() });
         imported++;
       }
@@ -360,7 +363,7 @@ export function createCore({ store, settings }) {
     // publication, and that copy can be published again.
     if (a === 'published') {
       if (!b && method === 'GET') {
-        return (await store.list('published')).map(({ soma, stats, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(stats) }))
+        return (await store.list('published')).map(({ soma, stats, play, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') {
@@ -388,7 +391,7 @@ export function createCore({ store, settings }) {
         return { id, name };
       }
       const pub = await read('published', b);
-      if (!c && method === 'GET') { const { soma, stats, ...meta } = pub; return { ...meta, cost: perHour(stats) }; }
+      if (!c && method === 'GET') { const { soma, stats, play, ...meta } = pub; return { ...meta, cost: perHour(play) }; }
       if (c === 'copy' && method === 'POST') {
         const id = newId(pub.given);
         // The soma comes whole; the surfaces start fresh. What was said and sketched belonged

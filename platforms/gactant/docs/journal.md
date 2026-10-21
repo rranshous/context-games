@@ -1627,3 +1627,19 @@ take copies of), but the lobby never said so, so it looked like a duplicate. Now
 The concept underneath is still one of the strangest parts of gactant: publishing doesn't
 move your ludant anywhere. It leaves a snapshot behind, and the snapshot has a life of
 its own. Worth watching whether "published as" is enough to carry that.
+
+### What "an hour to play" means
+
+Robby: "i like the 'about X an hour to play' on the published games card. it feels like
+that is misleading though b/c that was the cost in shaping. maybe we reset that for each
+new publish? it's unknown until some play time is logged?"
+
+He was right about where it came from. A publication's stats counted any sitting with a
+ludant whose body matched it, and right after publishing, that's mostly its maker, still
+sitting there talking and shaping. Now:
+- A publication's per-hour cost (`play`) comes only from **copies taken of it**, while
+  they're still exactly what was published. Each publication starts at nothing, and the
+  card shows nothing until there are ten minutes of play.
+- The old `stats` on publications are ignored, so every publication starts fresh.
+- A ludant's own card (yours) now says what it is: "$0.42 of thinking so far". That's all
+  its sittings, shaping included, and not dressed up as a rate of play.

@@ -63,7 +63,7 @@ function mineCard(l, pubs = []) {
     el('div', { class: 'card-text' },
       el('strong', {}, l.name),
       published ? el('span', { class: 'card-published' }, published) : null,
-      el('span', { class: 'card-facts' }, [from, l.updated ? `changed ${ago(l.updated)}` : null, costLine(l.cost)].filter(Boolean).join(' · '))));
+      el('span', { class: 'card-facts' }, [from, l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · '))));
 }
 
 /** Publications grouped by family (given name), as trees. A publication's parent is the
