@@ -992,3 +992,43 @@ pad; the first try cut the pad off below a wrapped top bar, which is fixed.
 
 Open: in play mode the person can only *hear* the ludant. To talk back they have to
 leave play mode. A small say box over the stage might be next.
+
+### The store: state that lasts
+
+Robby asked what state the frame provides, since I'd said a ludant can change its own
+state. The honest answer showed a gap:
+- **Saved:** the soma (the ludant rewrites it itself), the surfaces' state (chat, whiteboard,
+  stage size, status line) and the record (lineage, visitors, checkpoints).
+- **Not saved: the game's running state.** Scores, positions and "best" lived in variables
+  inside the game section. They reset on every reload and every edit to the game. "Best is
+  kept between runs" meant *in this sitting*. The only workaround was stuffing JSON into
+  the `memory` text.
+
+Robby: "the frame provides a surface for storing and retrieving structured state from. let
+the frame deal w/ the details of how it's being saved. just a persistent data store for the
+actant to interact with, cross callable as you mentioned the other parts are."
+
+**`store`**, a new frame surface:
+- **Actions** (as an actor, all synchronous): `get(key, fallback)`, `set(key, value)`,
+  `update(key, fn, fallback)`, `delete(key)`, `keys(prefix)`, `all()`. Values are JSON,
+  and copies go in and out, so nothing aliases. There's a 200k-character cap.
+- **Event:** `store.changed { who, key }`.
+- **Saved with this copy, like chat.** A copy starts with an empty store, and restoring a
+  checkpoint leaves it alone. A high score belongs to the people who played, not to what
+  the game is.
+- **Reachable everywhere:** game code as `me.surfaces.store`, hooks as an argument, tools as
+  their third argument. The seed has a `store` tool, and the contract says what goes there
+  ("high scores, unlocks, a player's preferences, saved progress… variables inside your
+  game don't").
+- **Visible:** the inspector has a read-only "▤ store" tab with the JSON and how much is
+  used.
+
+It's a new surface, not a changed contract, so there's no wipe; existing ludants can use
+it at once. Tested: I told Malan-Shrinking-Isle "your best score resets every time I reload
+the page. can you make it stick around between visits? the frame has a store for things
+that should last." Two edits: load `best` from the store when the game starts, and save it
+whenever a gem beats it. 5¢. Malan said honestly that it hadn't tested a reload. I put
+`best: 7` in the store and reloaded; the game's own caption read "gems: 0, best: 7".
+Malan had wrapped `store.get` in `Promise.resolve(...)` because it couldn't tell whether
+the call was async. The contract now says "all synchronous, so it's safe to call every
+frame."

@@ -24,6 +24,7 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   frame.published { who, name, url }  frame.restored { who, n, label }   whiteboard.looked { who }
 //   frame.renamed { from, to }   (my name changes with my title)
 //   frame.view { who, playing }   (playing: they see only the stage)
+//   store.changed { who, key }
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
 // surfaces: chat, whiteboard, stage, status (their actions, done as me)
@@ -65,6 +66,8 @@ const GAME = `// game: the facet of me that people play. It's a factory: called 
 //        input: { keys (Set of held keys: 'arrowleft', 'a', ' ', ...), pressed (Set, this frame only),
 //                 pointer: { x, y, down, clicked } }
 // If frame() throws, the stage halts until the code changes or someone restarts it.
+// Variables in here start over whenever this section changes or the page reloads. Anything
+// that should last (best scores, unlocks, saved progress) goes in me.surfaces.store.
 // Helpers for testing go on the returned object (my tools can reach it as me.game), not on
 // keys: everything on the stage is something people will play.
 function game(stage, me) {
@@ -156,6 +159,19 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
       }
       const end = st.look();
       return { text: end.text, images: [...images.slice(-3), end.image] };
+    },
+  },
+  {
+    name: 'store',
+    description: 'Read or change your persistent store (structured state that lasts across sittings and game rebuilds). op: get | set | delete | keys | all. key and value as needed; value is any JSON.',
+    input_schema: { type: 'object', properties: { op: { type: 'string', enum: ['get', 'set', 'delete', 'keys', 'all'] }, key: { type: 'string' }, value: {} }, required: ['op'] },
+    run: (input, me, s) => {
+      const st = s.store;
+      if (input.op === 'get') return { key: input.key, value: st.get(input.key, null) };
+      if (input.op === 'set') return { key: input.key, value: st.set(input.key, input.value) };
+      if (input.op === 'delete') return { deleted: st.delete(input.key) };
+      if (input.op === 'keys') return st.keys(input.key || '');
+      return st.all();
     },
   },
   {

@@ -5,6 +5,7 @@
 import { el } from '../ui.js';
 
 const KEEP = 300;
+const STORE_TAB = '▤ store';   // not a section: the store surface, shown read-only
 
 export class Inspector {
   id = 'inspector';
@@ -31,7 +32,10 @@ export class Inspector {
     if (this.tab === name) this.renderBody();
   }
 
+  storeChanged() { if (this.tab === STORE_TAB) this.renderBody(); else { this.fresh.add(STORE_TAB); this.renderTabs(); } }
+
   mount(root) {
+    this.frame.bus.on('store.changed', () => { clearTimeout(this.storeTimer); this.storeTimer = setTimeout(() => this.storeChanged(), 300); }, 'inspector');
     this.tabsEl = el('div', { class: 'insp-tabs' });
     this.bodyEl = el('div', { class: 'insp-body' });
     root.append(this.tabsEl, this.bodyEl);
@@ -41,7 +45,7 @@ export class Inspector {
 
   renderTabs() {
     if (!this.tabsEl) return;
-    const names = ['doings', ...Object.keys(this.frame.actant?.soma.sections ?? {})];
+    const names = ['doings', ...Object.keys(this.frame.actant?.soma.sections ?? {}), STORE_TAB];
     this.tabsEl.replaceChildren(...names.map((n) => el('button', {
       class: `insp-tab ${n === this.tab ? 'on' : ''} ${this.fresh.has(n) ? 'fresh' : ''}`,
       onclick: () => { this.tab = n; this.fresh.delete(n); this.renderTabs(); this.renderBody(); },
@@ -55,6 +59,13 @@ export class Inspector {
         el('div', { class: `doing ${d.kind}` }, el('span', { class: 'doing-kind' }, d.kind), el('pre', {}, d.text))));
       this.bodyEl.replaceChildren(list);
       list.scrollTop = list.scrollHeight;
+      return;
+    }
+    if (this.tab === STORE_TAB) {
+      const data = this.frame.store.data;
+      this.bodyEl.replaceChildren(
+        el('pre', { class: 'insp-store' }, Object.keys(data).length ? JSON.stringify(data, null, 2) : '(the store is empty)'),
+        el('div', { class: 'insp-bar' }, el('span', {}, `${Object.keys(data).length} keys · ${this.frame.store.size()} chars · kept with this copy`)));
       return;
     }
     const actant = this.frame.actant;

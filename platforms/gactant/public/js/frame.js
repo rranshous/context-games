@@ -13,6 +13,7 @@ import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
 import { Stage } from './surfaces/stage.js';
 import { Status } from './surfaces/status.js';
+import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
 import { api, el, myName } from './ui.js';
 import { installExplorer } from './explorer.js';
@@ -31,8 +32,9 @@ class Frame {
     this.chat = new Chat(this);
     this.whiteboard = new Whiteboard(this);
     this.status = new Status(this);
+    this.store = new Store(this);
     this.inspector = new Inspector(this);
-    this.surfaces = [this.stage, this.chat, this.whiteboard, this.status, this.inspector];
+    this.surfaces = [this.stage, this.chat, this.whiteboard, this.status, this.store, this.inspector];
     for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
     this.actant = new Actant(this, record.soma);
     this.saveTimer = null;
