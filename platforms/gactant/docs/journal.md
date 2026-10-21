@@ -1532,3 +1532,26 @@ including old ones, and the two signals can't disagree. The ludant is told too: 
 stage description says people see its edge light while it plays and see its jumps
 announced. Tested: asked Elodon to hold space for two seconds and skip ahead five. The
 edge lit, the flash read "…skipped ahead 5.0 s", and it reported in the chat.
+
+### What the Xbox said
+
+Robby ran /check on the Xbox; the report (r-5aeb6182) came straight to me:
+- **Controllers:** first-class. Edge passes real gamepads to the page, standard mapping,
+  17 buttons and 4 axes each: "Xbox 360 Controller (XInput STANDARD GAMEPAD)" and "Xbox
+  One Game Controller (STANDARD GAMEPAD)". Every button arrived at its standard index.
+  Two controllers at once.
+- **But:** the right stick barely moved (±0.04), and the triggers peaked at 0.23 and 0.14.
+  Either they weren't pushed all the way, or Edge keeps the right stick for scrolling and
+  only passes the triggers through partly. To recheck.
+- Edge also sends each controller press as a keydown with key `Unidentified`. The stage
+  now ignores those, so presses don't arrive twice.
+- **Speech out:** 56 voices, and Robby heard the line.
+- **Microphone:** "NotFoundError: Requested device not found". There was no input device,
+  so nothing to ask permission for; recognition failed "not-allowed". Robby: "it did not
+  ask me about turning on a mic."
+- The viewport is 1152×567 at 1.5×, on a 1280×720 "screen". That's what a couch view
+  has to fit.
+- Sandbox pictures cross: Edge is Chromium.
+
+Also fixed: two controllers connecting at once each opened a report. Saves now go one
+at a time.

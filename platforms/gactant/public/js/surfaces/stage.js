@@ -239,6 +239,9 @@ export class Stage {
     const key = (e) => e.key.toLowerCase();
     wrap.addEventListener('keydown', (e) => {
       const k = key(e);
+      // Edge on Xbox also sends a controller's presses as keys it can't name; the
+      // controller itself comes through the Gamepad API.
+      if (k === 'unidentified') return;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
       if (!e.repeat) this.keyDown(k);
     });

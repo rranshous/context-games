@@ -15,10 +15,12 @@ const STANDARD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L
 
 const report = { device: '', started: new Date().toISOString(), steps: {} };
 let reportId = null;
-const save = async () => {
+// One save at a time, so two controllers connecting together don't each start a report.
+let saving = Promise.resolve();
+const save = () => (saving = saving.then(async () => {
   try { ({ id: reportId } = await api('POST', 'reports', { id: reportId, report })); } catch (err) { console.warn('report not saved', err); }
   idEl.textContent = reportId ? `report ${reportId} · saved` : 'not saved yet';
-};
+}));
 
 // ---------- the page ----------
 
