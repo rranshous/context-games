@@ -40,7 +40,7 @@ function hooks(on, me, surfaces) {
   // Being published is worth remembering but not worth waking for: note it, no thinking.
   on('frame.published', (e) => {
     const m = me.section('memory');
-    m.write(m.read() + '\n- ' + new Date().toISOString().slice(0, 10) + ': ' + e.who + ' published me as "' + e.title + '" (' + e.url + ').');
+    m.write(m.read() + '\\n- ' + new Date().toISOString().slice(0, 10) + ': ' + e.who + ' published me as "' + e.title + '" (' + e.url + ').');
   });
 
   // The game: run it every frame and pass it input.
