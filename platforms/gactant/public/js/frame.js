@@ -186,9 +186,10 @@ class Frame {
       el('a', { class: 'brand', href: '/' }, 'gactant'),
       el('div', { class: 'status' }),
       el('div', { class: 'top-actions' }));
-    let folded = false;
-    try { folded = localStorage.getItem('gactant-fold') === '1'; } catch {}
-    const main = el('main', { class: `frame${folded ? ' folded' : ''}` },
+    let folded = false, playing = false;
+    try { folded = localStorage.getItem('gactant-fold') === '1'; playing = localStorage.getItem('gactant-play') === '1'; } catch {}
+    this.playing = playing;
+    const main = el('main', { class: `frame${folded ? ' folded' : ''}${playing ? ' playing' : ''}` },
       el('section', { class: 'pane stage-pane' }),
       el('section', { class: 'pane wb-pane' }),
       el('section', { class: 'pane chat-pane' }),
@@ -200,6 +201,33 @@ class Frame {
     this.chat.mount(main.querySelector('.chat-pane'));
     this.inspector.mount(main.querySelector('.insp-pane'));
     this.mountActions(top.querySelector('.top-actions'), main);
+    this.main = main;
+    // In play mode only the stage shows, so the ludant's chat messages surface over it.
+    this.toasts = el('div', { class: 'toasts' });
+    main.querySelector('.stage-pane').append(this.toasts);
+    this.bus.on('chat.posted', (e) => { if (this.playing && e.who !== this.seat) this.toast(e.who, e.text); }, 'frame');
+  }
+
+  /** Play mode: hide every surface but the stage. The ludant is told, since it changes
+   *  what the person can see. */
+  setPlaying(on) {
+    this.playing = on;
+    this.main.classList.toggle('playing', on);
+    this.playBtn?.classList.toggle('on', on);
+    if (this.playBtn) this.playBtn.textContent = on ? 'show all' : 'play';
+    try { localStorage.setItem('gactant-play', on ? '1' : '0'); } catch {}
+    this.bus.emit('frame.view', { who: this.seat, playing: on });
+    this.stage.fit();
+    if (on) this.stage.wrap?.focus();
+  }
+
+  toast(who, text) {
+    const t = el('div', { class: 'toast' }, el('span', { class: 'toast-who' }, who), el('span', {}, text));
+    t.addEventListener('click', () => t.remove());
+    this.toasts.append(t);
+    while (this.toasts.children.length > 3) this.toasts.firstChild.remove();
+    setTimeout(() => t.classList.add('gone'), 4000 + Math.min(12000, text.length * 60));
+    setTimeout(() => t.remove(), 5000 + Math.min(12000, text.length * 60));
   }
 
   mountActions(root, main) {
@@ -234,6 +262,7 @@ class Frame {
           prompt(`Published as ${name}. Anyone can take a copy here:`, url);
         } catch (err) { alert(err.message); }
       } }, 'publish'),
+      this.playBtn = el('button', { class: `top-btn${this.playing ? ' on' : ''}`, title: 'show only the stage', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show all' : 'play'),
       el('button', { class: 'top-btn', title: 'fold the inspector away', onclick: () => {
         const f = main.classList.toggle('folded');
         try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}
@@ -264,13 +293,23 @@ class Frame {
   }
 }
 
+/** Libraries the frame offers ludants, served from /vendor so nothing comes from the network. */
+async function loadLibraries() {
+  const libs = {};
+  try { libs.THREE = await import('/vendor/three/three.module.js'); }
+  catch (err) { console.warn('three.js failed to load', err); }
+  return libs;
+}
+
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
   const seat = myName() || prompt('What should the ludants here call you?', '')?.trim() || 'someone';
   try { localStorage.setItem('gactant-name', seat); } catch {}
   const record = await api('GET', `ludants/${id}`);
+  const libs = await loadLibraries();
   const frame = new Frame(record, seat);
+  frame.libs = libs;
   frame.noticeName();
   frame.bus.on('soma.changed', (e) => { if (e.section === 'title') frame.noticeName(); });
   frame.mount();

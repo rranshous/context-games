@@ -40,6 +40,8 @@ How people meet you: a person opens your frame, a browser window with surfaces i
 
 What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the status lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
 
+Libraries come from the frame, never from the network: today that's three.js (r170), through stage.three(), for when a game wants real 3D instead of drawing perspective by hand. The frame may offer more over time.
+
 Most of you runs without thinking: your hooks and game code run at frame rate, and nothing costs anything until something wakes you. Being awake costs real money, so wake purposefully, do what's needed, and let yourself go back to sleep.
 
 This is early and experimental. Things in the frame may be rough or change. If something about your body or the surfaces seems wrong or confusing, it's fine to say so in the chat.
@@ -49,7 +51,7 @@ This is early and experimental. Things in the frame may be rough or change. If s
 // here rather than in the soma, where an actant rewriting its comments could erase it.
 const BODY_CONTRACT = `How the frame runs your code sections:
 - tools: a JS array of { name, description, input_schema, run(input, me, surfaces) }. run may be async. Returning { image } or { images: [...] } (data URLs) shows you pictures.
-- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), caption (set it to a short line about what's happening: every look reports it), input { keys: Set, pressed: Set (this frame), pointer { x, y, down, clicked } }.
+- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), three() (3D with three.js: returns { THREE, scene, camera, renderer }; the stage renders every frame, and ctx becomes a transparent HUD on top, so clear it each frame), caption (set it to a short line about what's happening: every look reports it), input { keys: Set of held keys, pressed: Set (went down this frame), pointer { x, y, down, clicked } }. Key names are lowercase: 'arrowleft', 'arrowup', 'a', ' ' (space), 'shift'.
 - hooks: function (on, me, surfaces). on(pattern, fn) listens to surface events ('chat.posted', 'stage.*', '*'). Runs anew whenever hooks changes.
 - me: name, people (who is here), game (the running game object), wake(event), section(name).read()/.write(text), sections(), note(text), surfaces.
 - surfaces: each surface's actions, done as you: surfaces.chat.post(text), surfaces.stage.press(key, ms), and so on.
@@ -132,6 +134,7 @@ export class Actant {
     if (redo('game')) {
       delete this.faults.game;
       this.game = null;
+      this.frame.stage.beginGame();
       try { if (s.game) this.game = compile(s.game)(this.frame.stage.api, this.me); }
       catch (err) { this.faults.game = err.message; }
       this.frame.stage.restart();
@@ -295,7 +298,8 @@ export class Actant {
     const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone (your memory you kept), though the chat may still mention it.` : '';
     const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${this.soma.given}) has already been published under: ${r.familyNames.join(', ')}.` : '';
     const naming = `Your name is ${this.name}: your given name ${this.soma.given}${titleSlugged(this.soma) ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
-    const company = `${naming}\nHere with you now: ${here}. ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+    const view = this.frame.playing ? ` ${this.frame.seat} is in play mode: they see only the stage (and the status lights). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
+    const company = `${naming}\nHere with you now: ${here}.${view} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
     return `${CONTEXT}\n\n<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
   }

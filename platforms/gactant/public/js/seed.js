@@ -23,6 +23,7 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   frame.error { source, during, message }   soma.changed { section, by }
 //   frame.published { who, name, url }  frame.restored { who, n, label }   whiteboard.looked { who }
 //   frame.renamed { from, to }   (my name changes with my title)
+//   frame.view { who, playing }   (playing: they see only the stage)
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
 // surfaces: chat, whiteboard, stage, status (their actions, done as me)
@@ -59,6 +60,8 @@ const GAME = `// game: the facet of me that people play. It's a factory: called 
 // stage: ctx (a 2D canvas context), width, height, t (seconds), frame (count),
 //        size(w, h) (logical resolution; it scales up crisply),
 //        caption (a short line about what's happening; every look at the stage reports it),
+//        three() (switch to 3D: returns { THREE, scene, camera, renderer } from three.js; the
+//                 stage renders scene with camera every frame, and ctx becomes a HUD on top),
 //        input: { keys (Set of held keys: 'arrowleft', 'a', ' ', ...), pressed (Set, this frame only),
 //                 pointer: { x, y, down, clicked } }
 // If frame() throws, the stage halts until the code changes or someone restarts it.

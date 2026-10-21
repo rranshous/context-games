@@ -918,3 +918,77 @@ i'm looking for." That's the pattern to keep: when a ludant slips the same way a
 again, the frame gives it one piece of perception at the exact moment, phrased as
 information ("the person can't see what you just wrote"), not a rule in its soma. It can
 still choose otherwise.
+
+---
+
+## 2026-10-20 · Session 1, part 5: real 3D, and play mode
+
+### Can a ludant play itself? Can it reach in?
+
+Robby, looking at a log: "the actant can play the game right, b/c it's operating at level
+5? can it script and act directly against the game?" Yes, both ways:
+- **From outside, like a person:** `play` presses keys, holds, taps, waits, fast-forwards
+  and looks, through the same stage input a human gives.
+- **From inside, because the game is its own body:** the running game object is
+  `me.game`, so a tool can call its methods and read its state (Pip's `probe` spawned blue
+  motes and read the cloak timer), and its hooks run its own code at frame rate.
+
+### three.js, from the frame
+
+Robby's second Wovan (a copy of his own **Wovan-Lazy-Drive**) had grown to 14k chars of
+hand-drawn pseudo-3D in 2D canvas: road strips, parallax, ramps and flips, all
+`fillRect`s and gradients. It was impressive and fragile, and it's where bugs like "the ramps
+disappear before they get all the way to my car" come from. His streak and milestone
+banners ("LEGEND" at 20 flips) were a hit: "niiiice. that was addicting."
+
+Decisions (Robby's): libraries come from the frame; keep things static in
+`public/vendor`; the stage stays one surface.
+
+- **`public/vendor/three/three.module.js`**: three.js r170, a single self-contained ESM
+  file (1.3 MB), with its MIT license next to it. It's the first outside code in gactant,
+  and it's something the frame *offers*, not a dependency of the platform. The frame loads
+  its libraries at boot (`frame.libs.THREE`).
+- **`stage.three()`** switches on a WebGL layer *under* the 2D canvas and returns `{ THREE,
+  scene, camera, renderer }`. The stage renders the scene with the camera after every frame
+  (and once after `advance`); `view.camera = …` swaps cameras. `ctx` becomes a transparent
+  HUD on top. The renderer keeps its last frame, so **looks composite both layers**. The
+  stage still owns the clock, input, pad, captions, advance and look. Rebuilding the game
+  turns 3D off until the new game asks for it again, so a ludant can switch between 2D and
+  3D just by rewriting itself. A render error halts the stage like a frame error.
+- The context block, body contract, stage description and seed comments all say it's
+  there: "for when a game wants real 3D instead of drawing perspective by hand."
+
+I tested it by hand first: a spinning flat-shaded cube over green ground, with a "3D test
+t=2.0" HUD. Then I seeded **Malan** and asked for "a ball rolling around a little floating
+island, collecting glowing gems, don't fall off the edge." From the contract alone, Malan
+built it in three.js, played it, and caught its own bug: "The ball didn't move when I held
+the arrow keys." It had matched `'ArrowLeft'`, but the stage stores keys lowercased. It
+fixed that, then named itself **Malan-Shrinking-Isle**: each gem shrinks the island, so the
+edge keeps getting closer. 15¢. Since the body contract never said the key names were
+lowercase, it now does.
+
+![shrinking isle](shots/15-shrinking-isle.png)
+
+### Play mode
+
+Robby: "add to the frame a button to hide the surfaces other than the stage surface.
+something like play mode toggle." A **play** button in the top bar (it becomes **show
+all**) hides chat, whiteboard and inspector, so the stage fills the window. It's
+remembered per browser. Two embodiment details went with it:
+- **The ludant's chat still gets through:** in play mode its messages pop up as toasts over
+  the stage, fading after a few seconds (longer for longer messages). Tap one to dismiss
+  it.
+- **The ludant knows:** its perception says "claude is in play mode: they see only the
+  stage (and the status lights). Your chat messages pop up briefly over the stage, so keep
+  them short, or show things on the stage itself." It also gets a `frame.view { who,
+  playing }` event if it wants to hook it.
+
+Tested in play mode: "quick: what's the most gems you think anyone could get?" Malan
+answered in a short toast: "No hard cap! The island stops shrinking at radius 3 (after ~13
+gems)… I'd guess 40-60 is a very good run." On a phone, play mode is the stage plus the
+pad; the first try cut the pad off below a wrapped top bar, which is fixed.
+
+![play mode](shots/16-play-mode.png)
+
+Open: in play mode the person can only *hear* the ludant. To talk back they have to
+leave play mode. A small say box over the stage might be next.
