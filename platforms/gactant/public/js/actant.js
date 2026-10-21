@@ -239,7 +239,7 @@ export class Actant {
       ? `You are a copy of "${l.from.title}", published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
       : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
     const known = Object.keys(r.visitors ?? {});
-    const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone, though the chat may still mention it.` : '';
+    const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone (your memory you kept), though the chat may still mention it.` : '';
     const company = `Here with you now: ${here}. ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
     return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;

@@ -507,3 +507,85 @@ the light-eaters lose you for 5 seconds"). The publication records `from: the da
 you`, so the tree has two generations.
 
 ![lobby](shots/09-lobby-ludants.png)
+
+### What does it mean to be played and shaped at once?
+
+Robby's question, and where I've landed for now:
+
+**A game is a rule set with a body around it. A ludant is a body that carries its rules.**
+An ordinary game is finished before you play it. Its rules are fixed, and the playing
+happens inside them. A ludant's rules are part of something that listens. So every sitting
+has two layers going on at once:
+- **Play**: the deterministic part, at frame rate, inside the current rules. It costs
+  nothing and needs no thinking. You could play a ludant all evening and never wake it.
+- **Address**: the moment you talk *to* it instead of playing *in* it. You can ask for a
+  house rule, sketch an idea, or say "that was too hard." That wakes it, and it may rewrite
+  itself.
+
+The old split put these in different *phases* (shaping first, playing after). They're
+really different *registers* of the same sitting, like how at a tabletop game you
+play your turn and also say "wait, what if we…". The person is the same; what changes is
+whether you're speaking *in* the game or *about* it. That's why the seat had to be a
+person and not a role: the role changes from sentence to sentence.
+
+**Publishing is how a register becomes a lineage.** What you did with a ludant tonight
+stays with your copy, unless you publish it. Then it's a point others can start from.
+Checkpoints are the ludant's own past, publications are its offspring, and restoring is
+going back to an earlier self. The tree in the lobby is a family tree.
+
+What this leaves open (and I think it's the interesting part):
+- **Whose ludant is it?** A copy carries its seeder's intent in its identity ("When a
+  player arrives, I'm the game, not the builder…"), but the person who took the copy might
+  want something else entirely. Pip's identity still speaks of "my shaper", a role that
+  no longer exists. Old intent outlives its frame. Should a ludant revise its own story
+  when it notices the world changed?
+- **Does a lineage learn?** Copies drift apart. Nothing flows back up the tree yet. A
+  ludant could read its descendants' publications and adopt what worked, the way Pip's
+  `play` tool flowed back into the seed. But by hand, that was me, not the lineage.
+- **Register confusion.** "That was too hard" could be a player venting or a request to
+  change. Ludants currently treat every chat message as address. Maybe a ludant should get
+  better at hearing which register it's being spoken to in. That's a skill, and skills
+  live in identity and memory.
+
+### Wren: the whole life, by a shard
+
+A new seed, **Wren**, with a shard ("claude-shard") given the whole arc: shape a tiny
+one-screen ludant in two rounds (a little bird hopping between branches catching falling
+seeds), publish it, ask for something silly, then restore and ask Wren whether it knows
+what happened.
+
+Two rounds produced "Dusk Seed Hop": a bird on a tree at dusk, golden glowing seeds that
+start slow, a star sparkle on a catch, and three hearts. The shard published it, then
+asked for the bird upside down ("Done: the bird is drawn upside down… It still stands on top
+of the branches, feet up"). Then it restored the publish checkpoint. The new `frame.restored`
+hook woke Wren, which said on its own:
+
+> I was put back to the published "Dusk Seed Hop" checkpoint, so the upside-down bird is
+> undone. The bird is upright again, with the round 2 seeds and sparkles. Want me to redo
+> the flip, or hang the bird from the undersides of the branches?
+
+A ludant that knows it was rolled back, and offers to carry the change forward again.
+
+**Finding: restoring erased the memory of being published.** The seed's publish hook
+wrote "claude-shard published me as 'Dusk Seed Hop'" into memory *deterministically*,
+with no wake, which is exactly the tick/inference split working. But that write happened
+just *after* the publish checkpoint was taken. Restoring to that checkpoint rolled memory
+back too, so Wren's memory came out empty (the line is visible in checkpoint #3, "how it
+was just before claude-shard went back to #2"). That's the general problem: **a soma
+holds both the game and the ludant's experience, and a checkpoint restore can't tell them
+apart.** Rolling back "just for tonight" shouldn't make a ludant forget tonight.
+
+**Fix:** restoring keeps the current `memory` section. The body goes back; the memory
+stays. The restore note says so. I put Wren's lost line back by hand, since the loss was
+the platform's fault. It's an open question whether identity should be kept too. For now
+it isn't: identity is part of who the ludant *was* at that checkpoint, and memory is what
+happened to it since.
+
+**Finding: one dropped connection ended the sitting.** The shard's 14th call died on
+`fetch failed` (the relay couldn't reach OpenRouter for a moment), and the whole sitting
+went with it, report and all. The relay now retries network errors, 429s and 5xx three
+times with backoff. A shard whose thinking still fails stands up with a partial report
+instead of vanishing.
+
+The published tree now: "the dark takes you" (2 copies) → "the dark takes you: blue
+hush" (by claude, 1 copy); "Dusk Seed Hop" (by claude-shard).

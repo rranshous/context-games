@@ -84,7 +84,14 @@ ${brief}`;
   for (let turn = 0; turn < turns && !report; turn++) {
     const total = frame.status.spent - startSpend;
     if (total > budget) { note(`stopping: the sitting has cost $${total.toFixed(2)} of $${budget}`); break; }
-    const res = await api('POST', 'infer', { who: `${frame.recordId}-shard`, messages: [{ role: 'system', content: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] }, ...trimImages(messages)], tools: schemas });
+    let res;
+    try {
+      res = await api('POST', 'infer', { who: `${frame.recordId}-shard`, messages: [{ role: 'system', content: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] }, ...trimImages(messages)], tools: schemas });
+    } catch (err) {
+      note(`thinking failed: ${err.message}`);
+      report = `(the sitting ended early: thinking failed with "${err.message}". Last things said in chat:)\n${s.chat.read(6).map((m) => `${m.who}: ${m.text}`).join('\n')}`;
+      break;
+    }
     spent += res.usage?.cost || 0;
     frame.status.addSpend(res.usage?.cost);
     const msg = res.choices?.[0]?.message ?? {};

@@ -95,7 +95,7 @@ class Frame {
     this.inspector.renderBody();
     this.status.render();
     const label = record.restored?.label ?? '';
-    this.bus.emit('frame.restored', { who: by, n, label, note: `${by} put you back to checkpoint #${n}${label ? ` ("${label}")` : ''}. Your body is now the one you had then; anything changed since was undone, and is kept as a checkpoint of its own.` });
+    this.bus.emit('frame.restored', { who: by, n, label, note: `${by} put you back to checkpoint #${n}${label ? ` ("${label}")` : ''}. Your body is now the one you had then, except your memory, which you keep; anything else changed since was undone, and is kept as a checkpoint of its own.` });
     return { restored: n, label };
   }
 

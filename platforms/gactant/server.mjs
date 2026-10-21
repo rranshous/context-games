@@ -93,12 +93,24 @@ async function infer(body) {
     ...(body.tools?.length ? { tools: body.tools } : {}),
   };
   const started = Date.now();
-  const res = await fetch(OPENROUTER, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'gactant' },
-    body: JSON.stringify(request),
-  });
-  const text = await res.text();
+  // A dropped connection or a busy provider shouldn't end someone's sitting: retry those.
+  let res, text;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(OPENROUTER, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'gactant' },
+        body: JSON.stringify(request),
+      });
+      text = await res.text();
+      if ((res.status === 429 || res.status >= 500) && attempt < 3) throw new Error(`status ${res.status}`);
+      break;
+    } catch (err) {
+      if (attempt >= 3) throw httpError(502, `openrouter unreachable: ${err.message}`);
+      console.warn(`[gactant] infer attempt ${attempt + 1} failed (${err.message}); retrying`);
+      await new Promise((r) => setTimeout(r, 1500 * 2 ** attempt));
+    }
+  }
   let json;
   try { json = JSON.parse(text); } catch { throw httpError(502, `openrouter: ${text.slice(0, 300)}`); }
   const record = {
@@ -188,7 +200,11 @@ async function route(method, parts, body, query) {
       const cp = ludant.checkpoints.find((x) => x.n === Number(body.n));
       if (!cp) throw httpError(404, `no checkpoint ${body.n}`);
       checkpoint(ludant, `how it was just before ${body.by || 'someone'} went back to #${cp.n}`, body.by);
+      // The body goes back; the memory stays. Being put back is something that happened to
+      // it, and a ludant that forgot every restore would be forever surprised.
+      const memory = ludant.soma.sections?.memory;
       ludant.soma = structuredClone(cp.soma);
+      if (memory != null) ludant.soma.sections.memory = memory;
       ludant.restored = { n: cp.n, label: cp.label, by: body.by || null, at: now() };
       ludant.updated = now();
       write('ludants', b, ludant);
