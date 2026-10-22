@@ -31,7 +31,7 @@ for (const h of ops.traffic) {
 }
 const pick = (prefix) => Object.entries(total).filter(([k]) => k.startsWith(prefix)).sort((a, b) => b[1] - a[1]);
 
-console.log(`${base}, the last ${days} day(s), as of ${ops.now}. Windows holding a ludant now: ${ops.held}.\n`);
+console.log(`${base}, the last ${days} day(s), as of ${ops.now}. Windows holding a ludant now: ${ops.held}. Open reports of content: ${ops.flagsOpen}${ops.flagsOpen ? ' (node tools/moderate.mjs)' : ''}.\n`);
 console.log('by hour (UTC): requests, sittings, trouble');
 for (const h of ops.traffic) {
   const c = h.counts, req = Object.entries(c).filter(([k]) => k.startsWith('api ') && !/^api (5xx|\d{3})$/.test(k)).reduce((n, [, v]) => n + v, 0);

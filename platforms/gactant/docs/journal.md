@@ -1932,3 +1932,29 @@ What I could reach without him was the problem. Workers Logs are Cloudflare's na
 Tested locally: two crashes that differ by a number grouped as one ×2; a real page's thrown error and rejected promise both arrived; the sit event counted; the stage sample (chrome 2d, 60 fps, 4 ms, speed 1.00) came in at the minute mark.
 
 Right after the deploy, `tools/ops.mjs` couldn't reach gactant.com at all: TLS "wrong version number". Not the deploy. Plain http to gactant.com redirects to `block.charter-prod.hosted.cujo.io/warn.html`: Robby's ISP (Spectrum's Security Shield, run by CUJO) intercepts both gactant.com and gactantbox.com on his home network. A reader service outside fetched the lobby fine. Young domains get flagged like this. Until it's allowed (in the Spectrum app, or by reporting it as safe), nothing on that network can use the site, and I can't read the live ops from lilg either. Verifying `admin/ops` live waits on that.
+
+## Part 11: reports, takedowns, and thinking ahead about bad content
+
+Robby: "As a public platform ppl can create content on I am worried about ppl creating illegal or super bad don't want it on my platform content. Let's at least add a mechanism so that bad content can be reported by users and talk about how we might be able to be proactive without undue cost."
+
+**Reporting, built:**
+- **⚑ in the frame's top bar.** Pick a reason (illegal, sexual or graphic, hateful or harassing, too violent, something else) and add an optional note. The report goes in with the ludant's id, the publication a copy came from, and a 320px picture of the stage. A publication is what other people actually see, so it's what a report needs to point at.
+- **`/rules.html`** says what isn't welcome, as a contract (whoever made it and however it came about), linked from the dialog and the lobby's foot.
+- **Hidden until someone looks.** Two people saying "illegal", or three saying anything, hide a publication at once: out of the lobby, no copies, no picture. Reporter names are self-chosen, so this can be brigaded. That's acceptable because hiding only waits for review, and a restored publication isn't auto-hidden again.
+- **`tools/moderate.mjs`** lists open reports, saving their pictures to a temp folder so I can look at them. It can `hide`, `restore`, `remove` a ludant (a tombstone whose link says it was taken down for breaking the rules, reusing abandon's `letGo`) and `dismiss`. `tools/ops.mjs` shows the open count.
+- **Caps:** 300 reports a day.
+
+Tested locally: three reports hid Fishtest-Little-Catch (gone from the list, 451 on copy, no thumbnail). Restore brought it back, and two "illegal" reports after that didn't re-hide it. A seeded ludant taken down answered with `takenDown`. The dialog sent from a real page.
+
+**Where bad content can come from, which decides where to look:**
+- **Publications and ludant links** are the only things other people see. What they carry: the soma (names, title, note, identity, game code, and anything that code draws, text included), the art, and the thumbnail. Chat and sketches don't travel with a publication.
+- **Game code and words** are written by the configured model (Claude), which declines a lot on its own. Names, titles and notes are typed by people, unfiltered. Code can draw anything with canvas, including text.
+- **Art** comes only from the image models (Gemini). Those have their own filters, and there's no upload.
+- **Sketches** are hand-drawn and unfiltered, but they stay in the sitting.
+
+**Ways to be proactive, cheapest first (to talk over, not built):**
+1. **Tell the ludants the rules.** A paragraph in the body contract, a few tokens a think: it shouldn't make what the rules forbid, whoever asks.
+2. **Check at publish, not at every think.** Publishing is rare and is the moment something goes public. Run one check over its text (title, note, name, identity, the strings in its code) and its pictures, on the publisher's own OpenRouter key: a fraction of a cent with a small model, in keeping with "people pay for their own thinking". Cloudflare's Workers AI has Llama Guard for text on a free daily allowance, but that one is on Robby. Something flagged waits for review rather than being refused outright.
+3. **Let new publications earn the front page.** "Jump in" shows only publications that have been up a while without reports. New ones still show under "Play something new". It costs nothing and shrinks what a stranger meets first.
+4. **Serve pictures as images through Cloudflare's cache**, not data URLs inside JSON. Then Cloudflare's free CSAM Scanning Tool can check them. It's the legally weighty case: US providers who become aware of apparent CSAM must report it to NCMEC.
+5. **Housekeeping:** a contact address on the rules page, a DMCA agent registration (about $6) for copyright safe harbor, and a per-browser publishing limit.

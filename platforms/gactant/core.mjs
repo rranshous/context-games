@@ -61,6 +61,10 @@
 //                                                   with an id, updates that report as the check goes on
 //   POST admin/reports { token, n? }             -> newest reports (needs settings.adminToken; tools/reports.mjs)
 //   POST events { browser, mobile, events: [...] } -> {}           what a page noticed: trouble and how the stage runs (ops.mjs)
+//   POST flags { ludant?, published?, reason, note, by, image? } -> { id }   someone reports content (frame.js);
+//                                                   a publication flagged by enough people is hidden until looked at
+//   POST admin/flags { token, all? }             -> open reports (or the latest 200)        tools/moderate.mjs
+//   POST admin/moderate { token, action: hide|restore|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
 //   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
@@ -80,6 +84,7 @@ const MAX_LUDANT = 1_500_000;    // characters of JSON in a save: soma and surfa
 const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
 const MAX_THUMB = 60_000;        // characters of data URL
 const MAX_REPORT = 60_000;       // characters of JSON in a check report
+const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
 const MAX_ASSET = 1_500_000;     // characters of data URL in one picture
 const MAX_ASSETS = 60;           // pictures per ludant
 const assetName = (n) => { if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(n))) throw httpError(400, `art names are lowercase words joined by -, up to 40 characters: ${n}`); return n; };
@@ -247,6 +252,73 @@ export function createCore({ store, settings }) {
     return json;
   }
 
+  /** A ludant stops being kept: its checkpoints, art and picture go, and a note of it stays
+   *  so its link can say what happened. (Abandoned by someone, or taken down.) */
+  async function letGo(ludant, how) {
+    const id = ludant.id;
+    for (const cp of ludant.checkpoints ?? []) await store.remove('checkpoints', `${id}-${cp.n}`);
+    for (const a of ludant.assets ?? []) await store.remove('assets', `l-${id}-${a.name}`);
+    await store.remove('thumbs', `l-${id}`);
+    const abandoned = { name: nameOf(ludant.soma), at: now(), ...how };
+    await store.put('ludants', id, { id, abandoned, lineage: ludant.lineage ?? {} });
+    holds.delete(id);
+    unwritten.delete(id);
+    return abandoned;
+  }
+
+  // ---------- flags: someone says what they saw doesn't belong here ----------
+
+  const FLAG_REASONS = ['illegal', 'sexual', 'hateful', 'violent', 'other'];
+  let flagDay = '', flagsToday = 0;
+
+  /** A report of content. A publication enough different people flag is hidden at once,
+   *  until someone looks: a strong word ('illegal') from two, any word from three. */
+  async function flag(body) {
+    const today = now().slice(0, 10);
+    if (today !== flagDay) { flagDay = today; flagsToday = 0; }
+    if (++flagsToday > MAX_FLAGS_A_DAY) throw httpError(429, 'too many reports today; please try again tomorrow');
+    const reason = FLAG_REASONS.includes(body.reason) ? body.reason : 'other';
+    const ludant = body.ludant ? safe(body.ludant) : null;
+    const published = body.published ? safe(body.published) : null;
+    if (!ludant && !published) throw httpError(400, 'a report says what it is about');
+    const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_THUMB ? body.image : null;
+    const id = `f-${hex(4)}`;
+    const doc = { id, at: now(), status: 'open', reason, note: String(body.note ?? '').slice(0, 1000), by: String(body.by || 'someone').slice(0, 40), ludant, published, image };
+    await store.put('flags', id, doc);
+    ops.count(`flag ${reason}`);
+    settings.opsLog?.({ flag: reason, ludant, published });
+    if (published) {
+      const pub = await store.get('published', published);
+      if (pub && !pub.hidden && !pub.cleared) {
+        const open = (await store.list('flags')).filter((f) => f.published === published && f.status === 'open');
+        const people = new Set(open.map((f) => f.by.toLowerCase())).size;
+        const strong = new Set(open.filter((f) => f.reason === 'illegal').map((f) => f.by.toLowerCase())).size;
+        if (strong >= 2 || people >= 3) { pub.hidden = { by: 'reports', at: now() }; await store.put('published', published, pub); }
+      }
+    }
+    return { id };
+  }
+
+  /** What the moderator can do (tools/moderate.mjs). */
+  async function moderate({ action, flag: flagId, published, ludant, note }) {
+    const done = [];
+    if (published) {
+      const pub = await read('published', published);
+      if (action === 'hide') { pub.hidden = { by: 'moderator', at: now(), note: String(note ?? '').slice(0, 200) }; delete pub.cleared; done.push(`hid ${pub.name}`); }
+      if (action === 'restore') { delete pub.hidden; pub.cleared = now(); done.push(`restored ${pub.name} (reports won't hide it again by themselves)`); }
+      await store.put('published', published, pub);
+    }
+    if (ludant && action === 'remove') {
+      const l = await store.get('ludants', safe(ludant));
+      if (l && !l.abandoned) { await letGo(l, { by: 'gactant', takenDown: true }); done.push(`took down ${ludant}`); }
+    }
+    for (const f of await store.list('flags')) {
+      const ours = flagId ? f.id === flagId : (published && f.published === published) || (ludant && f.ludant === ludant);
+      if (ours && f.status === 'open') { f.status = action === 'restore' || action === 'dismiss' ? 'dismissed' : 'acted'; f.closed = now(); await store.put('flags', f.id, f); done.push(`closed ${f.id}`); }
+    }
+    return { done };
+  }
+
   // ---------- routes ----------
 
   /** Every request is counted, and one that fails on our side is kept as trouble. */
@@ -268,9 +340,16 @@ export function createCore({ store, settings }) {
     const [a, b, c] = parts;
     // What pages noticed (no names, chat, prompts or keys), and reading it all back.
     if (a === 'events' && method === 'POST') return ops.events(body);
+    if (a === 'flags' && method === 'POST') return flag(body);
+    if (a === 'admin' && (b === 'flags' || b === 'moderate') && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (b === 'moderate') return moderate(body);
+      const all = (await store.list('flags')).sort((x, y) => y.at.localeCompare(x.at));
+      return body.all ? all.slice(0, 200) : all.filter((f) => f.status === 'open');
+    }
     if (a === 'admin' && b === 'ops' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
-      return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length };
+      return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length, flagsOpen: (await store.list('flags')).filter((f) => f.status === 'open').length };
     }
     if (a === 'config') return { model, hasKey: Boolean(key), logs: !isPublic, public: isPublic, sandbox: settings.sandbox || '' };
     if (a === 'infer' && method === 'POST') return infer(body);
@@ -302,7 +381,10 @@ export function createCore({ store, settings }) {
       }
       return { imported };
     }
-    if (a === 'thumbs' && (b === 'l' || b === 'p') && c) return { image: (await store.get('thumbs', `${b}-${safe(c)}`))?.image ?? null };
+    if (a === 'thumbs' && (b === 'l' || b === 'p') && c) {
+      if (b === 'p' && (await store.get('published', safe(c)))?.hidden) return { image: null };
+      return { image: (await store.get('thumbs', `${b}-${safe(c)}`))?.image ?? null };
+    }
 
     if (a === 'ludants') {
       if (!b && method === 'GET') {
@@ -327,14 +409,7 @@ export function createCore({ store, settings }) {
       if (ludant.abandoned) throw httpError(410, `${ludant.abandoned.name} was abandoned`, { abandoned: ludant.abandoned });
       if (c === 'abandon' && method === 'POST') {
         requireHold(b, body.token);
-        for (const cp of ludant.checkpoints ?? []) await store.remove('checkpoints', `${b}-${cp.n}`);
-        for (const a of ludant.assets ?? []) await store.remove('assets', `l-${b}-${a.name}`);
-        await store.remove('thumbs', `l-${b}`);
-        const abandoned = { name: nameOf(ludant.soma), by: String(body.by || 'someone').slice(0, 40), at: now() };
-        await store.put('ludants', b, { id: b, abandoned, lineage: ludant.lineage ?? {} });
-        holds.delete(b);
-        unwritten.delete(b);
-        return { abandoned };
+        return { abandoned: await letGo(ludant, { by: String(body.by || 'someone').slice(0, 40) }) };
       }
       if (!c && method === 'GET') {
         // The names its family has already published under, so it knows which are taken.
@@ -440,7 +515,7 @@ export function createCore({ store, settings }) {
     // publication, and that copy can be published again.
     if (a === 'published') {
       if (!b && method === 'GET') {
-        return (await store.list('published')).map(({ soma, stats, play, assets, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play) }))
+        return (await store.list('published')).filter((p) => !p.hidden).map(({ soma, stats, play, assets, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') {
@@ -476,6 +551,7 @@ export function createCore({ store, settings }) {
         return { id, name };
       }
       const pub = await read('published', b);
+      if (pub.hidden) throw httpError(451, `${pub.name} has been taken down`, { hidden: true });
       if (!c && method === 'GET') { const { soma, stats, play, ...meta } = pub; return { ...meta, cost: perHour(play) }; }
       if (c === 'copy' && method === 'POST') {
         const id = newId(pub.given);

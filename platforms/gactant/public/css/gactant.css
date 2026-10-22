@@ -316,3 +316,12 @@ body.fullplay .full-bar { display: flex; gap: 6px; position: absolute; top: max(
   body.fullplay .pad-btn { background: rgba(26, 29, 36, 0.45); border-color: rgba(255, 255, 255, 0.18); }
   body.fullplay .pad-btn.on { background: var(--amber); }
 }
+
+/* reporting */
+.report-box { flex-direction: column; flex-wrap: nowrap; max-width: 480px; }
+.report-reason { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.report-note { width: 100%; background: var(--pane-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+.rules { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
+.rules li { margin: 6px 0; }
+.lobby-foot { color: var(--ink-3); font-size: 12px; }
+.lobby-foot a { color: var(--ink-2); }

@@ -308,6 +308,14 @@ SQLite.
 - The API refuses any request whose `Origin` isn't the site itself (a sandbox's is
   `null`), and refuses saves over 1.5M characters.
 
+### Reports and takedowns
+
+Anyone can press **⚑** in a frame's top bar to report what they saw. They pick a reason and may add a note. The report covers the ludant and, for a copy, the publication it came from (that's what others can see), with a picture of the stage as it was. `/rules.html` says what isn't allowed, and the lobby links to it.
+
+A publication reported by two different people as illegal, or by three for any reason, is **hidden at once** until someone looks. It's out of the lobby, it can't be copied, and its picture isn't served. Names are self-chosen, so this can be gamed. Hiding only waits for review, and a restored publication isn't hidden by reports again. The install takes at most 300 reports a day.
+
+`node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.
+
 ### What's going on: logs and trouble
 
 Both hosts keep a long view in their own store (`ops.mjs`):

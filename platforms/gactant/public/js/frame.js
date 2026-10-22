@@ -386,6 +386,40 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     document.body.append(box);
   }
 
+  /** Someone thinks what's here doesn't belong. The report says which ludant and, for a
+   *  copy, which publication it came from (that's what others can see), with a picture of
+   *  the stage as it is. Whoever runs the site reads it (tools/moderate.mjs). */
+  askReport() {
+    const from = this.record.lineage?.from;
+    const reasons = [
+      ['illegal', 'illegal: sexual content involving minors, real threats, or other illegal material'],
+      ['sexual', 'sexual or graphic content'],
+      ['hateful', 'hateful or harassing'],
+      ['violent', 'violent in a way that goes too far'],
+      ['other', 'something else'],
+    ];
+    let reason = null;
+    const note = el('textarea', { class: 'report-note', rows: 3, maxlength: 1000, placeholder: 'What did you see? (optional)' });
+    const send = el('button', { class: 'top-btn danger', disabled: true, onclick: async () => {
+      send.disabled = true;
+      try {
+        const c = document.createElement('canvas');
+        c.width = 320; c.height = Math.round(320 * this.stage.height / this.stage.width);
+        c.getContext('2d').drawImage(this.stage.canvas, 0, 0, c.width, c.height);
+        await api('POST', 'flags', { ludant: this.recordId, published: from?.published ?? null, reason, note: note.value, by: this.seat, image: c.toDataURL('image/jpeg', 0.72) });
+        box.querySelector('.cover-box').replaceChildren(el('p', {}, 'Thank you. Your report went to the people who run gactant, with a picture of the stage as it is now.'),
+          el('button', { class: 'top-btn', onclick: () => box.remove() }, 'close'));
+      } catch (err) { send.disabled = false; alert(`couldn't send the report: ${err.message}`); }
+    } }, 'send report');
+    const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box report-box' },
+      el('p', {}, el('strong', {}, 'Report what you saw here. '), from ? `This is a copy of ${from.name}${from.by ? `, published by ${from.by}` : ''}. The report covers both.` : `The report is about ${this.actant.name}.`, ' ', el('a', { href: '/rules.html', target: '_blank' }, 'What isn\'t allowed')),
+      ...reasons.map(([value, label]) => el('label', { class: 'report-reason' },
+        el('input', { type: 'radio', name: 'report-reason', value, onchange: () => { reason = value; send.disabled = false; } }), label)),
+      note, send,
+      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'cancel')));
+    document.body.append(box);
+  }
+
   /** A small picture of the stage for the lobby. */
   async sendThumb() {
     if (this.lost || !this.stage.count) return;
@@ -581,6 +615,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
         const f = main.classList.toggle('folded');
         try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}
       } }, 'inside'),
+      el('button', { class: 'top-btn', title: 'report something that doesn\'t belong here', 'aria-label': 'report', onclick: () => this.askReport() }, '⚑'),
       history,
     );
   }
@@ -634,7 +669,9 @@ async function boot() {
     const a = err.body?.abandoned ?? {};
     const when = a.at ? new Date(a.at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     document.body.append(el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
-      el('p', {}, `${a.name ?? 'This ludant'} was abandoned${a.by ? ` by ${a.by}` : ''}${when ? ` on ${when}` : ''}. It isn't kept any more, though anything it was published as may still be in the lobby.`),
+      el('p', {}, a.takenDown
+        ? `${a.name ?? 'This ludant'} was taken down${when ? ` on ${when}` : ''} for breaking gactant's rules. It isn't kept any more.`
+        : `${a.name ?? 'This ludant'} was abandoned${a.by ? ` by ${a.by}` : ''}${when ? ` on ${when}` : ''}. It isn't kept any more, though anything it was published as may still be in the lobby.`),
       el('a', { class: 'top-btn primary', href: '/' }, 'to the lobby'))));
     return;
   }
