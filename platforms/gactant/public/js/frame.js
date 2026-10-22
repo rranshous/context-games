@@ -661,7 +661,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     const who = this.seat, l = this.record.lineage ?? {};
     if (this.record.fresh && l.from) {
       const took = l.takenBy && l.takenBy !== who ? `${l.takenBy} took this copy; ${who} is here with you.` : `${who} took this copy and is here with you.`;
-      return `You are a new copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}. ${took}`;
+      const whence = l.from.published ? `published by ${l.from.by ?? 'someone'}` : 'taken from its link, as it was then';
+      return `You are a new copy of ${l.from.name}, ${whence}. ${took}`;
     }
     if (this.record.fresh) return `You have just been seeded by ${who}. They are here with you.`;
     if (arrival.firstVisit) return `${who} has sat down with you for the first time.`;
