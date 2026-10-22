@@ -47,6 +47,13 @@ export function askName(why = 'Ludants know the people who sit with them by name
   });
 }
 
+// Owner keys: a ludant this browser seeded or copied is its own, and changing it takes the
+// key (core.mjs). Another device gets it from an "open on another device" link.
+const OWNERS = 'gactant-owners';
+const owners = () => { try { return JSON.parse(localStorage.getItem(OWNERS) || '{}'); } catch { return {}; } };
+export function ownerOf(id) { return owners()[id] ?? null; }
+export function own(id, key) { if (!key) return; try { localStorage.setItem(OWNERS, JSON.stringify({ ...owners(), [id]: key })); } catch {} }
+
 // The ludants this browser has sat with, newest first: how someone finds their way back.
 const MINE = 'gactant-mine';
 export function mine() { try { return JSON.parse(localStorage.getItem(MINE) || '[]'); } catch { return []; } }

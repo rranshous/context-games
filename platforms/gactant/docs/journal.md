@@ -1999,3 +1999,39 @@ It already waited for the first inference, but a ludant wakes the moment someone
 Tested with the server's key hidden from the page: no banner on a fresh seed's arrival, and the stage kept drawing. A chat brought the banner. "Just play" left it resting with no fault. A second chat asked again. With thinking available, the next think's events held both the unpaid message and the new one (the inference was intercepted, so nothing was spent).
 
 On the publish check: Robby doesn't love the Workers AI answer, but it stays for now because usage is low and a browser-side check could be skipped. Maybe for good. The contact address waits until he's home.
+
+## Part 12: shoring up
+
+Asked what else to shore up, I listed seven things. Robby picked 2, 3 and 5, and on 1 asked: "You sure about 1? Bc I thought it already worked that way. If not I def want it so that someone else can't edit your ludant." I checked, and it was worse than I'd said:
+- **Taking over.** `hold` with `takeOver` handed the ludant to any token.
+- **Writing with no hold at all.** `requireHold` *granted* a hold to any token when nobody held the ludant, so a curl with a made-up token could overwrite it.
+- **Unguarded routes.** `restore`, `checkpoints` and `arrive` checked nothing, and publishing took just an id.
+
+So 1 got done too.
+
+**1, owners.**
+- **The key.** Seeding or copying returns an owner key. The browser keeps it (`gactant-owners`); the ludant keeps its SHA-256.
+- **What needs it.** `hold` needs the key. Every change needs the hold, or `{ token, owner }` to take a lapsed hold back, which matters after the World restarts and forgets its holds. That covers PUT, heartbeat, arrive, checkpoints, restore, abandon, assets, thumb and publish.
+- **Strangers.** Without the key: 403 `notYours`, and the frame offers "take my own copy" (a new `POST ludants/<id>/copy`, lineage `from.ludant`).
+- **Other devices.** "Open on another device…" gives `frame.html?l=…#own=KEY`. The fragment never reaches a server or a log, and the frame strips it from the address bar.
+- **Old ludants.** They have no owner, so the first browser to hold one claims it. For Robby's live ones, that means whichever of his devices opens each first; the others need its owner link.
+- **Tested.** curl refusals for hold, save, restore and publish without the key. In the browser: a stranger's cover, then their copy; an owner link on a third context made it an owner, with the key gone from the URL.
+
+**2, the pages' policy.**
+- The two inline module scripts (`play.html`, `connected.html`) moved into `js/play.js` and `js/connected.js`, so `script-src 'self'` holds everywhere.
+- `pageHeaders()` in core.mjs is shared by both hosts. In the browser, every page loaded with nothing blocked, including the play link through to a frame with art. An injected inline script didn't run, and a fetch to another site was refused.
+
+**3, caps.**
+- **Daily limits:** a generic `limit(what, ip, max)`, in memory, for seeds (20), copies (40) and publishes (10).
+- **Per ludant:** an art budget of 20 MB, and checkpoints capped at the first plus the newest 50, deleting the rest from storage. Those were unbounded, a full soma each.
+- **`tidy()`, hourly with the checks:**
+  - It clears ludants still at their first checkpoint and untouched 7 days (seeds) or 30 (copies).
+  - It drops closed reports after 90 days and keeps 200 device reports.
+  - It doesn't run locally, so Robby's local test ludants are safe.
+- **Storage:** `store.size()` (SQLite `databaseSize` plus counts and characters per kind) shows in ops.
+- **Tested in Node:** the 21st seed was refused; 14 pictures of 1.4 MB fit, then the budget stopped it; 70 changes kept #1 and #22–71; tidy cleared only the 8-day-old seed.
+
+**5, checked deploys.** `npm run deploy`:
+- **Smoke first:** `tools/smoke.mjs` runs 21 checks against a scratch-data local server. The server gained `--data`.
+- **Then `wrangler deploy`.**
+- **Then a version check:** it polls `/api/config` (which now says `version`, from the World's own `VERSION` binding) until it matches. It tries gactant.com and then the workers.dev address. That address is now on, but answers nothing except `/api/config`, so a deploy can be checked from Robby's blocked home network.

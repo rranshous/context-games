@@ -247,6 +247,10 @@ The frame's pages work with a controller too:
 the microphone, recognition. It saves its report for Claude to read
 (`node tools/reports.mjs`).
 
+## Whose it is
+
+A ludant belongs to whoever seeded it or took the copy. Their browser keeps a secret **owner key**; the ludant keeps only its hash. Changing a ludant takes the window's hold, and taking the hold takes the key. That covers saves, versions, restores, art, publishing and abandoning. Anyone else with its link can look, or **take a copy of their own**. To use a ludant on another device of yours (a console, a phone), use **history → open on another device…**: its link carries the key after `#`, which browsers never send to a server. A ludant from before owners belongs to the first browser that opens it.
+
 ## One window, any device
 
 A ludant lives in one window at a time. Opening it elsewhere offers to **bring it here**,
@@ -337,6 +341,21 @@ Pages send what they notice to `POST /api/events` (`public/js/telemetry.js`). It
 `node tools/ops.mjs https://gactant.com [days]` prints the summary (`--json` for all of it). It needs `GACTANT_ADMIN_TOKEN` in `.env`, sent in the body so it never lands in a request log. This is how Claude reads the live site without anyone relaying it.
 
 On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`): every request and every console line, searchable in the dashboard under the Worker's Observability tab, kept 3 days on the free plan. Trouble is logged there as an object, so its fields (`trouble`, `where`, `browser`, `ludant`) can be filtered. `npx wrangler tail` shows it live.
+
+### Limits, so nothing balloons
+
+Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per ludant: 60 pictures and 20 MB of them, the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began and untouched for 7 days (a seed) or 30 (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
+
+### The site's pages
+
+The frame, lobby and other pages hold people's OpenRouter keys and owner keys, so they carry a strict policy: only the platform's own scripts (no inline ones), network only to the site and OpenRouter, frames only from the sandbox, and nobody may frame them. Also `nosniff`, a referrer policy and HSTS.
+
+### Deploying
+
+`npm run deploy` (`tools/deploy.mjs`):
+1. **Smoke test** (`tools/smoke.mjs`): a fresh local server with scratch data. It checks pages and policies, owning and refusing, saving, publishing, copying, reports, events, ops and abandon. Nothing goes up if it fails.
+2. **`wrangler deploy`.**
+3. **Version check:** it waits until the World answers `/api/config` with the version just deployed. It tries gactant.com, then the workers.dev address, which answers only that route, for networks that block the site.
 
 While the project is young there are **no migrations**: when a contract changes, `data/`
 is wiped and the journal is the record.

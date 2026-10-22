@@ -4,7 +4,7 @@
 // starting from nothing is last.
 
 import { PadNav, Pads } from './pads.js';
-import { api, askName, el, forget, mine, myName } from './ui.js';
+import { api, askName, el, forget, mine, myName, own } from './ui.js';
 import { watchPage } from './telemetry.js';
 
 watchPage('lobby');
@@ -147,7 +147,8 @@ const section = (title, hint, ...body) => el('section', { class: 'lobby-section'
 
 async function seed() {
   const by = await askName('A new ludant starts as a pulsing dot and becomes whatever the two of you make. It will know you by this name.');
-  const { id } = await api('POST', 'ludants', { by });
+  const { id, owner } = await api('POST', 'ludants', { by });
+  own(id, owner);
   location.href = `/frame.html?l=${id}`;
 }
 

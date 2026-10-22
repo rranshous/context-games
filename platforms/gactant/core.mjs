@@ -31,13 +31,19 @@
 //               lineage points back; that copy can be published again.
 //
 // API (JSON, under /api)
-//   GET  config                                  -> { model, hasKey, logs, public, sandbox }
+//   GET  config                                  -> { version, model, hasKey, logs, public, sandbox }   version: what's running (hosted)
 //   GET  ludants?ids=a,b                         -> [{ id, name, updated, checkpoints, lineage, people, spent }]
 //                                                   (without ids: every ludant, unless the install is public)
-//   POST ludants        { by }                   -> { id }          seed a new one, with a fresh given name
+//   POST ludants        { by }                   -> { id, owner }   seed a new one, with a fresh given name; owner is
+//                                                   its secret key, kept by the browser (only its hash is stored)
+//   POST ludants/<id>/copy { by }                -> { id, owner }   your own copy of someone else's ludant, as it is now
 //   GET  ludants/<id>                            -> { id, soma, surfaces, lineage, visitors, checkpoints, restored, fresh, familyNames }
 //   PUT  ludants/<id>   { soma, surfaces, token } -> {}            409 unless this window holds it
-//   POST ludants/<id>/hold { token, who, takeOver? } -> { held, tookFrom }   409 { heldBy, since } if another window does
+//   POST ludants/<id>/hold { token, owner, who, takeOver? } -> { held, tookFrom, owner? }   409 { heldBy, since } if another
+//                                                   window does; 403 { notYours } without the owner key (a ludant from
+//                                                   before owners is claimed by the first to hold it: owner comes back)
+//   Every other change (PUT, heartbeat, arrive, checkpoints, restore, abandon, assets, thumb,
+//   publishing) needs { token } of the window holding it, or { token, owner } to take the hold back.
 //   POST ludants/<id>/heartbeat { token, seconds, spent } -> { held } 409 once another window took it
 //   POST ludants/<id>/release { token }          -> {}
 //   POST ludants/<id>/arrive { who }             -> { firstVisit, visits, checkpoint, people }
@@ -90,6 +96,14 @@ const MAX_REPORT = 60_000;       // characters of JSON in a check report
 const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
 const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each costs a little)
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
+const SEED_A_DAY = 20;           // new ludants one address may seed in a day
+const COPY_A_DAY = 40;           // copies one address may take in a day
+const ART_BUDGET = 20_000_000;   // characters of pictures one ludant keeps, all told
+const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its first)
+// Ludants nobody came back to: still exactly as they began (one checkpoint) and untouched
+// this long, they're cleared away. A seed is a pulsing dot; a copy can be taken again.
+const UNTOUCHED_SEED_MS = 7 * 86400_000;
+const UNTOUCHED_COPY_MS = 30 * 86400_000;
 const TRUSTED_AFTER_MS = 24 * 3600_000;   // a checked publication with no reports earns the front page after this
 const MAX_ASSET = 1_500_000;     // characters of data URL in one picture
 const MAX_ASSETS = 60;           // pictures per ludant
@@ -143,6 +157,11 @@ export function createCore({ store, settings }) {
     const n = (last?.n ?? 0) + 1;
     await store.put('checkpoints', `${ludant.id}-${n}`, { soma: structuredClone(ludant.soma) });
     ludant.checkpoints.push({ n, label: label || '', by: by || null, at: now() });
+    // The newest are kept, and the first (how it began).
+    while (ludant.checkpoints.length > CHECKPOINTS_KEPT + 1) {
+      const [old] = ludant.checkpoints.splice(1, 1);
+      await store.remove('checkpoints', `${ludant.id}-${old.n}`);
+    }
     return n;
   }
   const checkpointSoma = async (ludant, n) => (await store.get('checkpoints', `${ludant.id}-${n}`))?.soma;
@@ -171,10 +190,24 @@ export function createCore({ store, settings }) {
     return h && Date.now() - h.seen < HOLD_STALE_MS ? h : null;
   }
 
-  function requireHold(id, token) {
-    const h = holdState(id);
+  // ---------- whose it is ----------
+  //
+  // A ludant belongs to whoever seeded or copied it: their browser keeps a secret owner key,
+  // and the ludant keeps only its hash. Changing a ludant takes the window's hold, and
+  // taking the hold takes the key. Anyone else with the link can look, or take a copy.
+
+  const hashKey = async (k) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(k)))), (x) => x.toString(16).padStart(2, '0')).join('');
+  const ownerKey = async (ludant) => { const k = hex(16); ludant.owner = await hashKey(k); return k; };
+  const isOwner = async (ludant, k) => Boolean(k) && ludant.owner === await hashKey(k);
+  const notYours = (ludant) => httpError(403, `${nameOf(ludant.soma)} belongs to someone else`, { notYours: true });
+
+  /** The window must hold the ludant. A hold that has lapsed (or was forgotten, when the
+   *  server restarted) comes back to a window that shows the owner key. */
+  async function requireHold(ludant, body) {
+    const id = ludant.id, token = body.token, h = holdState(id);
     if (h && h.token === token) { h.seen = Date.now(); return; }
-    if (!h && token) { holds.set(id, { token, who: '?', since: now(), seen: Date.now() }); return; }
+    if (!h && token && (!ludant.owner || await isOwner(ludant, body.owner))) { holds.set(id, { token, who: '?', since: now(), seen: Date.now() }); return; }
+    if (!h || !await isOwner(ludant, body.owner)) throw notYours(ludant);
     throw httpError(409, `${h?.who ?? 'another window'} is holding this ludant`, { heldBy: h?.who ?? null, since: h?.since ?? null });
   }
 
@@ -305,7 +338,16 @@ export function createCore({ store, settings }) {
     return { id };
   }
 
-  const published_by = new Map();   // `${day} ${ip}` -> publications today
+  // What one address has done today, for the daily limits. In memory only: an address is
+  // never written down.
+  const today = new Map();   // `${day} ${what} ${ip}` -> count
+  function limit(what, ip, max, saying) {
+    const day = now().slice(0, 10), k = `${day} ${what} ${ip ?? 'here'}`;
+    if (!today.has(k)) for (const old of today.keys()) if (!old.startsWith(day)) today.delete(old);
+    const n = today.get(k) ?? 0;
+    if (n >= max) throw httpError(429, saying);
+    return () => today.set(k, n + 1);   // count it once it's done
+  }
   let checkDay = '', checksToday = 0;
 
   /** The publish check, if this install has one, within the day's allowance. */
@@ -389,9 +431,9 @@ export function createCore({ store, settings }) {
     }
     if (a === 'admin' && b === 'ops' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
-      return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length, flagsOpen: (await store.list('flags')).filter((f) => f.status === 'open').length };
+      return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length, storage: await store.size?.(), flagsOpen: (await store.list('flags')).filter((f) => f.status === 'open').length };
     }
-    if (a === 'config') return { model, hasKey: Boolean(key), logs: !isPublic, public: isPublic, sandbox: settings.sandbox || '' };
+    if (a === 'config') return { version: settings.version ?? null, model, hasKey: Boolean(key), logs: !isPublic, public: isPublic, sandbox: settings.sandbox || '' };
     if (a === 'infer' && method === 'POST') return infer(body);
     if (a === 'log' && b && method === 'POST') { if (!isPublic) await log(safe(b), { ...body, last: summarize(body.last) }); return {}; }
     if (a === 'log' && b) return isPublic ? [] : tail(safe(b), Number(query.get('n')) || 20);
@@ -437,41 +479,47 @@ export function createCore({ store, settings }) {
         return found.map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
       }
       if (!b && method === 'POST') {
+        const counted = limit('seed', from.ip, SEED_A_DAY, `that's ${SEED_A_DAY} new ludants from here today; more tomorrow`);
+        counted();
         const given = await freshGiven();
         const id = newId(given);
         const ludant = { id, soma: seedSoma(given, body.by), surfaces: {}, checkpoints: [], visitors: {}, lineage: { seededBy: body.by || null }, fresh: true, created: now(), updated: now() };
         await checkpoint(ludant, 'as seeded', body.by);
+        const owner = await ownerKey(ludant);
         await store.put('ludants', id, ludant);
-        return { id };
+        return { id, owner };
       }
       const ludant = await read('ludants', b);
       // An abandoned ludant leaves only a note of it, so its link says what happened.
       if (ludant.abandoned) throw httpError(410, `${ludant.abandoned.name} was abandoned`, { abandoned: ludant.abandoned });
       if (c === 'abandon' && method === 'POST') {
-        requireHold(b, body.token);
+        await requireHold(ludant, body);
         return { abandoned: await letGo(ludant, { by: String(body.by || 'someone').slice(0, 40) }) };
       }
       if (!c && method === 'GET') {
         // The names its family has already published under, so it knows which are taken.
         const familyNames = (await store.list('published')).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
-        const { stats, ...rest } = ludant;
+        const { stats, owner, ...rest } = ludant;
         return { ...rest, familyNames };
       }
       if (!c && method === 'PUT') {
-        requireHold(b, body.token);
+        await requireHold(ludant, body);
         const size = JSON.stringify(body.soma).length + JSON.stringify(body.surfaces).length;
         if (size > MAX_LUDANT) throw httpError(413, `too big to keep: ${size} characters of soma and surfaces (the limit is ${MAX_LUDANT})`);
         await store.put('ludants', b, { ...ludant, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: now() });
         return {};
       }
       if (c === 'hold' && method === 'POST') {
+        let claimed = null;
+        if (!ludant.owner) { claimed = await ownerKey(ludant); await store.put('ludants', b, ludant); }
+        else if (!await isOwner(ludant, body.owner)) throw notYours(ludant);
         const h = holdState(b);
         if (h && h.token !== body.token && !body.takeOver) throw httpError(409, `${h.who} is holding this ludant in another window`, { heldBy: h.who, since: h.since });
         holds.set(b, { token: body.token, who: String(body.who || 'someone').slice(0, 40), since: h?.token === body.token ? h.since : now(), seen: Date.now() });
-        return { held: true, tookFrom: h && h.token !== body.token ? h.who : null };
+        return { held: true, tookFrom: h && h.token !== body.token ? h.who : null, ...(claimed ? { owner: claimed } : {}) };
       }
       if (c === 'heartbeat' && method === 'POST') {
-        requireHold(b, body.token);
+        await requireHold(ludant, body);
         await played(b, Number(body.seconds) || 0, Number(body.spent) || 0);
         return { held: true };
       }
@@ -480,11 +528,13 @@ export function createCore({ store, settings }) {
         return (await Promise.all((ludant.assets ?? []).map(async (m) => ({ ...m, image: (await store.get('assets', `l-${b}-${m.name}`))?.image ?? null })))).filter((a) => a.image);
       }
       if (c === 'assets' && method === 'POST') {
-        requireHold(b, body.token);
+        await requireHold(ludant, body);
         const name = assetName(body.name), image = String(body.image ?? '');
         if (!image.startsWith('data:image/') || image.length > MAX_ASSET) throw httpError(400, `a picture is an image data URL, up to ${MAX_ASSET} characters`);
         const list = (ludant.assets ?? []).filter((m) => m.name !== name);
         if (list.length >= MAX_ASSETS) throw httpError(413, `a ludant keeps up to ${MAX_ASSETS} pictures; remove one first`);
+        const kept = list.reduce((n, m) => n + (m.bytes ?? 0), 0);
+        if (kept + image.length > ART_BUDGET) throw httpError(413, `its pictures would be over the ${Math.round(ART_BUDGET / 1e6)} MB a ludant keeps (${Math.round(kept / 1e6)} MB now); remove some first, or make smaller ones`);
         const meta = { name, w: Number(body.w) || 0, h: Number(body.h) || 0, prompt: String(body.prompt ?? '').slice(0, 1000), by: String(body.by ?? '').slice(0, 60), at: now(), bytes: image.length };
         await store.put('assets', `l-${b}-${name}`, { image });
         ludant.assets = [...list, meta];
@@ -492,14 +542,14 @@ export function createCore({ store, settings }) {
         return meta;
       }
       if (c === 'unasset' && method === 'POST') {
-        requireHold(b, body.token);
+        await requireHold(ludant, body);
         const name = assetName(body.name);
         ludant.assets = (ludant.assets ?? []).filter((m) => m.name !== name);
         await store.put('ludants', b, ludant);
         return { removed: name };
       }
       if (c === 'thumb' && method === 'POST') {
-        requireHold(b, body.token);
+        await requireHold(ludant, body);
         const image = String(body.image ?? '');
         if (!image.startsWith('data:image/') || image.length > MAX_THUMB) throw httpError(400, 'a thumb is a small image data URL');
         await store.put('thumbs', `l-${b}`, { image, at: now() });
@@ -519,7 +569,25 @@ export function createCore({ store, settings }) {
       }
       // Someone sits down. Remember them, and keep the ludant as it was right now, so
       // whatever changes while they're here can be undone.
+      if (c === 'copy' && method === 'POST') {
+        limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
+        const id = newId(ludant.soma.given);
+        const copy = {
+          id, soma: structuredClone(ludant.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
+          lineage: { from: { ludant: b, name: nameOf(ludant.soma) }, takenBy: body.by || null },
+        };
+        await checkpoint(copy, `copied from ${nameOf(ludant.soma)}`, body.by);
+        for (const m of ludant.assets ?? []) {
+          const a = await store.get('assets', `l-${b}-${m.name}`);
+          if (a) await store.put('assets', `l-${id}-${m.name}`, a);
+        }
+        copy.assets = ludant.assets ?? [];
+        const owner = await ownerKey(copy);
+        await store.put('ludants', id, copy);
+        return { id, owner };
+      }
       if (c === 'arrive' && method === 'POST') {
+        await requireHold(ludant, body);
         const who = String(body.who || 'someone').slice(0, 40);
         const seen = ludant.visitors[who];
         ludant.visitors[who] = { first: seen?.first ?? now(), last: now(), visits: (seen?.visits ?? 0) + 1 };
@@ -530,11 +598,13 @@ export function createCore({ store, settings }) {
       }
       if (c === 'checkpoints' && method === 'GET') return ludant.checkpoints;
       if (c === 'checkpoints' && method === 'POST') {
+        await requireHold(ludant, body);
         const n = await checkpoint(ludant, body.label, body.by);
         await store.put('ludants', b, ludant);
         return { n };
       }
       if (c === 'restore' && method === 'POST') {
+        await requireHold(ludant, body);
         const cp = ludant.checkpoints.find((x) => x.n === Number(body.n));
         const soma = cp && await checkpointSoma(ludant, cp.n);
         if (!soma) throw httpError(404, `no checkpoint ${body.n}`);
@@ -563,12 +633,11 @@ export function createCore({ store, settings }) {
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') {
-        const day = now().slice(0, 10), who = `${day} ${from.ip ?? 'here'}`;
-        if (!published_by.has(who)) { for (const k of published_by.keys()) if (!k.startsWith(day)) published_by.delete(k); }
-        if ((published_by.get(who) ?? 0) >= PUBLISH_A_DAY) throw httpError(429, `that's ${PUBLISH_A_DAY} publications from here today; more can go up tomorrow`);
+        const counted = limit('publish', from.ip, PUBLISH_A_DAY, `that's ${PUBLISH_A_DAY} publications from here today; more can go up tomorrow`);
         // A published name belongs to exactly one snapshot. So a snapshot can't be published
         // twice, and publishing again takes both a change and a new title.
         const ludant = await read('ludants', body.ludant);
+        await requireHold(ludant, body);
         const name = nameOf(ludant.soma);
         if (!titleSlug(ludant.soma.sections?.title)) throw httpError(400, `${name} needs a title before it can be published: its name is its given name and its game's title together`);
         const pubs = await store.list('published');
@@ -582,7 +651,7 @@ export function createCore({ store, settings }) {
         const images = [(await store.get('thumbs', `l-${ludant.id}`))?.image];
         for (const m of ludant.assets ?? []) images.push((await store.get('assets', `l-${ludant.id}-${m.name}`))?.image);
         const look = await lookAt({ name, title, note, soma: ludant.soma }, images);
-        published_by.set(who, (published_by.get(who) ?? 0) + 1);
+        counted();
         const n = await checkpoint(ludant, `published as ${name}`, body.by);
         await store.put('ludants', ludant.id, ludant);
         const id = newId(name);
@@ -613,6 +682,7 @@ export function createCore({ store, settings }) {
       if (pub.hidden) throw httpError(451, `${pub.name} has been taken down`, { hidden: true });
       if (!c && method === 'GET') { const { soma, stats, play, ...meta } = pub; return { ...meta, cost: perHour(play) }; }
       if (c === 'copy' && method === 'POST') {
+        limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
         const id = newId(pub.given);
         // The soma comes whole; the surfaces start fresh. What was said and sketched belonged
         // to the people who were there.
@@ -626,10 +696,11 @@ export function createCore({ store, settings }) {
           if (a) await store.put('assets', `l-${id}-${m.name}`, a);
         }
         ludant.assets = pub.assets ?? [];
+        const owner = await ownerKey(ludant);
         await store.put('ludants', id, ludant);
         pub.copies = (pub.copies ?? 0) + 1;
         await store.put('published', pub.id, pub);
-        return { id };
+        return { id, owner };
       }
     }
 
@@ -646,7 +717,29 @@ export function createCore({ store, settings }) {
     return { checked: due.length };
   }
 
-  return { route, checkSome, flush: () => ops.flush(true) };
+  /** Ludants nobody came back to (see UNTOUCHED_*), cleared away entirely; and closed
+   *  reports after 90 days. Hourly, with the checks. */
+  async function tidy() {
+    let cleared = 0;
+    for (const l of await store.list('ludants')) {
+      if (l.abandoned || (l.checkpoints?.length ?? 0) > 1 || holds.has(l.id)) continue;
+      const idle = Date.now() - Date.parse(l.updated || l.created);
+      const copy = Boolean(l.lineage?.from);
+      if (idle < (copy ? UNTOUCHED_COPY_MS : UNTOUCHED_SEED_MS)) continue;
+      for (const cp of l.checkpoints ?? []) await store.remove('checkpoints', `${l.id}-${cp.n}`);
+      for (const a of l.assets ?? []) await store.remove('assets', `l-${l.id}-${a.name}`);
+      await store.remove('thumbs', `l-${l.id}`);
+      await store.remove('ludants', l.id);
+      cleared++;
+    }
+    for (const f of await store.list('flags')) if (f.status !== 'open' && Date.now() - Date.parse(f.closed ?? f.at) > 90 * 86400_000) await store.remove('flags', f.id);
+    const reports = (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at));
+    for (const r of reports.slice(200)) await store.remove('reports', r.id);
+    if (cleared) ops.count('tidy cleared', cleared);
+    return { cleared };
+  }
+
+  return { route, checkSome, tidy, flush: () => ops.flush(true) };
 }
 
 // ---------- shared by both hosts ----------
@@ -656,6 +749,30 @@ export function createCore({ store, settings }) {
 export function sameOrigin(origin, host) {
   if (!origin) return true;   // same-origin GETs don't say
   try { return new URL(origin).host === host; } catch { return false; }
+}
+
+// The site's own pages hold what matters most in a browser: a person's OpenRouter key, and
+// their owner keys. So they run only the platform's own scripts, talk only to this site
+// and OpenRouter, embed only the sandbox, and can't be framed by anyone else.
+export function pageHeaders(sandboxOrigin = '', https = false) {
+  return {
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "connect-src 'self' https://openrouter.ai",
+      `frame-src ${sandboxOrigin || "'self'"}`,
+      "worker-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    ...(https ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
+  };
 }
 
 // The sandbox page: its iframe has an opaque origin, and this policy takes away the

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "A platform for shaping game-shaped actants and handing them off to players",
   "type": "module",
-  "scripts": { "start": "node server.mjs" },
+  "scripts": { "start": "node server.mjs", "smoke": "node tools/smoke.mjs", "deploy": "node tools/deploy.mjs" },
   "author": "Robby Ranshous",
   "license": "MIT"
 }

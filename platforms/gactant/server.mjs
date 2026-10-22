@@ -13,16 +13,17 @@
 // and data/log/<who>.jsonl, every inference with image bytes stripped. Reading those logs is
 // how Claude sees what a ludant saw and did.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SANDBOX_POLICY, createCore, safe, sameOrigin } from './core.mjs';
+import { SANDBOX_POLICY, createCore, pageHeaders, safe, sameOrigin } from './core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
-const DATA = join(HERE, 'data');
-const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 7780;
+const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null);
+const DATA = arg('--data') ?? join(HERE, 'data');   // --data <dir>: another place (tools/smoke.mjs uses a scratch one)
+const PORT = Number(arg('--port')) || 7780;
 
 loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
@@ -41,6 +42,18 @@ function loadEnv(path) {
 
 const file = (kind, id) => join(DATA, kind, `${safe(id)}.json`);
 const store = {
+  async size() {
+    const kinds = {};
+    let bytes = 0;
+    for (const kind of readdirSync(DATA)) {
+      if (kind === 'log' || !statSync(join(DATA, kind)).isDirectory()) continue;
+      const files = readdirSync(join(DATA, kind));
+      const chars = files.reduce((n, f) => n + statSync(join(DATA, kind, f)).size, 0);
+      kinds[kind] = { docs: files.length, chars };
+      bytes += chars;
+    }
+    return { bytes, kinds };
+  },
   async get(kind, id) { const f = file(kind, id); return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null; },
   async put(kind, id, doc) { writeFileSync(file(kind, id), JSON.stringify(doc, null, 1)); },
   async remove(kind, id) { rmSync(file(kind, id), { force: true }); },
@@ -81,7 +94,7 @@ function serveStatic(path, res) {
     // The sandbox's origin is opaque, so its module scripts load cross-origin. These are
     // the platform's public files, so anyone may.
     'Access-Control-Allow-Origin': '*',
-    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': SANDBOX_POLICY } : {}),
+    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': SANDBOX_POLICY } : extname(f) === '.html' ? pageHeaders(process.env.GACTANT_SANDBOX || '') : {}),
   });
   res.end(readFileSync(f));
 }

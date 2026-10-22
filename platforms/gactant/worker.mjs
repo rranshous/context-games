@@ -11,7 +11,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { makeCheck } from './check.mjs';
-import { SANDBOX_POLICY, createCore, sameOrigin } from './core.mjs';
+import { SANDBOX_POLICY, createCore, pageHeaders, sameOrigin } from './core.mjs';
 
 const json = (code, value) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
 
@@ -26,6 +26,10 @@ export class World extends DurableObject {
       async put(kind, id, doc) { sql.exec('INSERT OR REPLACE INTO docs (kind, id, json) VALUES (?, ?, ?)', kind, id, JSON.stringify(doc)); },
       async list(kind) { return sql.exec('SELECT json FROM docs WHERE kind = ?', kind).toArray().map((r) => JSON.parse(r.json)); },
       async remove(kind, id) { sql.exec('DELETE FROM docs WHERE kind = ? AND id = ?', kind, id); },
+      async size() {
+        const kinds = Object.fromEntries(sql.exec('SELECT kind, count(*) AS docs, sum(length(json)) AS chars FROM docs GROUP BY kind').toArray().map((r) => [r.kind, { docs: r.docs, chars: r.chars }]));
+        return { bytes: ctx.storage.sql.databaseSize, kinds };
+      },
     };
     this.core = createCore({
       store,
@@ -35,6 +39,7 @@ export class World extends DurableObject {
         public: env.GACTANT_PUBLIC === '1',
         adminToken: env.ADMIN_TOKEN || '',
         sandbox: env.SANDBOX_ORIGIN || '',
+        version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
         opsLog: (record) => console.warn(record),
         // Workers AI looks at each publication before it goes public (check.mjs).
@@ -53,7 +58,7 @@ export class World extends DurableObject {
       await this.core.flush().catch(() => {});
       this.ctx.abort('a newer version was deployed');
     }
-    if (url.pathname === '/internal/check') return json(200, await this.core.checkSome());
+    if (url.pathname === '/internal/hourly') return json(200, { ...(await this.core.checkSome()), ...(await this.core.tidy()) });
     try {
       const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
       const from = { ip: request.headers.get('cf-connecting-ip') || '' };
@@ -73,7 +78,9 @@ async function asset(request, env, path) {
   const res = await env.ASSETS.fetch(new Request(url, request));
   const out = new Response(res.body, res);
   out.headers.set('Access-Control-Allow-Origin', '*');
+  out.headers.set('X-Content-Type-Options', 'nosniff');
   if (url.pathname === '/sandbox.html') out.headers.set('Content-Security-Policy', SANDBOX_POLICY);
+  else if (url.pathname.endsWith('.html')) for (const [k, v] of Object.entries(pageHeaders(env.SANDBOX_ORIGIN, true))) out.headers.set(k, v);
   return out;
 }
 
@@ -92,6 +99,9 @@ async function world(env, request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // The workers.dev address answers only what's running, so a deploy can be checked from
+    // networks that block the site's own domain (tools/deploy.mjs).
+    if (url.host.endsWith('.workers.dev')) return url.pathname === '/api/config' ? world(env, new Request(url, { headers: { 'x-gactant-version': env.VERSION?.id ?? '' } })) : new Response('gactant lives at https://gactant.com', { status: 404 });
     const sandboxHost = env.SANDBOX_ORIGIN ? new URL(env.SANDBOX_ORIGIN).host : null;
     if (sandboxHost && url.host === sandboxHost) {
       // The sandbox's own domain serves the sandbox and nothing else.
@@ -105,8 +115,9 @@ export default {
     return asset(request, env, url.pathname);
   },
 
-  // Hourly: publications that haven't been checked yet get their look.
+  // Hourly: publications that haven't been checked yet get their look, and ludants nobody
+  // came back to are cleared away.
   async scheduled(event, env) {
-    await world(env, new Request('https://internal/internal/check', { method: 'POST' }));
+    await world(env, new Request('https://internal/internal/hourly', { method: 'POST' }));
   },
 };
