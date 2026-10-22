@@ -87,9 +87,9 @@ export class Sandbox {
     };
   }
 
-  async infer({ messages, tools }) {
+  async infer({ messages, tools, ask }) {
     this.allow();
-    return this.frame.infer({ messages, tools });
+    return this.frame.infer({ messages, tools, ask });
   }
 
   /** Thinking and painting both count against the backstop. */

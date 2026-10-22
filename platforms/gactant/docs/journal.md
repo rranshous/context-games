@@ -1986,3 +1986,16 @@ The fix keeps this from happening again:
 - **One last restart by hand.** The World running now predates this, so it has to go idle once.
 
 Robby on "old publications will be checked one per lobby load": "This sounds strange." It was: it put a 5-second check on some unlucky visitor's lobby load. Now a cron (`17 * * * *`) checks up to ten unchecked publications an hour, through an internal path the public Worker never forwards.
+
+### Playing without a key
+
+Robby: "I do want ppl to be able to play games without the open router key… make the open router blocking popup thing wait to appear until a call for inference would be made. Explain basically to go further they need to integrate."
+
+It already waited for the first inference, but a ludant wakes the moment someone sits down (`frame.arrived`), so the banner came up on arrival every time. "A call for inference would be made" had to mean *a call the person caused*.
+- **Asking.** The actant tells the frame `ask: true` only when what just woke it is a person reaching for it: `chat.posted`, `whiteboard.turn` or `choices.picked` from someone here. Sitting down, toggling play mode, keys and the game's own wakes don't count.
+- **No one paying.** A think that doesn't ask fails quietly with "nobody here has connected thinking". That's not a fault (no red, no trouble report): the life shows resting, "can't think until someone here connects OpenRouter", and the events go into `unheard`, keeping the last 20. The next think takes them in first. Only fresh events decide whether to ask, so an old unheard chat can't make a game event pop the banner.
+- **The banner:** "To answer you or change, X needs to think. You can play it without that… Connect, and it hears what you said." It offers **connect OpenRouter** or **just play**. Each new reach asks again, since they've just tried to talk to it.
+
+Tested with the server's key hidden from the page: no banner on a fresh seed's arrival, and the stage kept drawing. A chat brought the banner. "Just play" left it resting with no fault. A second chat asked again. With thinking available, the next think's events held both the unpaid message and the new one (the inference was intercepted, so nothing was spent).
+
+On the publish check: Robby doesn't love the Workers AI answer, but it stays for now because usage is low and a browser-side check could be skipped. Maybe for good. The contact address waits until he's home.

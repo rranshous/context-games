@@ -23,6 +23,8 @@ import { nameOf } from './names.js';
 const CODE = new Set(['tools', 'game', 'hooks']);
 const MAX_TURNS = 16;
 const RESTLESS_LIMIT = 3;
+const UNHEARD_KEPT = 20;   // events kept for when thinking is connected
+const REACHING = ['chat.posted', 'whiteboard.turn', 'choices.picked'];
 const RESULT_CHARS = 6000;
 
 // How the chassis runs code sections. This is the platform's side of the bargain, so it
@@ -57,6 +59,7 @@ export class Actant {
     this.soma = soma;   // replaced whole when someone restores a checkpoint
     this.faults = {};        // section -> error message from compiling or starting it
     this.pending = [];       // events waiting for the next think
+    this.unheard = [];       // events from thinks that couldn't happen (nobody here pays for thinking)
     this.thinking = false;
     this.restless = 0;
     this.game = null;
@@ -202,12 +205,17 @@ export class Actant {
   async think() {
     if (this.thinking || !this.pending.length || this.asleepForever) return;
     this.thinking = true;
-    const woke = this.pending.splice(0);
+    const fresh = this.pending.splice(0);
+    const woke = [...this.unheard.splice(0), ...fresh];
     this.life('thinking');
     const messages = [{ role: 'user', content: eventsContent(woke) }];
     // Did a person wake it, and has it said anything in the chat since? The habit of
     // answering in its own reply instead of on a surface is strong, so it gets one reminder.
-    const byPerson = woke.some((e) => this.chassis.isPerson(e?.who) || this.chassis.isPerson(e?.from));
+    // (Only what woke it now counts: older unheard events don't ask anyone to connect.)
+    const byPerson = fresh.some((e) => this.chassis.isPerson(e?.who) || this.chassis.isPerson(e?.from));
+    // Did a person reach for it (say something, hand it the whiteboard, pick a choice)? Only
+    // then is someone asked to connect thinking, if nobody has: a game plays without it.
+    const reached = fresh.some((e) => REACHING.includes(e?.type) && (this.chassis.isPerson(e.who) || this.chassis.isPerson(e.from)));
     let spoke = false, reminded = false;
     const offSpoke = this.chassis.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
     try {
@@ -219,6 +227,7 @@ export class Actant {
         const res = await this.frame.call('infer', {
           messages: [{ role: 'system', content: system }, ...withCacheMark(messages)],
           tools: this.toolSchemas(),
+          ask: reached,
         });
         const msg = res.choices?.[0]?.message ?? {};
         if (msg.content) this.note('thought', msg.content);
@@ -254,6 +263,13 @@ export class Actant {
       this.life('asleep');
     } catch (err) {
       this.thinking = false;
+      if (err.message.includes('nobody here has connected thinking')) {
+        // Not a fault: the game plays on, and it hears all this once it can think.
+        this.unheard = woke.slice(-UNHEARD_KEPT);
+        this.note('wake', 'frame: nobody here has connected thinking, so this waits until someone does');
+        this.life('resting', 'can\'t think until someone here connects OpenRouter');
+        return;
+      }
       this.note('fault', `thinking failed: ${err.message}`);
       this.life('error', err.message.slice(0, 120));
     } finally {

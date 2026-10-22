@@ -29,6 +29,9 @@ import { api, askName, el, forget, remember } from './ui.js';
 import { installExplorer } from './explorer.js';
 import { report, watchPage } from './telemetry.js';
 
+// What a think hears when nobody here pays for thinking (actant.js knows it by these words).
+const NO_THINKING = 'nobody here has connected thinking';
+
 const SAVE_MS = 800;
 const HEARTBEAT_MS = 5000;
 const THUMB_MS = 90000;   // how often the lobby's picture of this ludant is refreshed
@@ -151,8 +154,8 @@ class Frame {
 
   /** Thinking, done for the ludant. The key stays on this side; the sandbox only ever
    *  sees the answer. */
-  async infer({ messages, tools }) {
-    await this.thinkingReady();
+  async infer({ messages, tools, ask }) {
+    await this.thinkingReady(ask);
     let res;
     if (this.payer() === 'own') {
       const request = buildRequest({ model: this.config.model, messages, tools });
@@ -187,15 +190,18 @@ class Frame {
     return { url };
   }
 
-  /** Nobody here has connected thinking yet: ask the person, once, when the ludant first
-   *  needs it. Its thinking waits for their answer. */
-  thinkingReady() {
+  /** Nobody here has connected thinking yet. A game plays without it, so the person is
+   *  asked only when they reach for the ludant (ask: a person's chat, sketch or pick woke
+   *  it); a think it starts by itself just doesn't happen. Either way, what woke it is kept
+   *  for when it can think. */
+  thinkingReady(ask = true) {
     if (this.payer()) return Promise.resolve();
+    if (!ask) return Promise.reject(new Error(NO_THINKING));
     this.asking ??= new Promise((resolve, reject) => {
       const box = el('div', { class: 'banner' },
-        el('p', {}, el('strong', {}, `${this.actant.name} wants to think. `), 'Ludants think with an AI model, on your own OpenRouter account. It costs real money, usually a few cents at a time, and the meter at the top shows what this sitting has cost. Until you connect, it can\'t think at all.'),
+        el('p', {}, el('strong', {}, `To answer you or change, ${this.actant.name} needs to think. `), 'You can play it without that. Ludants think with an AI model, on your own OpenRouter account: it costs real money, usually a few cents at a time, and the meter at the top shows what this sitting has cost. Connect, and it hears what you said.'),
         el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
-        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(`${this.seat} hasn't connected thinking, so you can't think in this sitting yet`)); } }, 'not now'));
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(NO_THINKING)); } }, 'just play'));
       document.body.append(box);
     });
     return this.asking;
