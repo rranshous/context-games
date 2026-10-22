@@ -41,9 +41,9 @@
 //                                                   surfaces (chat, whiteboard, store) and visitors only for its owners:
 //                                                   the X-Gactant-Owner header carries the key
 //   PUT  ludants/<id>   { soma, surfaces, token } -> {}            409 unless this window holds it
-//   POST ludants/<id>/hold { token, owner, who, takeOver? } -> { held, tookFrom, owner? }   409 { heldBy, since } if another
+//   POST ludants/<id>/hold { token, owner, who, takeOver? } -> { held, tookFrom }   409 { heldBy, since } if another
 //                                                   window does; 403 { notYours } without the owner key (a ludant from
-//                                                   before owners is claimed by the first to hold it: owner comes back)
+//                                                   before owners has none until it's claimed with admin/own)
 //   Every other change (PUT, heartbeat, arrive, checkpoints, restore, abandon, assets, thumb,
 //   publishing) needs { token } of the window holding it, or { token, owner } to take the hold back.
 //   POST ludants/<id>/heartbeat { token, seconds, spent } -> { held } 409 once another window took it
@@ -75,6 +75,8 @@
 //                                                   a publication flagged by enough people is hidden until looked at
 //   POST admin/flags { token, all? }             -> open reports (or the latest 200)        tools/moderate.mjs
 //   POST admin/moderate { token, action: hide|restore|approve|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
+//   POST admin/owners { token }                  -> [{ id, name, owned, ownedAt, by, from, updated, people }]
+//   POST admin/own { token, ludant }             -> { id, owner }   a key for a ludant with no owner yet (tools/own.mjs)
 //   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
@@ -199,16 +201,18 @@ export function createCore({ store, settings }) {
   // taking the hold takes the key. Anyone else with the link can look, or take a copy.
 
   const hashKey = async (k) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(k)))), (x) => x.toString(16).padStart(2, '0')).join('');
-  const ownerKey = async (ludant) => { const k = hex(16); ludant.owner = await hashKey(k); return k; };
+  const ownerKey = async (ludant) => { const k = hex(16); ludant.owner = await hashKey(k); ludant.ownedAt = now(); return k; };
   const isOwner = async (ludant, k) => Boolean(k) && ludant.owner === await hashKey(k);
-  const notYours = (ludant) => httpError(403, `${nameOf(ludant.soma)} belongs to someone else`, { notYours: true });
+  const notYours = (ludant) => (ludant.owner
+    ? httpError(403, `${nameOf(ludant.soma)} belongs to someone else`, { notYours: true })
+    : httpError(403, `${nameOf(ludant.soma)} hasn't been claimed by its owner yet`, { notYours: true, unclaimed: true }));
 
   /** The window must hold the ludant. A hold that has lapsed (or was forgotten, when the
    *  server restarted) comes back to a window that shows the owner key. */
   async function requireHold(ludant, body) {
     const id = ludant.id, token = body.token, h = holdState(id);
     if (h && h.token === token) { h.seen = Date.now(); return; }
-    if (!h && token && (!ludant.owner || await isOwner(ludant, body.owner))) { holds.set(id, { token, who: '?', since: now(), seen: Date.now() }); return; }
+    if (!h && token && await isOwner(ludant, body.owner)) { holds.set(id, { token, who: '?', since: now(), seen: Date.now() }); return; }
     if (!h || !await isOwner(ludant, body.owner)) throw notYours(ludant);
     throw httpError(409, `${h?.who ?? 'another window'} is holding this ludant`, { heldBy: h?.who ?? null, since: h?.since ?? null });
   }
@@ -431,6 +435,22 @@ export function createCore({ store, settings }) {
       const all = (await store.list('flags')).sort((x, y) => y.at.localeCompare(x.at));
       return body.all ? all.slice(0, 200) : all.filter((f) => f.status === 'open');
     }
+    // Owners, for whoever runs the install: which ludants have one, and a key for one that
+    // doesn't (a ludant from before owners). An owned ludant's key is never replaced here.
+    if (a === 'admin' && (b === 'owners' || b === 'own') && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (b === 'owners') {
+        return (await store.list('ludants')).filter((l) => !l.abandoned).map((l) => ({ id: l.id, name: nameOf(l.soma), owned: Boolean(l.owner), ownedAt: l.ownedAt ?? null,
+          by: l.lineage?.takenBy ?? l.lineage?.seededBy ?? null, from: l.lineage?.from?.name ?? null, updated: l.updated, people: Object.keys(l.visitors ?? {}) }))
+          .sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
+      }
+      const l = await read('ludants', body.ludant);
+      if (l.abandoned) throw httpError(410, 'abandoned');
+      if (l.owner) throw httpError(409, `${nameOf(l.soma)} already has an owner${l.ownedAt ? ` (since ${l.ownedAt})` : ''}`);
+      const owner = await ownerKey(l);
+      await store.put('ludants', l.id, l);
+      return { id: l.id, owner };
+    }
     if (a === 'admin' && b === 'ops' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length, storage: await store.size?.(), flagsOpen: (await store.list('flags')).filter((f) => f.status === 'open').length };
@@ -501,13 +521,13 @@ export function createCore({ store, settings }) {
       if (!c && method === 'GET') {
         // The names its family has already published under, so it knows which are taken.
         const familyNames = (await store.list('published')).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
-        const { stats, owner, ...rest } = ludant;
+        const { stats, owner, ownedAt, ...rest } = ludant;
         // What was said, sketched and saved is for its owners (every device with its key).
         // Anyone else with the link sees what a copy would get: its game and its art.
-        if (ludant.owner && !await isOwner(ludant, from.owner)) {
+        if (!await isOwner(ludant, from.owner)) {
           return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false };
         }
-        return { ...rest, familyNames, yours: Boolean(ludant.owner) };
+        return { ...rest, familyNames, yours: true };
       }
       if (!c && method === 'PUT') {
         await requireHold(ludant, body);
@@ -517,13 +537,13 @@ export function createCore({ store, settings }) {
         return {};
       }
       if (c === 'hold' && method === 'POST') {
-        let claimed = null;
-        if (!ludant.owner) { claimed = await ownerKey(ludant); await store.put('ludants', b, ludant); }
-        else if (!await isOwner(ludant, body.owner)) throw notYours(ludant);
+        // A ludant from before owners belongs to nobody until it's claimed (admin/own): no
+        // one can change it in the meantime, so no one can take it by opening it first.
+        if (!await isOwner(ludant, body.owner)) throw notYours(ludant);
         const h = holdState(b);
         if (h && h.token !== body.token && !body.takeOver) throw httpError(409, `${h.who} is holding this ludant in another window`, { heldBy: h.who, since: h.since });
         holds.set(b, { token: body.token, who: String(body.who || 'someone').slice(0, 40), since: h?.token === body.token ? h.since : now(), seen: Date.now() });
-        return { held: true, tookFrom: h && h.token !== body.token ? h.who : null, ...(claimed ? { owner: claimed } : {}) };
+        return { held: true, tookFrom: h && h.token !== body.token ? h.who : null };
       }
       if (c === 'heartbeat' && method === 'POST') {
         await requireHold(ludant, body);

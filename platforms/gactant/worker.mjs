@@ -101,7 +101,12 @@ export default {
     const url = new URL(request.url);
     // The workers.dev address answers only what's running, so a deploy can be checked from
     // networks that block the site's own domain (tools/deploy.mjs).
-    if (url.host.endsWith('.workers.dev')) return url.pathname === '/api/config' ? world(env, new Request(url, { headers: { 'x-gactant-version': env.VERSION?.id ?? '' } })) : new Response('gactant lives at https://gactant.com', { status: 404 });
+    // It also takes the admin routes (they need the admin token wherever they're asked), so
+    // the tools work from those networks too.
+    if (url.host.endsWith('.workers.dev')) {
+      if (url.pathname === '/api/config' || url.pathname.startsWith('/api/admin/')) return world(env, request);
+      return new Response('gactant lives at https://gactant.com', { status: 404 });
+    }
     const sandboxHost = env.SANDBOX_ORIGIN ? new URL(env.SANDBOX_ORIGIN).host : null;
     if (sandboxHost && url.host === sandboxHost) {
       // The sandbox's own domain serves the sandbox, and a page saying what it is (to anyone

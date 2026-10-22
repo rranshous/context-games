@@ -99,10 +99,9 @@ class Frame {
    *  then the person chooses whether to take it over. */
   async hold() {
     try {
-      const { owner } = await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, owner: this.owner, who: this.seat });
-      if (owner) { own(this.recordId, owner); this.owner = owner; }   // a ludant from before owners: it's this browser's now
+      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, owner: this.owner, who: this.seat });
     } catch (err) {
-      if (err.status === 403 && err.body?.notYours) return this.notYours();
+      if (err.status === 403 && err.body?.notYours) return this.notYours(err.body.unclaimed);
       if (err.status !== 409) throw err;
       const since = err.body?.since ? new Date(err.body.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
       await this.ask(`${this.actant.name} is open in another window${err.body?.heldBy ? ` (${err.body.heldBy}${since ? `, since ${since}` : ''})` : ''}. A ludant lives in one window at a time.`, 'bring it here');
@@ -123,10 +122,12 @@ class Frame {
 
   /** Someone else's ludant: whoever has its link can look, or take a copy of their own. The
    *  frame goes no further (it never holds it). */
-  notYours() {
+  notYours(unclaimed = false) {
     const by = this.record.lineage?.takenBy || this.record.lineage?.seededBy;
     const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
-      el('p', {}, el('strong', {}, `${this.actant.name} belongs to someone else${by ? ` (${by})` : ''}. `), 'Only they can change it. You can take a copy of your own, as it is now, and play and shape that one.'),
+      el('p', {}, unclaimed
+        ? [el('strong', {}, `${this.actant.name} hasn't been claimed by its owner yet${by ? ` (${by})` : ''}. `), 'It\'s from before ludants had owners, so nobody can change it until they do. You can take a copy of your own, as it is now, and play and shape that one.']
+        : [el('strong', {}, `${this.actant.name} belongs to someone else${by ? ` (${by})` : ''}. `), 'Only they can change it. You can take a copy of your own, as it is now, and play and shape that one.']),
       el('button', { class: 'top-btn primary', onclick: async () => {
         try {
           const { id, owner } = await api('POST', `ludants/${this.recordId}/copy`, { by: this.seat });

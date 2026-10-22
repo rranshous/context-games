@@ -67,6 +67,9 @@ try {
   ok('ops refuses a wrong token', (await call('POST', 'admin/ops', { token: 'nope' })).status === 403);
   ok('abandon', (await call('POST', `ludants/${id}/abandon`, { token: 'w', owner, by: 'smoke' })).status === 200);
   ok('its link says so', (await call('GET', `ludants/${id}`)).status === 410);
+  const owners = await call('POST', 'admin/owners', { token: TOKEN });
+  ok('admin lists owners', Array.isArray(owners.json) && owners.json.every((l) => l.owned));
+  ok('an owned ludant can\'t be claimed again', (await call('POST', 'admin/own', { token: TOKEN, ludant: copy.json.id })).status === 409);
 } catch (err) {
   ok('the run itself', false, err.stack);
 } finally {

@@ -2078,3 +2078,9 @@ Robby: "Let's just make it so chats do not go w a copy and are only available to
 - **`api()` in ui.js** adds the header for any ludant this browser owns. Owner devices share one key, so the chat follows to each of them.
 - **The safety of this rests on saving.** A non-owner frame never holds the ludant, so it can never save its chat-less view over the real one. A ludant from before owners still reads in full until its first hold claims it.
 - **Tested:** smoke (the owner reads the chat; a stranger doesn't; a link copy starts empty). In the browser: the owner reloads and the chat is there, a second device through the owner link has it, and a stranger's read doesn't contain it.
+
+### Nobody claims by opening first
+
+Robby: "Makr it so my stuff can't be claimed by someone else plz. We can work on claiming it when I am home." The first-to-hold claim on ludants from before owners is gone. An unowned ludant can't be held or changed, its chat is hidden like anyone else's, and its frame says it "hasn't been claimed by its owner yet", offering a copy. Claiming is now admin-only: `admin/owners` lists who owns what (with `ownedAt`), and `admin/own` gives a key only to a ludant with no owner, never replacing one. `tools/own.mjs` prints the owner link. The workers.dev address now also takes `/api/admin/*` (token-gated as everywhere), so the tools work from Robby's blocked home network.
+
+Then, mid-build: "Since we are introducing keys as identity plz let's do a good job it. It'll be hard to change later." Fair. A secret per ludant is the simplest thing that works, and it shows: each new ludant needs its own owner link per device, there's no recovery, no revoking a leaked link, and names stay unverified. A proper design comes next, for Robby to decide before building.
