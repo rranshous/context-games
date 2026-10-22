@@ -2035,3 +2035,5 @@ So 1 got done too.
 - **Smoke first:** `tools/smoke.mjs` runs 21 checks against a scratch-data local server. The server gained `--data`.
 - **Then `wrangler deploy`.**
 - **Then a version check:** it polls `/api/config` (which now says `version`, from the World's own `VERSION` binding) until it matches. It tries gactant.com and then the workers.dev address. That address is now on, but answers nothing except `/api/config`, so a deploy can be checked from Robby's blocked home network.
+
+Robby: "Copies untouched for 30m.. does that make sense?" It's 30 days, but the question turned up a real hole. "Untouched" was measured from the last *save*, and playing doesn't always save. A copy played every week, with no chat and no store writes, would have been cleared as forgotten. Now it's the later of the last save and the last sitting (`visitors[*].last`, set on arrive). Tested: a copy saved 40 days ago but sat with 3 days ago stays; one with neither goes. Clearing a forgotten copy loses little, since it's still exactly the publication, and its play link takes a fresh one.

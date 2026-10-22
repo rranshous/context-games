@@ -344,7 +344,7 @@ On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`
 
 ### Limits, so nothing balloons
 
-Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per ludant: 60 pictures and 20 MB of them, the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began and untouched for 7 days (a seed) or 30 (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
+Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per ludant: 60 pictures and 20 MB of them, the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
 
 ### The site's pages
 

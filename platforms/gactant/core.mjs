@@ -100,8 +100,8 @@ const SEED_A_DAY = 20;           // new ludants one address may seed in a day
 const COPY_A_DAY = 40;           // copies one address may take in a day
 const ART_BUDGET = 20_000_000;   // characters of pictures one ludant keeps, all told
 const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its first)
-// Ludants nobody came back to: still exactly as they began (one checkpoint) and untouched
-// this long, they're cleared away. A seed is a pulsing dot; a copy can be taken again.
+// Ludants nobody came back to: still exactly as they began (one checkpoint), with no save
+// and nobody sitting down this long, they're cleared away. A seed is a pulsing dot; a copy can be taken again.
 const UNTOUCHED_SEED_MS = 7 * 86400_000;
 const UNTOUCHED_COPY_MS = 30 * 86400_000;
 const TRUSTED_AFTER_MS = 24 * 3600_000;   // a checked publication with no reports earns the front page after this
@@ -723,7 +723,9 @@ export function createCore({ store, settings }) {
     let cleared = 0;
     for (const l of await store.list('ludants')) {
       if (l.abandoned || (l.checkpoints?.length ?? 0) > 1 || holds.has(l.id)) continue;
-      const idle = Date.now() - Date.parse(l.updated || l.created);
+      // Nobody came back: no save and no sitting since (playing doesn't always save).
+      const last = Math.max(Date.parse(l.updated || l.created), ...Object.values(l.visitors ?? {}).map((v) => Date.parse(v.last) || 0));
+      const idle = Date.now() - last;
       const copy = Boolean(l.lineage?.from);
       if (idle < (copy ? UNTOUCHED_COPY_MS : UNTOUCHED_SEED_MS)) continue;
       for (const cp of l.checkpoints ?? []) await store.remove('checkpoints', `${l.id}-${cp.n}`);
