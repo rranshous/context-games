@@ -37,7 +37,9 @@
 //   POST ludants        { by }                   -> { id, owner }   seed a new one, with a fresh given name; owner is
 //                                                   its secret key, kept by the browser (only its hash is stored)
 //   POST ludants/<id>/copy { by }                -> { id, owner }   your own copy of someone else's ludant, as it is now
-//   GET  ludants/<id>                            -> { id, soma, surfaces, lineage, visitors, checkpoints, restored, fresh, familyNames }
+//   GET  ludants/<id>                            -> { id, soma, surfaces, lineage, visitors, checkpoints, restored, fresh, familyNames, yours }
+//                                                   surfaces (chat, whiteboard, store) and visitors only for its owners:
+//                                                   the X-Gactant-Owner header carries the key
 //   PUT  ludants/<id>   { soma, surfaces, token } -> {}            409 unless this window holds it
 //   POST ludants/<id>/hold { token, owner, who, takeOver? } -> { held, tookFrom, owner? }   409 { heldBy, since } if another
 //                                                   window does; 403 { notYours } without the owner key (a ludant from
@@ -500,7 +502,12 @@ export function createCore({ store, settings }) {
         // The names its family has already published under, so it knows which are taken.
         const familyNames = (await store.list('published')).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
         const { stats, owner, ...rest } = ludant;
-        return { ...rest, familyNames };
+        // What was said, sketched and saved is for its owners (every device with its key).
+        // Anyone else with the link sees what a copy would get: its game and its art.
+        if (ludant.owner && !await isOwner(ludant, from.owner)) {
+          return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false };
+        }
+        return { ...rest, familyNames, yours: Boolean(ludant.owner) };
       }
       if (!c && method === 'PUT') {
         await requireHold(ludant, body);

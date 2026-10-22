@@ -249,7 +249,7 @@ the microphone, recognition. It saves its report for Claude to read
 
 ## Whose it is
 
-A ludant belongs to whoever seeded it or took the copy. Their browser keeps a secret **owner key**; the ludant keeps only its hash. Changing a ludant takes the window's hold, and taking the hold takes the key. That covers saves, versions, restores, art, publishing and abandoning. Anyone else with its link can look, or **take a copy of their own**. To use a ludant on another device of yours (a console, a phone), use **history → open on another device…**: its link carries the key after `#`, which browsers never send to a server. A ludant from before owners belongs to the first browser that opens it.
+A ludant belongs to whoever seeded it or took the copy. Their browser keeps a secret **owner key**; the ludant keeps only its hash. Changing a ludant takes the window's hold, and taking the hold takes the key. That covers saves, versions, restores, art, publishing and abandoning. Its chat, sketches, saved game and visitors are only for its owners: reading a ludant shows the key in a header (`X-Gactant-Owner`), never the URL. Anyone else with its link sees what a copy gets, its game and art, and can **take a copy of their own**. A copy never brings the chat: what carries forward is what the ludant wrote into its memory. To use a ludant on another device of yours (a console, a phone), use **history → open on another device…**: its link carries the key after `#`, which browsers never send to a server. A ludant from before owners belongs to the first browser that opens it.
 
 ## One window, any device
 

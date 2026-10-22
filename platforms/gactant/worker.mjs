@@ -61,7 +61,7 @@ export class World extends DurableObject {
     if (url.pathname === '/internal/hourly') return json(200, { ...(await this.core.checkSome()), ...(await this.core.tidy()) });
     try {
       const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
-      const from = { ip: request.headers.get('cf-connecting-ip') || '' };
+      const from = { ip: request.headers.get('cf-connecting-ip') || '', owner: request.headers.get('x-gactant-owner') || '' };
       return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, from));
     } catch (err) {
       if (!err.code || err.code >= 500) console.error({ error: err.message, method: request.method, path: url.pathname });

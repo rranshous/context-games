@@ -2062,3 +2062,19 @@ Robby: "What can we do to get the site more trusted, code or config wise", then 
   - no age questions
 
   It's linked from the lobby's foot and the rules.
+
+### The chat is the owner's
+
+Writing the privacy page surfaced it: anyone with a ludant's link could read its chat. Robby wondered whether copies should then bring the chat too, "maybe w an additional message in it that it is a copy for user X". Weighing it:
+- **Publications are public.** Copying the chat would publish every sitting's conversation, kids' included.
+- **Copies outlive originals.** An abandoned ludant's chat would live on in copies.
+- **The ludant already has continuity.** There's no running context window to carry; each think starts from the soma. What it chose to remember is in `memory`, and that travels.
+- **A copy is already told who it's for:** "You are a new copy of X, published by Y. Z took this copy…"
+
+That last check found that a link copy was told "published by someone", which was wrong, now "taken from its link, as it was then".
+
+Robby: "Let's just make it so chats do not go w a copy and are only available to the owner. It seems like since we can link multiple owners I would expect the chat to go along to any of the owning devices." So:
+- **`GET ludants/<id>`** returns surfaces (chat, whiteboard, store) and visitors only when the `X-Gactant-Owner` header proves the key. Others get the stage size, the soma and the art.
+- **`api()` in ui.js** adds the header for any ludant this browser owns. Owner devices share one key, so the chat follows to each of them.
+- **The safety of this rests on saving.** A non-owner frame never holds the ludant, so it can never save its chat-less view over the real one. A ludant from before owners still reads in full until its first hold claims it.
+- **Tested:** smoke (the owner reads the chat; a stranger doesn't; a link copy starts empty). In the browser: the owner reloads and the chat is there, a second device through the owner link has it, and a stranger's read doesn't contain it.

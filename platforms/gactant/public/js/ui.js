@@ -12,8 +12,12 @@ export function el(tag, attrs = {}, ...children) {
 }
 
 export const api = async (method, path, body) => {
+  // Reading a ludant this browser owns shows its owner key (in a header, never the URL),
+  // so its chat and the rest come too: those are only for its owners.
+  const id = path.match(/^ludants\/([a-z0-9-]+)/)?.[1];
+  const owner = id && ownerOf(id);
   const res = await fetch(`/api/${path}`, {
-    method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
+    method, headers: { 'Content-Type': 'application/json', ...(owner ? { 'X-Gactant-Owner': owner } : {}) }, body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json();
   if (!res.ok) throw Object.assign(new Error(json.error || `${method} ${path}: ${res.status}`), { status: res.status, body: json });

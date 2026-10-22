@@ -21,8 +21,8 @@ server.stderr.on('data', (d) => { serverErr += d; });
 
 let failed = 0;
 const ok = (what, cond, detail = '') => { console.log(`${cond ? '  ok  ' : '  FAIL'} ${what}${!cond && detail ? `: ${detail}` : ''}`); if (!cond) failed++; };
-const call = async (method, path, body) => {
-  const res = await fetch(`${base}/api/${path}`, { method, headers: { 'Content-Type': 'application/json', Origin: base }, body: body ? JSON.stringify(body) : undefined });
+const call = async (method, path, body, owner) => {
+  const res = await fetch(`${base}/api/${path}`, { method, headers: { 'Content-Type': 'application/json', Origin: base, ...(owner ? { 'X-Gactant-Owner': owner } : {}) }, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, json: await res.json().catch(() => ({})) };
 };
 
@@ -44,7 +44,10 @@ try {
   const got = await call('GET', `ludants/${id}`);
   ok('reading it never shows the owner hash', got.status === 200 && !('owner' in got.json));
   const soma = { ...got.json.soma, sections: { ...got.json.soma.sections, title: 'smoke-test', game: 'function (stage) { return { frame() { stage.ctx.fillText("hello", 10, 10); } }; }' } };
-  ok('saving with the hold works', (await call('PUT', `ludants/${id}`, { token: 'w', owner, soma, surfaces: {} })).status === 200);
+  const surfaces = { chat: { messages: [{ who: 'smoke', text: 'a secret' }] } };
+  ok('saving with the hold works', (await call('PUT', `ludants/${id}`, { token: 'w', owner, soma, surfaces })).status === 200);
+  ok('the owner reads the chat', JSON.stringify((await call('GET', `ludants/${id}`, undefined, owner)).json.surfaces).includes('a secret'));
+  ok('a stranger doesn\'t', !JSON.stringify((await call('GET', `ludants/${id}`)).json).includes('a secret'));
   ok('saving without it is refused', (await call('PUT', `ludants/${id}`, { token: 'x', soma, surfaces: {} })).status === 403);
   ok('arrive', (await call('POST', `ludants/${id}/arrive`, { token: 'w', owner, who: 'smoke' })).status === 200);
   ok('a stranger can\'t publish it', (await call('POST', 'published', { ludant: id, by: 'stranger' })).status === 403);
@@ -54,7 +57,9 @@ try {
   ok('it\'s listed (untrusted)', list.json.some?.((p) => p.id === pub.json.id && p.trusted === false));
   const copy = await call('POST', `published/${pub.json.id}/copy`, { by: 'player' });
   ok('a copy comes with its own owner key', copy.json.owner && copy.json.id !== id);
-  ok('a stranger may copy a ludant by its link', (await call('POST', `ludants/${id}/copy`, { by: 'stranger' })).json.owner);
+  const linkCopy = await call('POST', `ludants/${id}/copy`, { by: 'stranger' });
+  ok('a stranger may copy a ludant by its link', linkCopy.json.owner);
+  ok('the copy starts without the chat', !JSON.stringify((await call('GET', `ludants/${linkCopy.json.id}`, undefined, linkCopy.json.owner)).json).includes('a secret'));
   ok('a report goes in', (await call('POST', 'flags', { published: pub.json.id, reason: 'other', by: 'smoke' })).json.id);
   ok('events go in', (await call('POST', 'events', { browser: 'smoke', events: [{ kind: 'sit' }] })).status === 200);
   const ops = await call('POST', 'admin/ops', { token: TOKEN });
