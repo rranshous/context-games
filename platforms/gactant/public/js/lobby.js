@@ -5,6 +5,9 @@
 
 import { PadNav, Pads } from './pads.js';
 import { api, askName, el, forget, mine, myName } from './ui.js';
+import { watchPage } from './telemetry.js';
+
+watchPage('lobby');
 
 const FEATURED = 6;
 

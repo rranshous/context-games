@@ -1909,3 +1909,24 @@ After:
 | 2D, both | 60 | 3–7 ms | 1.0 |
 
 Firefox 3D is still capped near 30 pictures a second, a bit under 50 ms behind input, by that readback. Ideas for later: draw 3D smaller and scale up when the readback is slow, or render the 3D layer on the frame side from a scene description (a big change, and it breaks "the game runs in the sandbox"). Parked.
+
+## Part 10: seeing what's going on
+
+Robby: "Since this is now live online I want to make sure we have good logs and observability. Bonus points for integration w cloudflare?" Then: "I would like _you_ to be able to understand what is going on traffic wise and help debug things. Maybe crash reports idk. Just make sure not to create an everbalooning bill for me." (Mid-build, a pop quiz: which Explorer level is he suggesting? Level 2, **Instrumented**. Until now he'd been my relay, pasting consoles and doings, which is level 1. With this, I handle the live site through an instrument of my own.)
+
+What I could reach without him was the problem. Workers Logs are Cloudflare's natural answer, and they're now on. But wrangler's login has no scope to *query* them; it only has `workers_tail:read`, for live tails. Reading them back would mean Robby making an API token with the right permissions, and the docs were unclear which those are. So the long view lives in the World itself, where the admin token already reaches:
+
+- **`ops.mjs`**, shared by both hosts through the store:
+  - Traffic counts sit in memory and are written once a minute into one doc an hour (route, method, status class, summed ms, events by kind and browser, stage samples). It keeps 30 days.
+  - Trouble is grouped by kind, where and the *shape* of the message (numbers and ids blanked), so a crash that happens a thousand times is one doc with a count, browsers, first and last seen, and a few ludant ids. It keeps the 400 most recent.
+  - Our own 500s are trouble too, with the stack.
+- **`telemetry.js`** in the pages:
+  - Uncaught errors and rejections on the frame, lobby, play and check pages.
+  - Every `fault` the inspector notes. A failed tool call's note includes what the ludant asked for, which may be its words to someone, so only the tool and the error go.
+  - The pixels fallback, and a `sit` per sitting.
+  - A stage sample a minute in and then every five minutes: fps, pictures a second, round trip, game speed, 3D, pixels, size. That's the measurement from the Firefox lag hunt, now from everyone's browsers.
+  - No names, chat, prompts, code or keys.
+- **The bill.** A page sends at most 40 events, each kind of trouble once, in 15-second batches. The install takes at most 5,000 events a day; the rest are only counted as dropped. Storage is bounded by 720 hour-docs and 400 trouble docs. Workers Logs stop at 200k a day on the free plan rather than charging. On a paid plan 20M a month are included, far over anything we do. The worst case is a flood of junk at `/api/events`, and that costs what a flood at any route would.
+- **Reading it:** `node tools/ops.mjs https://gactant.com [days]` gives hours, routes with mean ms, refusals, events, browsers, the stage per browser, and trouble most recent first. Admin reads now go in a POST body (`admin/ops`, and `admin/reports`, which replaces `GET reports?token=`), so the token never sits in a URL that Workers Logs would record.
+
+Tested locally: two crashes that differ by a number grouped as one ×2; a real page's thrown error and rejected promise both arrived; the sit event counted; the stage sample (chrome 2d, 60 fps, 4 ms, speed 1.00) came in at the minute mark.

@@ -27,6 +27,7 @@ import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
 import { api, askName, el, forget, remember } from './ui.js';
 import { installExplorer } from './explorer.js';
+import { report, watchPage } from './telemetry.js';
 
 const SAVE_MS = 800;
 const HEARTBEAT_MS = 5000;
@@ -649,10 +650,17 @@ async function boot() {
   setInterval(() => frame.refreshKey(), 5 * 60 * 1000);
   setInterval(() => { if (document.visibilityState === 'visible') frame.sendThumb(); }, THUMB_MS);
   installExplorer(frame);
+  // How the stage runs here, now and then while someone's looking (telemetry.js).
+  report('sit', { ludant: record.id });
+  frame.stage.sample();
+  const perf = () => { const p = frame.stage.sample(); if (p) report('perf', p); };
+  setTimeout(() => { perf(); setInterval(perf, 5 * 60 * 1000); }, 60 * 1000);
   const brief = new URLSearchParams(location.search).get('shard');
   if (brief) window.explorer.shard(brief).then((r) => console.log('[shard]', r));
 }
 
+watchPage('frame');
 boot().catch((err) => {
+  report('crash', { where: 'frame boot', message: err.message, sample: err.stack });
   document.body.append(el('pre', { class: 'boot-fault' }, `couldn't open the frame: ${err.message}`));
 });

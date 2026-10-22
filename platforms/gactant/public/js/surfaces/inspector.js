@@ -4,6 +4,7 @@
 // It has no actions for actants; it's for the humans in the frame.
 
 import { el } from '../ui.js';
+import { report } from '../telemetry.js';
 
 const KEEP = 300;
 const NOTE_CHARS = 2000;
@@ -25,9 +26,20 @@ export class Inspector {
 
   note(kind, text) {
     this.doings.push({ kind, text: String(text).slice(0, NOTE_CHARS), at: Date.now() });
+    if (kind === 'fault') this.tell(String(text));
     if (this.doings.length > KEEP) this.doings.splice(0, this.doings.length - KEEP);
     if (this.tab === 'doings') this.renderBody();
     this.frame.changed();
+  }
+
+  /** A fault, to the install's trouble list (telemetry.js). A failed tool call shows what
+   *  the ludant asked for, which may be its words to someone, so only the tool and the
+   *  error go. */
+  tell(text) {
+    const tool = text.match(/^(\S+) [\s\S]*?\n→ ([\s\S]*)$/);
+    const message = tool ? `${tool[1]} → ${tool[2]}` : text;
+    const kind = message.startsWith('thinking failed') ? 'thinking' : 'fault';
+    report(kind, { where: tool ? 'tool' : message.split(/[ :]/)[0], message, ludant: this.frame.recordId });
   }
 
   // What it did lasts with the ludant, like the chat: so the inside reads the same after a

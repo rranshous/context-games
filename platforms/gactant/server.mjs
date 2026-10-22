@@ -27,7 +27,7 @@ const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 7780;
 loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
-for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'assets', 'log']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'assets', 'traffic', 'trouble', 'log']) mkdirSync(join(DATA, d), { recursive: true });
 
 function loadEnv(path) {
   if (!existsSync(path)) return;
@@ -64,6 +64,7 @@ const core = createCore({
       const f = join(DATA, 'log', `${who}.jsonl`);
       return existsSync(f) ? readFileSync(f, 'utf8').trim().split('\n').slice(-n).map((l) => JSON.parse(l)) : [];
     },
+    opsLog: (record) => console.warn('[gactant]', JSON.stringify(record)),
   },
 });
 

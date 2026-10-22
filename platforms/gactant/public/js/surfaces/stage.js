@@ -75,6 +75,7 @@ export class Stage {
     this.live = false;     // ticking: once the sandbox has the ludant
     this.sent = [];        // ticks in flight: { frame, at }
     this.owed = 0;         // display time not yet handed to the game
+    this.trip = 0;         // how long a tick takes to come back, averaged (ms)
     this.padPressed = new Map();   // pad index -> buttons that went down since the last tick
     this.padKeys = new Set();      // keys controller 1 is holding down
     this.ludantHeld = new Set();   // keys the ludant is holding
@@ -144,6 +145,17 @@ export class Stage {
     };
   }
 
+  /** How it has run since the last sample, for telemetry: null if it hasn't been running. */
+  sample() {
+    const now = performance.now(), last = this.sampled;
+    this.sampled = { at: now, t: this.t, pictures: this.pictures ?? 0 };
+    if (!last || !this.live || this.halted || document.hidden) return null;
+    const wall = (now - last.at) / 1000;
+    if (wall < 10) return null;
+    return { fps: +this.fps.toFixed(1), pictures: +((this.sampled.pictures - last.pictures) / wall).toFixed(1), trip: +this.trip.toFixed(1),
+      speed: +((this.t - last.t) / wall).toFixed(2), three: this.three, pixels: Boolean(this.frame.sandbox.pixels), size: `${this.width}x${this.height}` };
+  }
+
   /** Fast-forward: the game runs that far ahead in the sandbox at once; the clock follows. */
   advance(seconds) {
     this.advancing = true;   // a person (the explorer, a shard) asked, not the ludant
@@ -156,6 +168,8 @@ export class Stage {
   shown({ layers, pixels, width, height, caption, three, frame }) {
     // A picture answers its tick and any before it (the sandbox shows them together when
     // it's still busy with the last).
+    const tick = this.sent.find((s) => s.frame === frame);
+    if (tick) this.trip = this.trip * 0.95 + (performance.now() - tick.at) * 0.05;
     this.sent = this.sent.filter((s) => s.frame > frame);
     this.lastPicture = performance.now();
     this.pictures = (this.pictures ?? 0) + 1;

@@ -13,7 +13,8 @@
 // publication's stage, `l-<id>` or `p-<id>`, kept apart so lists stay light).
 //
 // settings: { model, key (OpenRouter, or ''), public (bool), sandbox (origin of the sandbox
-//             page, or '' for this one), log(who, record), tail(who, n) }
+//             page, or '' for this one), log(who, record), tail(who, n), opsLog(record) }
+//   opsLog: where trouble is also written as it happens (the Worker: Cloudflare's logs).
 //   adminToken: lets tools/push.mjs bring publications here from another install.
 //   public: the install is open to anyone. Then nobody can list every ludant (a ludant is
 //   reached by its link, or published), and inference isn't logged.
@@ -58,7 +59,9 @@
 //   GET  thumbs/<l|p>/<id>                       -> { image }       (null if there's none yet)
 //   POST reports        { id?, report }          -> { id }          what a device's check page found (/check.html);
 //                                                   with an id, updates that report as the check goes on
-//   GET  reports?token=&n=10                     -> newest reports (needs settings.adminToken)
+//   POST admin/reports { token, n? }             -> newest reports (needs settings.adminToken; tools/reports.mjs)
+//   POST events { browser, mobile, events: [...] } -> {}           what a page noticed: trouble and how the stage runs (ops.mjs)
+//   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
 //   POST infer          { who, messages, tools? } -> OpenRouter chat completion, on the install's key
@@ -69,6 +72,7 @@
 import { nameOf, randomGiven, titleSlug } from './public/js/names.js';
 import { ART_MODELS, buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
+import { createOps } from './ops.mjs';
 
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
 const HOLD_STALE_MS = 20000;
@@ -108,6 +112,7 @@ export function summarize(message) {
 export function createCore({ store, settings }) {
   const { model, key, log = () => {}, tail = () => [] } = settings;
   const isPublic = Boolean(settings.public);
+  const ops = createOps({ store, log: settings.opsLog });
 
   const read = async (kind, id) => {
     const doc = await store.get(kind, safe(id));
@@ -244,8 +249,29 @@ export function createCore({ store, settings }) {
 
   // ---------- routes ----------
 
+  /** Every request is counted, and one that fails on our side is kept as trouble. */
   async function route(method, parts, body, query) {
+    const started = Date.now();
+    let status = 200;
+    try { return await answer(method, parts, body, query); }
+    catch (err) {
+      status = typeof err.code === 'number' ? err.code : 500;
+      if (status >= 500) await ops.trouble({ kind: 'server', where: `${method} ${parts.slice(0, 1).join('/')}${parts[2] ? `/:id/${parts[2]}` : parts[1] ? '/:id' : ''}`, message: err.message, sample: err.stack }).catch(() => {});
+      throw err;
+    } finally {
+      ops.request(method, parts, status, Date.now() - started);
+      ops.flush().catch(() => {});
+    }
+  }
+
+  async function answer(method, parts, body, query) {
     const [a, b, c] = parts;
+    // What pages noticed (no names, chat, prompts or keys), and reading it all back.
+    if (a === 'events' && method === 'POST') return ops.events(body);
+    if (a === 'admin' && b === 'ops' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length };
+    }
     if (a === 'config') return { model, hasKey: Boolean(key), logs: !isPublic, public: isPublic, sandbox: settings.sandbox || '' };
     if (a === 'infer' && method === 'POST') return infer(body);
     if (a === 'log' && b && method === 'POST') { if (!isPublic) await log(safe(b), { ...body, last: summarize(body.last) }); return {}; }
@@ -259,9 +285,9 @@ export function createCore({ store, settings }) {
       await store.put('reports', id, { id, at: now(), report });
       return { id };
     }
-    if (a === 'reports' && method === 'GET') {
-      if (!settings.adminToken || query.get('token') !== settings.adminToken) throw httpError(403, 'not allowed');
-      return (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(query.get('n')) || 10);
+    if (a === 'admin' && b === 'reports' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      return (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(body.n) || 10);
     }
     if (a === 'admin' && b === 'import' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');

@@ -9,6 +9,9 @@
 
 import { api, el, myName } from './ui.js';
 import { Sandbox } from './sandbox.js';
+import { watchPage } from './telemetry.js';
+
+watchPage('check');
 
 const BUTTONS = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'left stick (press it in)', 'right stick (press it in)', 'd-pad up', 'd-pad down', 'd-pad left', 'd-pad right'];
 const STANDARD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS', 'RS', 'up', 'down', 'left', 'right', 'home'];

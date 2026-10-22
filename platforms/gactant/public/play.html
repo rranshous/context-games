@@ -14,6 +14,8 @@
     // is remembered per publication, so coming back finds the same one.
     import { api, askName, remember } from '/js/ui.js';
     import { PadNav, Pads } from '/js/pads.js';
+    import { report, watchPage } from '/js/telemetry.js';
+    watchPage('play');
     new PadNav(new Pads(), { scope: () => document.querySelector('.cover') });
     const p = new URLSearchParams(location.search).get('p');
     const key = `gactant-copy-${p}`;
@@ -31,7 +33,10 @@
       remember(id);
       // Someone arriving from a play link came to play: start with the stage alone.
       location.replace(`/frame.html?l=${id}&play`);
-    } catch (err) { document.getElementById('msg').textContent = `couldn't take a copy: ${err.message}`; }
+    } catch (err) {
+      report('crash', { where: 'play copy', message: err.message });
+      document.getElementById('msg').textContent = `couldn't take a copy: ${err.message}`;
+    }
   </script>
 </body>
 </html>

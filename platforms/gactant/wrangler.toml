@@ -26,6 +26,14 @@ class_name = "World"
 tag = "v1"
 new_sqlite_classes = ["World"]
 
+# Workers Logs: every request and every console line, kept 3 days (7 on a paid plan), in
+# the dashboard under the Worker's Observability tab. The free plan stops logging past
+# 200,000 a day rather than charging; on a paid plan, 20 million a month are included and a
+# sampling rate under 1 caps it. ops.mjs keeps the long view (30 days) in the World itself.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [vars]
 GACTANT_PUBLIC = "1"
 SANDBOX_ORIGIN = "https://gactantbox.com"

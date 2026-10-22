@@ -33,6 +33,8 @@ export class World extends DurableObject {
         public: env.GACTANT_PUBLIC === '1',
         adminToken: env.ADMIN_TOKEN || '',
         sandbox: env.SANDBOX_ORIGIN || '',
+        // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
+        opsLog: (record) => console.warn(record),
       },
     });
   }
@@ -43,7 +45,7 @@ export class World extends DurableObject {
       const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
       return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams));
     } catch (err) {
-      if (!err.code || err.code >= 500) console.error(`[gactant] ${request.method} ${url.pathname}: ${err.message}`);
+      if (!err.code || err.code >= 500) console.error({ error: err.message, method: request.method, path: url.pathname });
       return json(typeof err.code === 'number' ? err.code : 500, { error: err.message, ...(err.extra ?? {}) });
     }
   }

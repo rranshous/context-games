@@ -308,5 +308,18 @@ SQLite.
 - The API refuses any request whose `Origin` isn't the site itself (a sandbox's is
   `null`), and refuses saves over 1.5M characters.
 
+### What's going on: logs and trouble
+
+Both hosts keep a long view in their own store (`ops.mjs`):
+- **Traffic:** every API request counted by route and hour, with the mean time it took.
+- **Trouble:** grouped by what it says, so the same crash a hundred times is one entry with a count, browsers and a few ludant ids. It covers crashes in the platform's pages, faults the frame noticed, failed thinking, and our own 500s.
+- **The stage:** fps, pictures a second, round trip and game speed, sampled per browser.
+
+Pages send what they notice to `POST /api/events` (`public/js/telemetry.js`). It never sends names, chat, prompts, code or keys. A page sends at most 40 events and the same trouble once. The install takes at most 5,000 events a day and keeps 30 days of traffic and the 400 most recent kinds of trouble, so it can't grow without bound.
+
+`node tools/ops.mjs https://gactant.com [days]` prints the summary (`--json` for all of it). It needs `GACTANT_ADMIN_TOKEN` in `.env`, sent in the body so it never lands in a request log. This is how Claude reads the live site without anyone relaying it.
+
+On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`): every request and every console line, searchable in the dashboard under the Worker's Observability tab, kept 3 days on the free plan. Trouble is logged there as an object, so its fields (`trouble`, `where`, `browser`, `ludant`) can be filtered. `npx wrangler tail` shows it live.
+
 While the project is young there are **no migrations**: when a contract changes, `data/`
 is wiped and the journal is the record.

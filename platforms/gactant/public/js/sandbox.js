@@ -12,6 +12,7 @@
 import { Bridge } from './bridge.js';
 import { nameOf } from './names.js';
 import { el } from './ui.js';
+import { report } from './telemetry.js';
 
 // Events the sandbox may put on the frame's bus. Anything else it claims to have seen
 // (a chat message from a person, say) is refused: those come from the frame's surfaces.
@@ -118,6 +119,7 @@ export class Sandbox {
     this.pixels = true;
     this.send('pictures', 'pixels');
     this.frame.inspector.note('changed', `the stage is getting the game's pixels instead of pictures: ${why}`);
+    report('pixels', { message: why });
   }
 
   /** Every event on the frame's bus goes across, so the ludant's hooks hear it. */
