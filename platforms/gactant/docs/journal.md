@@ -1976,3 +1976,13 @@ Robby: "Do 1 2 and 3. Also do 5a and 5c. We'll talk dmca registration another ti
 - **5a, contact address:** see below.
 
 Tested in Node against the core with an in-memory store and a fake check: clean went up; "BADWORD" was held with a report; trust came after a backdated day; the 11th publish from one address got a 429 while another address could still publish; approve made the held one trusted.
+
+### The World that wouldn't update
+
+Checking the deploy from outside, through a reader service (my own network still can't reach the site), the live list had no `trusted` field. The bundle had it. Four redeploys changed nothing. A probe field added to `/api/config` didn't show either. With a temporary Worker log of the Durable Object's answer, read through `wrangler tail` (Cloudflare's API, not blocked), the cause was clear: the **Worker** runs each new version, but the **World** kept answering with old code. Someone was sitting with Genek in Firefox at the time, a heartbeat every few seconds, and it seems a Durable Object that's never idle isn't replaced by a deploy, or not promptly. So the server side of the last day's deploys may not have been live at all: ops, reports and takedowns, the check.
+
+The fix keeps this from happening again:
+- **Version handoff.** `[version_metadata]` gives both the Worker and the World a version id. The Worker sends its id with every request. A World whose own id differs flushes its ops counts and calls `ctx.abort()`; the Worker retries once and reaches a fresh World on the new code.
+- **One last restart by hand.** The World running now predates this, so it has to go idle once.
+
+Robby on "old publications will be checked one per lobby load": "This sounds strange." It was: it put a 5-second check on some unlucky visitor's lobby load. Now a cron (`17 * * * *`) checks up to ten unchecked publications an hour, through an internal path the public Worker never forwards.

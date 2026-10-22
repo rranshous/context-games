@@ -285,6 +285,7 @@ seasonal garden in three rounds for $0.47, and tested "just for tonight" end to 
 own.
 
 **Hosted, on Cloudflare:** `npx wrangler deploy` (see `wrangler.toml`).
+- A deploy updates the Worker at once, but a busy Durable Object can keep running the code it started with. So the Worker tells it its version (`[version_metadata]`), and an older object restarts itself (`ctx.abort`); the Worker then asks again.
 - A Worker serves the pages and passes `/api/*` to **one Durable Object** that holds
   every document in SQLite, plus the holds. Cloudflare keeps it durable and can restore
   it to any point in the last 30 days, so there's no machine of ours to lose.
@@ -317,7 +318,7 @@ A publication reported by two different people as illegal, or by three for any r
 **Before anything goes public:**
 - **Ludants are told the rules.** Their body contract says the place is public, children included. Whoever asks, and however it's asked, they don't make what the rules forbid; they say no kindly and offer something else.
 - **Each publication gets a look** (`check.mjs`, Cloudflare Workers AI). Its words go through Llama Guard: names, title, note, identity, and the strings in its code. Its thumbnail and up to six pictures of its art go through a vision model. Something it doesn't like is published but hidden, with a report opened for a person to look at; the publisher is told. Fighting and monsters are fine: only sexual content, anything sexual involving minors, hate, self-harm, and private information count. It's capped at 200 checks a day, a few hundred neurons each. A local install has no check, so its publications go up unchecked.
-- **Newcomers meet only trusted publications.** "Jump in" features ones a person approved, or ones that passed the check and have been up a day with no reports. Someone coming back sees everything. Publications from before the check get theirs one lobby visit at a time.
+- **Newcomers meet only trusted publications.** "Jump in" features ones a person approved, or ones that passed the check and have been up a day with no reports. Someone coming back sees everything. An hourly job checks any publication that hasn't been checked yet (made before the check, or when it couldn't run), ten at a time.
 - **One address can publish 10 a day.**
 
 `node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `approve <publication>` (vouch for it, so it can be featured), `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.

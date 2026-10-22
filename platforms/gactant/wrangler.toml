@@ -40,6 +40,14 @@ head_sampling_rate = 1
 [ai]
 binding = "AI"
 
+# Which version is running, so the World can tell when it's older than the Worker.
+[version_metadata]
+binding = "VERSION"
+
+# Hourly, for publications that haven't been checked yet.
+[triggers]
+crons = ["17 * * * *"]
+
 [vars]
 GACTANT_PUBLIC = "1"
 SANDBOX_ORIGIN = "https://gactantbox.com"

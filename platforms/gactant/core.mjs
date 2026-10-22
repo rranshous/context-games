@@ -4,7 +4,8 @@
 // Each hands the core a store and its settings.
 //
 //   const core = createCore({ store, settings })
-//   await core.route(method, ['ludants', id], body, searchParams)   -> JSON-able, or throws { code }
+//   await core.route(method, ['ludants', id], body, searchParams, { ip })   -> JSON-able, or throws { code }
+//   await core.checkSome(n)   publish checks for publications that haven't had one (hourly, hosted)
 //
 // A store keeps JSON documents by kind and id, and is async whether or not it needs to be:
 //   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]     remove(kind, id)
@@ -556,12 +557,6 @@ export function createCore({ store, settings }) {
       if (!b && method === 'GET') {
         // Trusted: a person cleared it, or it passed the check and has been up a day with no
         // reports. The lobby features only these to strangers.
-        // One publication that hasn't had its look yet (made before there was a check, or
-        // when the check couldn't run) gets it now, a lobby visit at a time.
-        if (settings.check) {
-          const due = (await store.list('published')).find((p) => !p.hidden && !p.cleared && (p.checked ?? 'unchecked') === 'unchecked');
-          if (due) await recheck(due);
-        }
         const reported = new Set((await store.list('flags')).filter((f) => f.status !== 'dismissed').map((f) => f.published));
         const trusted = (p) => Boolean(p.cleared) || (p.checked === 'clean' && !reported.has(p.id) && Date.now() - Date.parse(p.at) > TRUSTED_AFTER_MS);
         return (await store.list('published')).filter((p) => !p.hidden).map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
@@ -641,7 +636,17 @@ export function createCore({ store, settings }) {
     throw httpError(404, `no route ${method} /api/${parts.join('/')}`);
   }
 
-  return { route };
+  /** Publications that haven't had their look (made before there was a check, or when it
+   *  couldn't run) get it, a few at a time: the Worker calls this hourly. */
+  async function checkSome(n = 10) {
+    if (!settings.check) return { checked: 0 };
+    const due = (await store.list('published')).filter((p) => !p.hidden && !p.cleared && (p.checked ?? 'unchecked') === 'unchecked').slice(0, n);
+    for (const p of due) await recheck(p);
+    await ops.flush(true);
+    return { checked: due.length };
+  }
+
+  return { route, checkSome, flush: () => ops.flush(true) };
 }
 
 // ---------- shared by both hosts ----------
