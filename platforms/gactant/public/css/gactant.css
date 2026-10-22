@@ -326,3 +326,12 @@ body.fullplay .full-bar { display: flex; gap: 6px; position: absolute; top: max(
 .lobby-foot { color: var(--ink-3); font-size: 12px; }
 .lobby-foot a { color: var(--ink-2); }
 .rules h2 { font: 600 15px var(--mono); color: var(--amber); margin: 26px 0 6px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--ink-2); text-decoration: underline dotted; flex: 1 0 100%; text-align: left; }
+.ask-fail { color: #f3b3ab; font-size: 13px; margin: 0; }
+.ask-fail:empty { display: none; }
+.recovery-code { flex: 1 0 100%; margin: 0; padding: 10px 12px; background: var(--pane-2); border: 1px solid var(--amber); border-radius: 8px; font: 15px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; user-select: all; }
+.me-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.devices { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.devices li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; background: var(--pane); border: 1px solid var(--line); border-radius: 8px; }
+.pair-box { margin-top: 10px; }
+.pair-code { font-size: 26px; letter-spacing: 0.12em; text-align: center; }

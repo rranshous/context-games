@@ -1,11 +1,12 @@
-// Owners: which ludants have one, and claiming one that doesn't (a ludant from before
-// owners). Claiming prints an owner link: open it on the device that should own it.
+// Owners: which ludants belong to which person, and giving ludants nobody owns (from
+// before people) to a person.
 //
-//   node tools/own.mjs [site]                  every ludant, owned or not
-//   node tools/own.mjs [site] claim <ludant>   a key for one with no owner yet
+//   node tools/own.mjs [site]                                 every ludant, and its owner
+//   node tools/own.mjs [site] people                          every person
+//   node tools/own.mjs [site] give <person> <ludant>...       give those ludants to that person
+//   node tools/own.mjs [site] give <person> unowned           give every ludant nobody owns
 //
-// site defaults to https://gactant.com. Needs GACTANT_ADMIN_TOKEN in .env. The link holds
-// the key: anyone who opens it owns the ludant, so send it only to yourself.
+// site defaults to https://gactant.com. Needs GACTANT_ADMIN_TOKEN in .env.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,15 +20,20 @@ const base = (/^https?:/.test(args[0] ?? '') ? args.shift() : 'https://gactant.c
 const call = async (path, body) => {
   const res = await fetch(`${base}/api/admin/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ token: env.GACTANT_ADMIN_TOKEN ?? '', ...body }) });
   const json = await res.json();
-  if (!res.ok) { console.error(json); process.exit(1); }
+  if (!res.ok) throw Object.assign(new Error(json.error ?? res.status), { json });
   return json;
 };
 
-if (args[0] === 'claim' && args[1]) {
-  const { id, owner } = await call('own', { ludant: args[1] });
-  console.log(`https://gactant.com/frame.html?l=${id}#own=${owner}`);
+if (args[0] === 'people') {
+  for (const p of await call('people', {})) console.log(`${p.id}  ${p.name.padEnd(24)} since ${p.created.slice(0, 10)}  ${p.devices.join(', ')}`);
+} else if (args[0] === 'give' && args[1] && args[2]) {
+  const person = args[1];
+  const ids = args[2] === 'unowned' ? (await call('owners', {})).filter((l) => !l.owned).map((l) => l.id) : args.slice(2);
+  for (const ludant of ids) {
+    try { await call('own', { ludant, person }); console.log(`gave ${ludant}`); } catch (err) { console.log(`${ludant}: ${err.message}`); }
+  }
 } else {
   for (const l of await call('owners', {})) {
-    console.log(`${l.owned ? 'owned  ' : 'NOBODY '} ${l.id.padEnd(28)} ${String(l.name).padEnd(34)} ${l.ownedAt ? `since ${l.ownedAt.slice(0, 16)}` : ''.padEnd(22)} by ${l.by ?? '?'}${l.from ? ` (from ${l.from})` : ''}  sat with: ${l.people.join(', ')}`);
+    console.log(`${(l.owner ?? 'NOBODY').padEnd(34)} ${l.id.padEnd(26)} ${String(l.name).padEnd(36)} by ${l.by ?? '?'}${l.from ? ` (from ${l.from})` : ''}`);
   }
 }

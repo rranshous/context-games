@@ -25,7 +25,7 @@ import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
-import { api, askName, el, forget, own, ownerOf, remember } from './ui.js';
+import { api, askName, el, forget, remember } from './ui.js';
 import { installExplorer } from './explorer.js';
 import { report, watchPage } from './telemetry.js';
 
@@ -91,7 +91,6 @@ class Frame {
     // This window's claim on the ludant. (crypto.randomUUID needs https, and a phone on
     // the LAN reaches this over plain http.)
     this.token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
-    this.owner = ownerOf(record.id);   // this browser's key to it, if it's this browser's
     this.lost = null;                   // set once another window takes the ludant
   }
 
@@ -99,13 +98,13 @@ class Frame {
    *  then the person chooses whether to take it over. */
   async hold() {
     try {
-      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, owner: this.owner, who: this.seat });
+      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat });
     } catch (err) {
       if (err.status === 403 && err.body?.notYours) return this.notYours(err.body.unclaimed);
       if (err.status !== 409) throw err;
       const since = err.body?.since ? new Date(err.body.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
       await this.ask(`${this.actant.name} is open in another window${err.body?.heldBy ? ` (${err.body.heldBy}${since ? `, since ${since}` : ''})` : ''}. A ludant lives in one window at a time.`, 'bring it here');
-      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, owner: this.owner, who: this.seat, takeOver: true });
+      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat, takeOver: true });
     }
     // Heartbeats also carry what the sitting has cost since the last one and how long it's
     // been watched, so the server can say what a ludant costs per hour of play.
@@ -114,7 +113,7 @@ class Frame {
       const now = Date.now(), seconds = document.visibilityState === 'visible' ? (now - lastBeat) / 1000 : 0;
       const spent = this.status.spent - reported;
       lastBeat = now; reported = this.status.spent;
-      try { await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token, owner: this.owner, seconds, spent }); }
+      try { await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token, seconds, spent }); }
       catch (err) { if (err.status === 409) this.lose(err.body?.heldBy); }
     }, HEARTBEAT_MS);
     addEventListener('pagehide', () => navigator.sendBeacon(`/api/ludants/${this.recordId}/release`, JSON.stringify({ token: this.token })));
@@ -130,20 +129,14 @@ class Frame {
         : [el('strong', {}, `${this.actant.name} belongs to someone else${by ? ` (${by})` : ''}. `), 'Only they can change it. You can take a copy of your own, as it is now, and play and shape that one.']),
       el('button', { class: 'top-btn primary', onclick: async () => {
         try {
-          const { id, owner } = await api('POST', `ludants/${this.recordId}/copy`, { by: this.seat });
-          own(id, owner); remember(id);
+          const { id } = await api('POST', `ludants/${this.recordId}/copy`, { by: this.seat });
+          remember(id);
           location.href = `/frame.html?l=${id}`;
         } catch (err) { alert(`couldn't take a copy: ${err.message}`); }
       } }, 'take my own copy'),
       el('a', { class: 'top-btn', href: '/' }, 'to the lobby')));
     document.body.append(box);
     return new Promise(() => {});   // the sitting doesn't start
-  }
-
-  /** A link that opens this ludant as this browser's on another device (a console, a
-   *  phone): the owner key rides after the #, which browsers never send to a server. */
-  ownerLink() {
-    return `${location.origin}/frame.html?l=${this.recordId}#own=${this.owner}`;
   }
 
   /** Another window has the ludant now. This one stops: no saving, no thinking, no game. */
@@ -330,7 +323,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     clearTimeout(this.saveTimer);
     if (this.lost) return;
     const surfaces = Object.fromEntries(this.surfaces.filter((s) => s.toJSON).map((s) => [s.id, s.toJSON()]));
-    try { await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token, owner: this.owner }); }
+    try { await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token }); }
     catch (err) {
       if (err.status === 409) this.lose(err.body?.heldBy);
       else this.inspector.note('fault', `saving failed: ${err.message}`);
@@ -347,7 +340,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 
   async takeCheckpoint(label, by = this.seat) {
     await this.settled('the checkpoint');
-    const { n } = await api('POST', `ludants/${this.recordId}/checkpoints`, { label, by, token: this.token, owner: this.owner });
+    const { n } = await api('POST', `ludants/${this.recordId}/checkpoints`, { label, by, token: this.token });
     this.inspector.note('changed', `${by} took checkpoint ${n}${label ? ` "${label}"` : ''}`);
     this.status.setLife(this.status.life);
     return { n };
@@ -365,7 +358,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       await this.save();
     }
     try {
-      const { id, name, held } = await api('POST', 'published', { ludant: this.recordId, note, by, token: this.token, owner: this.owner });
+      const { id, name, held } = await api('POST', 'published', { ludant: this.recordId, note, by, token: this.token });
       const url = `${location.origin}/play.html?p=${id}`;
       this.record.familyNames = [...(this.record.familyNames ?? []), name];
       this.inspector.note('changed', held ? `${by} published ${name}, but it's held for a person to look at first (${held})` : `${by} published ${name}: ${url}`);
@@ -384,7 +377,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
    *  stay seated, and the ludant's body is swapped for the one it had then. */
   async restore(n, by = this.seat) {
     await this.settled('restoring');
-    await api('POST', `ludants/${this.recordId}/restore`, { n, by, token: this.token, owner: this.owner });
+    await api('POST', `ludants/${this.recordId}/restore`, { n, by, token: this.token });
     const record = await api('GET', `ludants/${this.recordId}`);
     this.record = { ...this.record, ...record, surfaces: this.record.surfaces };
     await this.actant.load(record.soma);
@@ -629,7 +622,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
             if (confirm(`Put ${this.actant.name} back to checkpoint #${cp.n}? How it is now is kept as a checkpoint too, and the chat stays.`)) { history.classList.remove('on'); this.restore(cp.n); }
           } }, 'restore'))),
         el('div', { class: 'history-foot' },
-          this.owner ? el('button', { class: 'wb-btn', onclick: () => { history.classList.remove('on'); prompt(`Open this on another device of yours (a console, a phone) and ${this.actant.name} is yours there too. Anyone with this link can change it, so keep it to yourself:`, this.ownerLink()); } }, 'open on another device…') : null,
+          el('a', { class: 'wb-btn', href: '/me.html', title: 'your ludants are yours on every device you add' }, 'your devices…'),
           el('button', { class: 'wb-btn danger', onclick: () => { history.classList.remove('on'); this.askAbandon(); } }, 'abandon this ludant…')),
       );
     };
@@ -682,7 +675,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     await this.sandbox.checkPictures();
     this.stage.live = true;
     this.status.render();
-    const arrival = await api('POST', `ludants/${this.recordId}/arrive`, { who: this.seat, token: this.token, owner: this.owner });
+    const arrival = await api('POST', `ludants/${this.recordId}/arrive`, { who: this.seat, token: this.token });
     this.record.visitors = Object.fromEntries(arrival.people.map((p) => [p, true]));
     this.bus.emit('frame.arrived', { who: this.seat, firstVisit: arrival.firstVisit, visits: arrival.visits, fresh: Boolean(this.record.fresh), note: this.arrivalNote(arrival) });
     if (this.record.fresh) this.changed();
@@ -692,9 +685,6 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
-  // An owner link (#own=…) makes it this browser's too; the key leaves the address bar.
-  const ownKey = new URLSearchParams(location.hash.slice(1)).get('own');
-  if (ownKey) { own(id, ownKey); history.replaceState(null, '', location.pathname + location.search); }
   // Controllers from the start, so even the first question (a name) can be answered with one.
   const pads = new Pads();
   const askNav = new PadNav(pads, { scope: () => document.querySelector('.cover') });

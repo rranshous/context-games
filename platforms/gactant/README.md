@@ -247,9 +247,17 @@ The frame's pages work with a controller too:
 the microphone, recognition. It saves its report for Claude to read
 (`node tools/reports.mjs`).
 
-## Whose it is
+## Who you are, and whose it is
 
-A ludant belongs to whoever seeded it or took the copy. Their browser keeps a secret **owner key**; the ludant keeps only its hash. Changing a ludant takes the window's hold, and taking the hold takes the key. That covers saves, versions, restores, art, publishing and abandoning. Its chat, sketches, saved game and visitors are only for its owners: reading a ludant shows the key in a header (`X-Gactant-Owner`), never the URL. Anyone else with its link sees what a copy gets, its game and art, and can **take a copy of their own**. A copy never brings the chat: what carries forward is what the ludant wrote into its memory. To use a ludant on another device of yours (a console, a phone), use **history → open on another device…**: its link carries the key after `#`, which browsers never send to a server. A ludant from before owners belongs to the first browser that opens it.
+There are no passwords and no email (`people.mjs`, `public/js/identity.js`).
+- **A person** is a name plus the devices they play on. Each device makes its own ECDSA P-256 key pair in the browser and keeps it in IndexedDB. The private half is non-extractable, so no script can read it out.
+- **Signing in:** a device signs a fresh challenge from the server and gets a **pass** for 24 hours. The server checks the pass by its own signature (`SESSION_SECRET`) and keeps no list of passes. Passes renew silently, and every request carries one (`X-Gactant-Pass`).
+- **A new device:** "add a device" on `/me.html` makes an 8-character code that works once, for 10 minutes. On the new device, "Already play on another device?" takes it.
+- **A lost device:** removing it from `/me.html` stops its passes at once.
+- **Every device lost:** the **recovery code**, twelve made-up words shown once when the person is made. The server keeps only its hash. Using it adds the device and gives a new code. A signed-in device can also make a new one.
+- **Over plain http** (a phone on the LAN reaching a local install), browsers won't do this cryptography. There a device keeps a random secret instead, and only an install that isn't public accepts it.
+
+**A ludant belongs to a person**, so it's theirs on every device, and the lobby lists all of them (`ludants?mine=1`). Changing it takes being its owner plus the window's hold. That covers saves, versions, restores, art, publishing and abandoning. Its chat, sketches, saved game and visitors are only for its owner. Anyone else with its link sees what a copy gets, its game and art, and can **take a copy of their own**. A copy never brings the chat: what carries forward is what the ludant wrote into its memory. Ludants from before people belong to nobody until `tools/own.mjs give <person> …` hands them over.
 
 ## One window, any device
 

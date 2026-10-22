@@ -4,7 +4,7 @@
 // starting from nothing is last.
 
 import { PadNav, Pads } from './pads.js';
-import { api, askName, el, forget, mine, myName, own } from './ui.js';
+import { api, askName, el, forget, mine, myName } from './ui.js';
 import { watchPage } from './telemetry.js';
 
 watchPage('lobby');
@@ -147,8 +147,7 @@ const section = (title, hint, ...body) => el('section', { class: 'lobby-section'
 
 async function seed() {
   const by = await askName('A new ludant starts as a pulsing dot and becomes whatever the two of you make. It will know you by this name.');
-  const { id, owner } = await api('POST', 'ludants', { by });
-  own(id, owner);
+  const { id } = await api('POST', 'ludants', { by });
   location.href = `/frame.html?l=${id}`;
 }
 
@@ -157,12 +156,14 @@ async function render() {
   const [config, published, yours] = await Promise.all([
     api('GET', 'config'),
     api('GET', 'published'),
-    ids.length ? api('GET', `ludants?ids=${ids.join(',')}`) : Promise.resolve([]),
+    // The ones this browser has sat with, and every one its person owns (from any device).
+    api('GET', `ludants?mine=1${ids.length ? `&ids=${ids.join(',')}` : ''}`),
   ]);
   // A local install can also show every ludant here, for the person running it.
   const everyone = config.public ? [] : await api('GET', 'ludants');
   // Ones that are gone (abandoned) quietly leave this browser's list.
   for (const id of ids) if (!yours.some((l) => l.id === id)) forget(id);
+  for (const l of yours) if (!ids.includes(l.id)) ids.push(l.id);
   const order = new Map(ids.map((id, i) => [id, i]));
   yours.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
 
@@ -205,10 +206,7 @@ function renderMe() {
   const name = myName();
   const span = document.getElementById('me');
   if (!name) { span.replaceChildren(); return; }
-  span.replaceChildren('you\'re ', el('button', { class: 'me-name', title: 'change your name', onclick: () => {
-    const next = prompt('What should ludants call you?', name)?.trim();
-    if (next) { try { localStorage.setItem('gactant-name', next); } catch {} renderMe(); }
-  } }, name));
+  span.replaceChildren('you\'re ', el('a', { class: 'me-name', href: '/me.html', title: 'your name and your devices' }, name));
 }
 
 // A controller moves between the cards (and through any question on top).

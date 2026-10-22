@@ -2084,3 +2084,31 @@ Robby: "Let's just make it so chats do not go w a copy and are only available to
 Robby: "Makr it so my stuff can't be claimed by someone else plz. We can work on claiming it when I am home." The first-to-hold claim on ludants from before owners is gone. An unowned ludant can't be held or changed, its chat is hidden like anyone else's, and its frame says it "hasn't been claimed by its owner yet", offering a copy. Claiming is now admin-only: `admin/owners` lists who owns what (with `ownedAt`), and `admin/own` gives a key only to a ludant with no owner, never replacing one. `tools/own.mjs` prints the owner link. The workers.dev address now also takes `/api/admin/*` (token-gated as everywhere), so the tools work from Robby's blocked home network.
 
 Then, mid-build: "Since we are introducing keys as identity plz let's do a good job it. It'll be hard to change later." Fair. A secret per ludant is the simplest thing that works, and it shows: each new ludant needs its own owner link per device, there's no recovery, no revoking a leaked link, and names stay unverified. A proper design comes next, for Robby to decide before building.
+
+## Part 13: people
+
+"Since we are introducing keys as identity plz let's do a good job it. It'll be hard to change later." The per-ludant owner key had every weakness of a bearer secret: a link per ludant per device, no revoking a leaked one, no recovery, and names anyone could claim. In the design talk Robby asked what the recovery code is ("Tell me more… I am not quite understanding your proposal"). He worried that a 6-month sign-in might expire him out ("What would I have to do if I come back after that period?"), so the point to make clear was that **the pass isn't the identity**: the key stays in the browser, and passes renew silently. Then: "6 months seems way too long. Why wouldn't we make it something like 24hrs?" Right: renewing is free here, so shorter is just safer. "Yep, do it. Now is the right time while we don't have any other users yet."
+
+**What's built** (`people.mjs` on the server, `identity.js` in the browser):
+- **A device key.** Each device makes an ECDSA P-256 key pair, with the private half non-extractable, in IndexedDB.
+- **A person** is `{ id, name, devices: [{ id, key, label, added, seen }], recovery: hash }`.
+- **Challenges** are stateless: time, noise and the server's HMAC, good for 2 minutes.
+- **Passes** are `v1.person.device.until.hmac`, for 24 hours, stateless too. A pass counts only while its device is still the person's, so removing a device ends its passes at once. People are cached in memory, so checking a pass doesn't read the store.
+- **Adding a device:** an 8-character code from `people/pair`, stored as a hash for 10 minutes and deleted when used.
+- **Recovery:** twelve CVCV words (about 160 bits), indexed by hash in `recoveries`. Using it rotates the code. Tries are capped at 10 a day per address.
+- **Insecure contexts** get a secret instead of a key, and only on an install that isn't public.
+- **HMAC checks** use `crypto.subtle.verify`, so they're constant-time. `SESSION_SECRET` is a wrangler secret, piped from `openssl rand` and never shown.
+- **Ludants have `owner: <person id>`.** Seeding and copying need a pass. `?mine=1` lists every ludant a person owns, so the lobby on any of their devices finds them all. Reports record the person, so "different people" for auto-hiding means different people when they're signed in.
+- **Pages:** `askName` became "who's here". It makes the person, shows the recovery code once (copy, then "I've kept it"), or takes a code: "Already play on another device?". `/me.html` covers your name, your devices (remove), add a device (the code with a countdown), and a new recovery code. The frame's "open on another device" became "your devices…".
+- **No conversion code.** The four ludants owned by old per-ludant keys simply stop matching anyone, like the rest from before. `tools/own.mjs give <person> unowned` hands them all to Robby once he has signed in at home.
+
+**Found by the new smoke test**, now 50 checks with real device keys in Node:
+- **A token alone was enough.** `requireHold` accepted a window's token before checking the owner, so a stranger reusing a token could save or publish. Real tokens are random, but the owner check now comes first.
+- **A shadowed variable.** A local `from` in the thumbnail route shadowed the caller, and every thumbnail post was a 500. Smoke now posts one.
+- **A false forgery.** My forged-pass test flipped the signature's last base64 character, which only holds padding bits, so it was still the real signature. Harmless, but the test now flips a character that matters.
+
+**In a browser:**
+1. A newcomer seeds, sees the recovery code, and lands in the frame.
+2. `/me.html`, then "add a device", gives `Q5CX-KGS5`.
+3. A fresh second browser types it in lowercase and has 2 devices.
+4. Its lobby lists the ludant, and the frame shows the chat ("remember the pancakes").

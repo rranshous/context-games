@@ -1,6 +1,6 @@
 // A publication link takes a copy for this browser's person, then opens it. The copy
 // is remembered per publication, so coming back finds the same one.
-import { api, askName, own, remember } from './ui.js';
+import { api, askName, remember } from './ui.js';
 import { PadNav, Pads } from './pads.js';
 import { report, watchPage } from './telemetry.js';
 watchPage('play');
@@ -15,9 +15,7 @@ try {
     document.getElementById('msg').textContent = '';
     const by = await askName('Playing gives you your own copy of this ludant, and it will know you by this name.');
     document.getElementById('msg').textContent = 'taking a copy…';
-    let owner;
-    ({ id, owner } = await api('POST', `published/${p}/copy`, { by }));
-    own(id, owner);
+    ({ id } = await api('POST', `published/${p}/copy`, { by }));
     try { localStorage.setItem(key, id); } catch {}
   }
   remember(id);

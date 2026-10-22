@@ -40,6 +40,7 @@ export class World extends DurableObject {
         adminToken: env.ADMIN_TOKEN || '',
         sandbox: env.SANDBOX_ORIGIN || '',
         version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
+        sessionSecret: env.SESSION_SECRET || '',   // signs challenges and passes (people.mjs); a wrangler secret
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
         opsLog: (record) => console.warn(record),
         // Workers AI looks at each publication before it goes public (check.mjs).
@@ -61,7 +62,7 @@ export class World extends DurableObject {
     if (url.pathname === '/internal/hourly') return json(200, { ...(await this.core.checkSome()), ...(await this.core.tidy()) });
     try {
       const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
-      const from = { ip: request.headers.get('cf-connecting-ip') || '', owner: request.headers.get('x-gactant-owner') || '' };
+      const from = { ip: request.headers.get('cf-connecting-ip') || '', pass: request.headers.get('x-gactant-pass') || '' };
       return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, from));
     } catch (err) {
       if (!err.code || err.code >= 500) console.error({ error: err.message, method: request.method, path: url.pathname });

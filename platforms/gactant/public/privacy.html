@@ -24,13 +24,14 @@
     <h1>Privacy</h1>
     <p>gactant has no accounts, no ads and no tracking cookies. Here is what it keeps, who can see it, and where it goes.</p>
 
-    <h2>The name you give</h2>
-    <p>You choose a name when you first play; it's kept in your browser. It goes with what you do: your chat messages, a ludant's list of who has sat with it, and anything you publish ("published by …"). Use a nickname, not your full name.</p>
+    <h2>You, and your devices</h2>
+    <p>There are no passwords or email. When you first play, you give a name, and this device makes a key that never leaves it. The server keeps who you are: an id, your name, and for each device you add its public key (which can only check that a device is yours), a label like "Firefox on Linux", when you added it, and the day it last signed in. It also keeps a scrambled form of your recovery code, enough to check one, not to show it. It never keeps your devices' private keys or the recovery code itself, and the passes your devices sign in with aren't kept: they're checked by their signature, and last a day.</p>
+    <p>Your name goes with what you do: your chat messages, a ludant's list of who has sat with it, and anything you publish ("published by …"). Use a nickname, not your full name.</p>
 
     <h2>Ludants</h2>
     <p>A ludant (its game, its memory, its chat, its sketches, what its game saves, and its art) is kept on gactant's server, hosted by Cloudflare, for as long as it's kept:</p>
     <ul>
-      <li><strong>Its chat, sketches and saved game are only for its owner:</strong> the browser that made it or took the copy, and any other device they open it on with its owner link. Anyone else with its link sees only its game and art, and can take a copy of their own, which starts with an empty chat.</li>
+      <li><strong>Its chat, sketches and saved game are only for its owner,</strong> on any of their devices. Anyone else with its link sees only its game and art, and can take a copy of their own, which starts with an empty chat.</li>
       <li>A publication is public: anyone can play it and take a copy. It carries the ludant's game and art as they were, but not its chat or sketches.</li>
       <li>Abandoning a ludant deletes it, its versions and its art; a short note that it was abandoned, and by whom, stays at its link. Ludants nobody comes back to are cleared away after a while.</li>
     </ul>
@@ -48,7 +49,7 @@
     <p>If you report something (⚑), the report keeps your name, the reason, your note, which ludant, and a picture of its game as it was, until it has been dealt with and for 90 days after.</p>
 
     <h2>In your browser</h2>
-    <p>gactant stores, in your browser only: your name, the ludants you've sat with, your owner keys for the ones that are yours, your OpenRouter key if you connect, and a few display preferences. Clearing your browser's site data for gactant.com removes them (and with your owner keys, your ability to change your ludants from that browser).</p>
+    <p>gactant stores, in your browser only: this device's key (the private half can't be read out, even by gactant's own pages), its current pass, your name, the ludants you've sat with, your OpenRouter key if you connect, and a few display preferences. Clearing your browser's site data for gactant.com removes them: that device stops being you, and your ludants stay yours on your other devices, or come back with your recovery code.</p>
 
     <h2>Children</h2>
     <p>Families play gactant together. It doesn't ask anyone's age or for personal information; please don't put any in names or chat.</p>

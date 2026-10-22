@@ -20,7 +20,7 @@ export async function runShard(frame, { brief, name = 'claude-shard', turns = MO
   frame.people.add(seat);
   frame.peopleChanged();
   // Sitting down is an arrival like anyone's, so the ludant knows who came.
-  const arrival = await api('POST', `ludants/${frame.recordId}/arrive`, { who: seat, token: frame.token, owner: frame.owner });
+  const arrival = await api('POST', `ludants/${frame.recordId}/arrive`, { who: seat, token: frame.token });
   frame.bus.emit('frame.arrived', { who: seat, firstVisit: arrival.firstVisit, visits: arrival.visits, fresh: false,
     note: `${seat}, a Claude shard sent to sit with you, ${arrival.firstVisit ? 'has sat down for the first time' : `is back (visit ${arrival.visits})`}.` });
   const s = frame.surfacesFor(seat);
