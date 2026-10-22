@@ -170,7 +170,9 @@ async function render() {
   const have = new Set(yours.map((l) => l.lineage?.from?.published).filter(Boolean));
   const mineIds = new Set(yours.map((l) => l.id));
   const pubsOf = (id) => published.filter((p) => p.ludant === id).sort((a, b) => a.at.localeCompare(b.at));
-  const featured = published.filter((p) => !have.has(p.id) && !mineIds.has(p.ludant)).sort((a, b) => score(b) - score(a)).slice(0, FEATURED);
+  // Someone new meets only publications that have earned it (a person cleared them, or they
+  // passed the publish check and a day went by with no reports); someone back sees them all.
+  const featured = published.filter((p) => !have.has(p.id) && !mineIds.has(p.ludant) && (yours.length > 0 || p.trusted)).sort((a, b) => score(b) - score(a)).slice(0, FEATURED);
   const parts = [];
   const returning = yours.length > 0;
 

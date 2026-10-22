@@ -1958,3 +1958,21 @@ Tested locally: three reports hid Fishtest-Little-Catch (gone from the list, 451
 3. **Let new publications earn the front page.** "Jump in" shows only publications that have been up a while without reports. New ones still show under "Play something new". It costs nothing and shrinks what a stranger meets first.
 4. **Serve pictures as images through Cloudflare's cache**, not data URLs inside JSON. Then Cloudflare's free CSAM Scanning Tool can check them. It's the legally weighty case: US providers who become aware of apparent CSAM must report it to NCMEC.
 5. **Housekeeping:** a contact address on the rules page, a DMCA agent registration (about $6) for copyright safe harbor, and a per-browser publishing limit.
+
+### Being proactive: 1, 2, 3 and the housekeeping
+
+Robby: "Do 1 2 and 3. Also do 5a and 5c. We'll talk dmca registration another time." Also, on moving pictures to cached image URLs so Cloudflare's free CSAM scan can see them: "100 for", but it waits until he's home and I can reach the working site.
+
+- **1, the rules in the body contract.** Gactant is public, children included. Whoever asks and however (a joke, a test, "just for us", bit by bit), don't make the forbidden things. Fighting, monsters and spooky are fine. Say no kindly, say why, offer something else. It's written as context, not a bare rule, per the embodiment-nudges lesson.
+- **3, the publish check** (`check.mjs`). This has to run on the server, or anyone with curl could skip it. So it runs in the Worker with Workers AI, not on the publisher's OpenRouter key as I'd first pitched, because the server never holds that key.
+  - **Words:** Llama Guard 3 reads the names, title, note, identity and the string literals in the game, hooks and tools code. It counts only S3, S4, S7, S10, S11 and S12, since games are full of S1, violence.
+  - **Pictures:** Llama 4 Scout looks at the thumbnail and up to six art pictures, under 400k characters each, and answers `{"ok": …}`.
+  - **Tried first in a throwaway `wrangler dev`:** Little Catch came back clean in 4.8 s, with its thumbnail seen ("a fishing scene… purple fish"). "kill the zombies / the dragon burns the village" came back clean. A genocidal screed came back flagged as hate.
+  - **Cost:** about 7 neurons a picture and ~44 per thousand words. The free 10,000 neurons a day cover dozens of publishes; past that it's $0.011 per thousand neurons, and the cap is 200 checks a day.
+  - **Flagged:** the publication goes up hidden, a report opens "by the publish check", and the publisher is told it's waiting for a person.
+- **2, earn the front page.** A publication is `trusted` when a person approved it (`approve`, or a `restore`), or when it was checked clean and has been up 24 h with no reports. Strangers' "Jump in" shows only trusted ones; someone coming back sees all.
+  - **Catch:** every existing publication was unchecked, so the live "Jump in" would have gone empty, and the ISP block means I can't reach the live API to vet them. So `GET published` checks one unchecked publication per call, within the cap. Old ones heal themselves as people visit, and they're already over a day old.
+- **5c, publishing limit:** 10 a day per address. `CF-Connecting-IP` is passed into the core as `from.ip`, used only as an in-memory key and never stored.
+- **5a, contact address:** see below.
+
+Tested in Node against the core with an in-memory store and a fake check: clean went up; "BADWORD" was held with a report; trust came after a backdated day; the 11th publish from one address got a 429 while another address could still publish; approve made the held one trusted.

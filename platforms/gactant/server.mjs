@@ -99,7 +99,7 @@ createServer(async (req, res) => {
       for await (const chunk of req) chunks.push(chunk);
       body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
     }
-    json(res, 200, await core.route(req.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams));
+    json(res, 200, await core.route(req.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, { ip: req.socket.remoteAddress }));
   } catch (err) {
     if (!err.code || err.code >= 500) console.error(`[gactant] ${req.method} ${url.pathname}: ${err.message}`);
     json(res, typeof err.code === 'number' ? err.code : 500, { error: err.message, ...(err.extra ?? {}) });

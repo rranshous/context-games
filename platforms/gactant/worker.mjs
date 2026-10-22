@@ -10,6 +10,7 @@
 // only the sandbox page and its scripts, so a ludant's code runs in its own browser process.
 
 import { DurableObject } from 'cloudflare:workers';
+import { makeCheck } from './check.mjs';
 import { SANDBOX_POLICY, createCore, sameOrigin } from './core.mjs';
 
 const json = (code, value) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
@@ -35,6 +36,8 @@ export class World extends DurableObject {
         sandbox: env.SANDBOX_ORIGIN || '',
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
         opsLog: (record) => console.warn(record),
+        // Workers AI looks at each publication before it goes public (check.mjs).
+        check: makeCheck(env.AI),
       },
     });
   }
@@ -43,7 +46,8 @@ export class World extends DurableObject {
     const url = new URL(request.url);
     try {
       const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
-      return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams));
+      const from = { ip: request.headers.get('cf-connecting-ip') || '' };
+      return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, from));
     } catch (err) {
       if (!err.code || err.code >= 500) console.error({ error: err.message, method: request.method, path: url.pathname });
       return json(typeof err.code === 'number' ? err.code : 500, { error: err.message, ...(err.extra ?? {}) });

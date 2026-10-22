@@ -4,6 +4,7 @@
 //   node tools/moderate.mjs [site] all                      the latest 200, open or not
 //   node tools/moderate.mjs [site] hide <publication> [note]   take a publication out of the lobby
 //   node tools/moderate.mjs [site] restore <publication>    put it back (reports alone won't hide it again)
+//   node tools/moderate.mjs [site] approve <publication>    vouch for it: it can be featured to newcomers
 //   node tools/moderate.mjs [site] remove <ludant>          take a ludant down: its link says so
 //   node tools/moderate.mjs [site] dismiss <flag>           close a report, nothing done
 //
@@ -40,7 +41,7 @@ if (!action || action === 'all') {
     if (f.note) console.log(`   "${f.note}"`);
   }
 } else {
-  const key = { hide: 'published', restore: 'published', remove: 'ludant', dismiss: 'flag' }[action];
+  const key = { hide: 'published', restore: 'published', approve: 'published', remove: 'ludant', dismiss: 'flag' }[action];
   if (!key || !target) { console.error('see the top of tools/moderate.mjs for how to use it'); process.exit(1); }
   console.log((await call('moderate', { action, [key]: target, note: rest.join(' ') })).done.join('\n') || 'nothing to do');
 }

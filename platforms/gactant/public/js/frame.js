@@ -331,12 +331,12 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       await this.save();
     }
     try {
-      const { id, name } = await api('POST', 'published', { ludant: this.recordId, note, by });
+      const { id, name, held } = await api('POST', 'published', { ludant: this.recordId, note, by });
       const url = `${location.origin}/play.html?p=${id}`;
       this.record.familyNames = [...(this.record.familyNames ?? []), name];
-      this.inspector.note('changed', `${by} published ${name}: ${url}`);
-      this.bus.emit('frame.published', { who: by, name, url });
-      return { id, name, url };
+      this.inspector.note('changed', held ? `${by} published ${name}, but it's held for a person to look at first (${held})` : `${by} published ${name}: ${url}`);
+      this.bus.emit('frame.published', { who: by, name, url, ...(held ? { held } : {}) });
+      return { id, name, url, held };
     } catch (err) {
       // A refused publish leaves the name as it was.
       if (retitled) { await this.actant.writeSection('title', before, by); await this.save(); }
@@ -605,8 +605,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
         if (!title?.trim()) return;
         const note = prompt('A note for whoever takes a copy (optional):', '') ?? '';
         try {
-          const { url, name } = await this.publish(note, title);
-          prompt(`Published as ${name}. Anyone can take a copy here:`, url);
+          const { url, name, held } = await this.publish(note, title);
+          if (held) alert(`${name} is published, but held back: a check before publications go public thought something in it might break the rules (${held.replace(/^the publish check: /, '')}). A person will look at it soon, and it shows up once they have. Your ludant is as it was.`);
+          else prompt(`Published as ${name}. Anyone can take a copy here:`, url);
         } catch (err) { alert(err.message); }
       } }, 'publish'),
       el('a', { class: 'top-btn', href: '/', title: 'back to the lobby' }, 'lobby'),

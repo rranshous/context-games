@@ -47,7 +47,8 @@
 //                                                   chat are no longer kept; what it was published as stays.
 //                                                   Its link then answers 410 { abandoned: { by, at, name } }
 //   GET  published                               -> [{ id, name, given, title, by, note, ludant, n, from, fromName, at, copies, cost }]   cost: per hour of play, from copies
-//   POST published      { ludant, by, note? }    -> { id, name }    publishes it as it is now, under its name;
+//   POST published      { ludant, by, note? }    -> { id, name, held? }   publishes it as it is now, under its name
+//                                                   (held: the publish check hid it until someone looks);
 //                                                   409 if this snapshot or this name is already published
 //   GET  published/<id>                          -> metadata
 //   POST published/<id>/copy { by }              -> { id }          a new ludant, descended from it
@@ -64,7 +65,7 @@
 //   POST flags { ludant?, published?, reason, note, by, image? } -> { id }   someone reports content (frame.js);
 //                                                   a publication flagged by enough people is hidden until looked at
 //   POST admin/flags { token, all? }             -> open reports (or the latest 200)        tools/moderate.mjs
-//   POST admin/moderate { token, action: hide|restore|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
+//   POST admin/moderate { token, action: hide|restore|approve|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
 //   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
@@ -76,6 +77,7 @@
 import { nameOf, randomGiven, titleSlug } from './public/js/names.js';
 import { ART_MODELS, buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
+import { publicText } from './check.mjs';
 import { createOps } from './ops.mjs';
 
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
@@ -85,6 +87,9 @@ const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
 const MAX_THUMB = 60_000;        // characters of data URL
 const MAX_REPORT = 60_000;       // characters of JSON in a check report
 const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
+const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each costs a little)
+const PUBLISH_A_DAY = 10;        // publications one address may make in a day
+const TRUSTED_AFTER_MS = 24 * 3600_000;   // a checked publication with no reports earns the front page after this
 const MAX_ASSET = 1_500_000;     // characters of data URL in one picture
 const MAX_ASSETS = 60;           // pictures per ludant
 const assetName = (n) => { if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(n))) throw httpError(400, `art names are lowercase words joined by -, up to 40 characters: ${n}`); return n; };
@@ -299,13 +304,46 @@ export function createCore({ store, settings }) {
     return { id };
   }
 
+  const published_by = new Map();   // `${day} ${ip}` -> publications today
+  let checkDay = '', checksToday = 0;
+
+  /** The publish check, if this install has one, within the day's allowance. */
+  async function lookAt(pub, images) {
+    if (!settings.check) return { checked: 'unchecked' };
+    const today = now().slice(0, 10);
+    if (today !== checkDay) { checkDay = today; checksToday = 0; }
+    if (++checksToday > MAX_CHECKS_A_DAY) { ops.count('check over the day\'s allowance'); return { checked: 'unchecked' }; }
+    try {
+      const verdict = await settings.check({ text: publicText(pub), images: images.filter(Boolean) });
+      ops.count(`check ${verdict.flagged ? 'flagged' : 'clean'}`);
+      return verdict.flagged ? { checked: 'flagged', why: `the publish check: ${verdict.why}` } : { checked: 'clean' };
+    } catch (err) {
+      await ops.trouble({ kind: 'server', where: 'publish check', message: err.message, sample: err.stack }).catch(() => {});
+      return { checked: 'unchecked' };
+    }
+  }
+
+  async function recheck(pub) {
+    const images = [(await store.get('thumbs', `p-${pub.id}`))?.image];
+    for (const m of pub.assets ?? []) images.push((await store.get('assets', `p-${pub.id}-${m.name}`))?.image);
+    const look = await lookAt(pub, images);
+    if (look.checked === 'unchecked') return;
+    pub.checked = look.checked;
+    if (look.why) {
+      pub.hidden = { by: 'check', at: now(), note: look.why };
+      const fid = `f-${hex(4)}`;
+      await store.put('flags', fid, { id: fid, at: now(), status: 'open', reason: 'check', note: look.why.replace(/^the publish check: /, ''), by: 'the publish check', ludant: pub.ludant, published: pub.id, image: null });
+    }
+    await store.put('published', pub.id, pub);
+  }
+
   /** What the moderator can do (tools/moderate.mjs). */
   async function moderate({ action, flag: flagId, published, ludant, note }) {
     const done = [];
     if (published) {
       const pub = await read('published', published);
       if (action === 'hide') { pub.hidden = { by: 'moderator', at: now(), note: String(note ?? '').slice(0, 200) }; delete pub.cleared; done.push(`hid ${pub.name}`); }
-      if (action === 'restore') { delete pub.hidden; pub.cleared = now(); done.push(`restored ${pub.name} (reports won't hide it again by themselves)`); }
+      if (action === 'restore' || action === 'approve') { delete pub.hidden; pub.cleared = now(); done.push(`${action === 'approve' ? 'approved' : 'restored'} ${pub.name}: it can be featured, and reports won't hide it again by themselves`); }
       await store.put('published', published, pub);
     }
     if (ludant && action === 'remove') {
@@ -314,18 +352,19 @@ export function createCore({ store, settings }) {
     }
     for (const f of await store.list('flags')) {
       const ours = flagId ? f.id === flagId : (published && f.published === published) || (ludant && f.ludant === ludant);
-      if (ours && f.status === 'open') { f.status = action === 'restore' || action === 'dismiss' ? 'dismissed' : 'acted'; f.closed = now(); await store.put('flags', f.id, f); done.push(`closed ${f.id}`); }
+      if (ours && f.status === 'open') { f.status = ['restore', 'approve', 'dismiss'].includes(action) ? 'dismissed' : 'acted'; f.closed = now(); await store.put('flags', f.id, f); done.push(`closed ${f.id}`); }
     }
     return { done };
   }
 
   // ---------- routes ----------
 
-  /** Every request is counted, and one that fails on our side is kept as trouble. */
-  async function route(method, parts, body, query) {
+  /** Every request is counted, and one that fails on our side is kept as trouble.
+   *  from: { ip } of who's asking, for limits (never kept). */
+  async function route(method, parts, body, query, from = {}) {
     const started = Date.now();
     let status = 200;
-    try { return await answer(method, parts, body, query); }
+    try { return await answer(method, parts, body, query, from); }
     catch (err) {
       status = typeof err.code === 'number' ? err.code : 500;
       if (status >= 500) await ops.trouble({ kind: 'server', where: `${method} ${parts.slice(0, 1).join('/')}${parts[2] ? `/:id/${parts[2]}` : parts[1] ? '/:id' : ''}`, message: err.message, sample: err.stack }).catch(() => {});
@@ -336,7 +375,7 @@ export function createCore({ store, settings }) {
     }
   }
 
-  async function answer(method, parts, body, query) {
+  async function answer(method, parts, body, query, from) {
     const [a, b, c] = parts;
     // What pages noticed (no names, chat, prompts or keys), and reading it all back.
     if (a === 'events' && method === 'POST') return ops.events(body);
@@ -515,10 +554,23 @@ export function createCore({ store, settings }) {
     // publication, and that copy can be published again.
     if (a === 'published') {
       if (!b && method === 'GET') {
-        return (await store.list('published')).filter((p) => !p.hidden).map(({ soma, stats, play, assets, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play) }))
+        // Trusted: a person cleared it, or it passed the check and has been up a day with no
+        // reports. The lobby features only these to strangers.
+        // One publication that hasn't had its look yet (made before there was a check, or
+        // when the check couldn't run) gets it now, a lobby visit at a time.
+        if (settings.check) {
+          const due = (await store.list('published')).find((p) => !p.hidden && !p.cleared && (p.checked ?? 'unchecked') === 'unchecked');
+          if (due) await recheck(due);
+        }
+        const reported = new Set((await store.list('flags')).filter((f) => f.status !== 'dismissed').map((f) => f.published));
+        const trusted = (p) => Boolean(p.cleared) || (p.checked === 'clean' && !reported.has(p.id) && Date.now() - Date.parse(p.at) > TRUSTED_AFTER_MS);
+        return (await store.list('published')).filter((p) => !p.hidden).map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') {
+        const day = now().slice(0, 10), who = `${day} ${from.ip ?? 'here'}`;
+        if (!published_by.has(who)) { for (const k of published_by.keys()) if (!k.startsWith(day)) published_by.delete(k); }
+        if ((published_by.get(who) ?? 0) >= PUBLISH_A_DAY) throw httpError(429, `that's ${PUBLISH_A_DAY} publications from here today; more can go up tomorrow`);
         // A published name belongs to exactly one snapshot. So a snapshot can't be published
         // twice, and publishing again takes both a change and a new title.
         const ludant = await read('ludants', body.ludant);
@@ -529,14 +581,26 @@ export function createCore({ store, settings }) {
         if (same) throw httpError(409, `this exact ${same.given} is already published as ${same.name}. Change something first, then give it a new title`);
         const clash = pubs.find((p) => p.name.toLowerCase() === name.toLowerCase());
         if (clash) throw httpError(409, `${name} already names another snapshot. It has changed since, so it needs a new title`);
+        // A look before it goes public: its words and pictures (check.mjs). Something the
+        // check doesn't like is published but hidden, waiting for a person to look.
+        const title = ludant.soma.sections.title.trim(), note = String(body.note || '').slice(0, 500);
+        const images = [(await store.get('thumbs', `l-${ludant.id}`))?.image];
+        for (const m of ludant.assets ?? []) images.push((await store.get('assets', `l-${ludant.id}-${m.name}`))?.image);
+        const look = await lookAt({ name, title, note, soma: ludant.soma }, images);
+        published_by.set(who, (published_by.get(who) ?? 0) + 1);
         const n = await checkpoint(ludant, `published as ${name}`, body.by);
         await store.put('ludants', ludant.id, ludant);
         const id = newId(name);
         await store.put('published', id, {
-          id, name, given: ludant.soma.given, title: ludant.soma.sections.title.trim(), by: body.by || null, note: body.note || '',
+          id, name, given: ludant.soma.given, title, by: body.by || null, note,
           ludant: ludant.id, n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
-          copies: 0, soma: structuredClone(ludant.soma),
+          copies: 0, soma: structuredClone(ludant.soma), checked: look.checked,
+          ...(look.why ? { hidden: { by: 'check', at: now(), note: look.why } } : {}),
         });
+        if (look.why) {
+          const fid = `f-${hex(4)}`;
+          await store.put('flags', fid, { id: fid, at: now(), status: 'open', reason: 'check', note: look.why.replace(/^the publish check: /, ''), by: 'the publish check', ludant: ludant.id, published: id, image: null });
+        }
         // Its art goes with it: the snapshot draws with the pictures it had.
         for (const m of ludant.assets ?? []) {
           const a = await store.get('assets', `l-${ludant.id}-${m.name}`);
@@ -548,7 +612,7 @@ export function createCore({ store, settings }) {
         // Its picture is the ludant's latest, so the lobby can show what it looks like.
         const thumb = await store.get('thumbs', `l-${ludant.id}`);
         if (thumb) await store.put('thumbs', `p-${id}`, thumb);
-        return { id, name };
+        return { id, name, ...(look.why ? { held: look.why } : {}) };
       }
       const pub = await read('published', b);
       if (pub.hidden) throw httpError(451, `${pub.name} has been taken down`, { hidden: true });

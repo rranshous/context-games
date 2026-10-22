@@ -314,7 +314,13 @@ Anyone can press **⚑** in a frame's top bar to report what they saw. They pick
 
 A publication reported by two different people as illegal, or by three for any reason, is **hidden at once** until someone looks. It's out of the lobby, it can't be copied, and its picture isn't served. Names are self-chosen, so this can be gamed. Hiding only waits for review, and a restored publication isn't hidden by reports again. The install takes at most 300 reports a day.
 
-`node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.
+**Before anything goes public:**
+- **Ludants are told the rules.** Their body contract says the place is public, children included. Whoever asks, and however it's asked, they don't make what the rules forbid; they say no kindly and offer something else.
+- **Each publication gets a look** (`check.mjs`, Cloudflare Workers AI). Its words go through Llama Guard: names, title, note, identity, and the strings in its code. Its thumbnail and up to six pictures of its art go through a vision model. Something it doesn't like is published but hidden, with a report opened for a person to look at; the publisher is told. Fighting and monsters are fine: only sexual content, anything sexual involving minors, hate, self-harm, and private information count. It's capped at 200 checks a day, a few hundred neurons each. A local install has no check, so its publications go up unchecked.
+- **Newcomers meet only trusted publications.** "Jump in" features ones a person approved, or ones that passed the check and have been up a day with no reports. Someone coming back sees everything. Publications from before the check get theirs one lobby visit at a time.
+- **One address can publish 10 a day.**
+
+`node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `approve <publication>` (vouch for it, so it can be featured), `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.
 
 ### What's going on: logs and trouble
 
