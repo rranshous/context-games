@@ -33,6 +33,7 @@ try {
   ok('frame page has the site policy', /script-src 'self'/.test(page.headers.get('content-security-policy') ?? ''));
   const box = await fetch(`${base}/sandbox.html`);
   ok('sandbox page has its own policy', /connect-src 'none'/.test(box.headers.get('content-security-policy') ?? ''));
+  for (const path of ['/privacy.html', '/rules.html', '/robots.txt', '/sitemap.xml', '/og.jpg', '/box/index.html']) ok(`${path} is there`, (await fetch(`${base}${path}`)).status === 200);
   ok('another site is refused', (await fetch(`${base}/api/config`, { headers: { Origin: 'https://elsewhere.example' } })).status === 403);
 
   const seed = await call('POST', 'ludants', { by: 'smoke' });

@@ -325,3 +325,4 @@ body.fullplay .full-bar { display: flex; gap: 6px; position: absolute; top: max(
 .rules li { margin: 6px 0; }
 .lobby-foot { color: var(--ink-3); font-size: 12px; }
 .lobby-foot a { color: var(--ink-2); }
+.rules h2 { font: 600 15px var(--mono); color: var(--amber); margin: 26px 0 6px; }

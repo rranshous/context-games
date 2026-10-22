@@ -104,9 +104,12 @@ export default {
     if (url.host.endsWith('.workers.dev')) return url.pathname === '/api/config' ? world(env, new Request(url, { headers: { 'x-gactant-version': env.VERSION?.id ?? '' } })) : new Response('gactant lives at https://gactant.com', { status: 404 });
     const sandboxHost = env.SANDBOX_ORIGIN ? new URL(env.SANDBOX_ORIGIN).host : null;
     if (sandboxHost && url.host === sandboxHost) {
-      // The sandbox's own domain serves the sandbox and nothing else.
-      const ok = url.pathname === '/sandbox.html' || url.pathname.startsWith('/js/') || url.pathname.startsWith('/vendor/');
-      return ok ? asset(request, env, url.pathname) : new Response('this domain only runs ludants; gactant is elsewhere', { status: 404 });
+      // The sandbox's own domain serves the sandbox, and a page saying what it is (to anyone
+      // or anything that wanders onto it: a scanner judging a new domain, say).
+      if (url.pathname === '/' || url.pathname === '/index.html') return asset(request, env, '/box/index.html');
+      if (url.pathname === '/robots.txt') return asset(request, env, '/box/robots.txt');
+      const ok = url.pathname === '/sandbox.html' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/js/') || url.pathname.startsWith('/vendor/');
+      return ok ? asset(request, env, url.pathname) : Response.redirect(`${env.SANDBOX_ORIGIN}/`, 302);
     }
     if (url.pathname.startsWith('/api/')) {
       if (!sameOrigin(request.headers.get('origin'), url.host)) return json(403, { error: 'the API answers only this site\'s own pages' });

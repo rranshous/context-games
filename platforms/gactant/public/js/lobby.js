@@ -197,7 +197,7 @@ async function render() {
     parts.push(section('Everyone here', 'Every ludant on this install (you\'re running it yourself, so you see them all).',
       el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l.id))))));
   }
-  parts.push(el('footer', { class: 'lobby-foot' }, el('a', { href: '/rules.html' }, 'the rules'), ' · see something that doesn\'t belong? press ⚑ in its top bar'));
+  parts.push(el('footer', { class: 'lobby-foot' }, el('a', { href: '/rules.html' }, 'the rules'), ' · ', el('a', { href: '/privacy.html' }, 'privacy'), ' · see something that doesn\'t belong? press ⚑ in its top bar'));
   document.getElementById('lobby').replaceChildren(...parts);
 }
 

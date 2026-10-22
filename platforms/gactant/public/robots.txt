@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /$
+Allow: /rules.html
+Allow: /privacy.html
+Disallow: /api/
+Disallow: /frame.html
+Disallow: /play.html
+Disallow: /check.html
+Disallow: /connected.html
+Disallow: /sandbox.html
+
+Sitemap: https://gactant.com/sitemap.xml

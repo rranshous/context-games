@@ -350,6 +350,12 @@ Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted
 
 The frame, lobby and other pages hold people's OpenRouter keys and owner keys, so they carry a strict policy: only the platform's own scripts (no inline ones), network only to the site and OpenRouter, frames only from the sandbox, and nobody may frame them. Also `nosniff`, a referrer policy and HSTS.
 
+### Looking like what it is
+
+New domains get judged by filters, so the site looks like a real one:
+- **gactant.com:** `/privacy.html` (what's kept, who sees it, where it goes), `/rules.html`, `robots.txt` (no indexing of frames, play links or the API), `sitemap.xml`, and link previews (Open Graph tags, `og.jpg`).
+- **gactantbox.com:** its root says what it is (`public/box/`) and isn't indexed. Anything else redirects there.
+
 ### Deploying
 
 `npm run deploy` (`tools/deploy.mjs`):

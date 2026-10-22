@@ -2039,3 +2039,26 @@ So 1 got done too.
 Robby: "Copies untouched for 30m.. does that make sense?" It's 30 days, but the question turned up a real hole. "Untouched" was measured from the last *save*, and playing doesn't always save. A copy played every week, with no chat and no store writes, would have been cleared as forgotten. Now it's the later of the last save and the last sitting (`visitors[*].last`, set on arrive). Tested: a copy saved 40 days ago but sat with 3 days ago stays; one with neither goes. Clearing a forgotten copy loses little, since it's still exactly the publication, and its play link takes a fresh one.
 
 Robby: "Increasing limits and the like could be a paid level of service later." Parked: the daily limits, art budget and checkpoint cap are the natural knobs for a paid tier.
+
+### Looking trustworthy
+
+Robby: "What can we do to get the site more trusted, code or config wise", then "let's do 1 2 3 now".
+- **1, gactantbox.com explains itself.** It used to answer everything but the sandbox with a bare 404 text. To a scanner, a days-old domain whose only content is a page that compiles code with `unsafe-eval` looks a lot like a phishing kit. Now its root is a plain page ("This domain is where gactant's games run… a locked-down sandbox: it can't reach the network…") with `noindex` and a `robots.txt` that disallows everything. Any other path redirects to it.
+- **2, the files a real site has:**
+  - `robots.txt` lets search engines index only the lobby, rules and privacy, and keeps them out of frames, play links and the API.
+  - `sitemap.xml`.
+  - Open Graph and Twitter tags on the lobby, rules, privacy and play pages, with `og.jpg` (Little Catch in ukiyo-e, cropped to 1200×630).
+  - `security.txt` waits for the contact address, since its Contact field is required.
+- **3, `/privacy.html`,** written from what the code does:
+  - names are chosen and travel with what you do
+  - **anyone with a ludant's link can see it, chat included**: true since the start, and now said plainly
+  - only the owner changes it
+  - OpenRouter keys never reach the server, and the server keeps no record of thinking
+  - the publish check uses Cloudflare AI
+  - telemetry never includes names, chat, prompts, code or keys
+  - device checks, and what reports keep
+  - Cloudflare's request logs include addresses for a few days, while gactant counts addresses only in memory
+  - what sits in the browser
+  - no age questions
+
+  It's linked from the lobby's foot and the rules.
