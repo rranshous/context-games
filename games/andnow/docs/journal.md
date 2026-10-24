@@ -2443,3 +2443,29 @@ bake pipes them through gzip into the file. The header goes last (only then is t
 length known), behind a magic first line. On s1: the process grew 110 MB while saving
 (3.3 GB before), 11 s; the bytes match the one-buffer save, the reloaded world re-saves the
 same, and both still match after 200 ticks. Formats 1 and 2 still load.
+
+## Memory: one slot a birth
+
+The other half of the memory: the body registry kept a slot for every body ever born
+(`zoneBodies[zone][n]`). s1 at 4.9M ticks had 36,109,495 slots for 29,648 living bodies;
+every dead one pointed at one of three shared records (a lineage's tombstone, one each for
+climber, diver, hunter). 8 bytes a slot in memory and ~13 bytes of JSON in every save: most
+of the heap, most of each checkpoint, and `allWarriors()` walked all of them (the viewer
+calls it on every render).
+
+Now: `bodies`, a Map of the living, the founders, and the dead outside endless dishes; and
+for an endless dish's dead only which lineage they were, `deadAs[zone][n]` = 1 + the index
+of its tombstone, a byte each while there are under 255 lineages (16 or 32 bits past that).
+`warrior(id)` answers as before. `allWarriors()` lists each record once, in id order: the
+same list as before wherever there are no tombstones (duels, the GA), and in a dish the
+same records without the millions of repeats. Old checkpoints are converted at load.
+
+A trap on the way: the conversion did `delete world.zoneBodies`, and a delete drops an
+object to V8's slow dictionary properties. Every tick ran 70% slower (330 against 193
+ms/tick) until it set the field to undefined instead.
+
+Checked against the code before: all 2,491 golden duel matches identical on every tick; a
+fresh climb (3,000 ticks) and petri dish (4,000) identical in grid, rng, every living body,
+dead-id lookups and the record list; s1's checkpoint run 200 ticks on both, identical.
+On s1 now: heap 414 → 49 MB, rss 2.7 GB → 0.65 GB, a save 745 → 293 MB unzipped (most
+of what's left is the grid's typed arrays) in 2.8 s, ticks as fast as before.

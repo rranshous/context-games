@@ -770,8 +770,18 @@ var World = class {
   narrow;
   /** Dead cells: what each is worth, in quarters of an ordinary dead cell (0: ordinary). A kill's corpse is rich, see die. */
   flesh;
-  /** Every body ever, by id (the dead share one record per lineage, see kill): zoneBodies[zone][n]. */
-  zoneBodies = Array.from({ length: ZONES }, () => []);
+  /** Bodies by id: the living, the founders, and the dead outside endless dishes. */
+  bodies = /* @__PURE__ */ new Map();
+  /**
+   * An endless dish's dead (founders aside) keep only which lineage they were, as the index
+   * of its shared record (see kill): deadAs[zone][n] is 1 + its place in tombList, 0 for no
+   * such body. A byte a body while there are fewer than 255 lineages (a long climb has had
+   * 36 million births: a slot each ran to 400 MB and most of every save).
+   */
+  deadAs = Array.from({ length: ZONES }, () => new Uint8Array(0));
+  tombList = [];
+  tombIndex = /* @__PURE__ */ new Map();
+  // lineage → its place in tombList
   zoneNext = new Array(ZONES).fill(1);
   // each zone's next n (0 is a founder's)
   /** The living warriors (a long dish has far more dead than alive). Rebuilt lazily after deaths. */
@@ -1059,10 +1069,13 @@ var World = class {
     this.bornIn.set(id, 1);
     return wr;
   }
-  /** A body by id. */
-  /** A body by id (undefined, as an array would give, for an id no body has). */
+  /** A body by id (a dead one in an endless dish: its lineage's shared record; undefined for an id no body has). */
   warrior(id) {
-    return this.zoneBodies[id % ZONES]?.[Math.floor(id / ZONES)];
+    return this.bodies.get(id) ?? this.buried(id);
+  }
+  buried(id) {
+    const k = this.deadAs[id % ZONES]?.[Math.floor(id / ZONES)];
+    return k ? this.tombList[k - 1] : void 0;
   }
   /** How many bodies have ever lived. */
   everLived() {
@@ -1070,14 +1083,9 @@ var World = class {
     for (const k of this.zoneNext) n += k - 1;
     return n;
   }
-  /** Every body ever, in id order (the dead as their lineage's shared record). Slow on a long run. */
+  /** Every body on record, in id order: an endless dish's dead once each, as their lineages' shared records (after their founders). */
   allWarriors() {
-    const out = [], zs = this.zoneBodies, most = Math.max(...this.zoneNext);
-    for (let n = 0; n < most; n++) for (const z of zs) {
-      const wr = z[n];
-      if (wr) out.push(wr);
-    }
-    return out;
+    return [...this.bodies.values(), ...this.tombList].sort((a, b) => a.id - b.id);
   }
   /** The band of columns x is in. */
   zoneOf(x) {
@@ -1089,12 +1097,52 @@ var World = class {
   }
   /** A new body joins: under its id, and at the end of the living. */
   enroll(wr) {
-    this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = wr;
+    this.bodies.set(wr.id, wr);
     this.livingList.push(wr);
+  }
+  /** An endless dish's dead body: forgotten but for which lineage's record it now is. */
+  bury(id, tomb) {
+    let k = this.tombIndex.get(tomb.lineage);
+    if (k === void 0) {
+      k = this.tombList.push(tomb) - 1;
+      this.tombIndex.set(tomb.lineage, k);
+    }
+    const z = id % ZONES, n = Math.floor(id / ZONES);
+    let a = this.deadAs[z];
+    const C = k + 1 > 65535 || a instanceof Int32Array ? Int32Array : k + 1 > 255 || a instanceof Uint16Array ? Uint16Array : Uint8Array;
+    if (n >= a.length || !(a instanceof C)) {
+      const b = new C(Math.max(n + 1, a.length * 2, 1024));
+      b.set(a);
+      a = this.deadAs[z] = b;
+    }
+    a[n] = k + 1;
+    this.bodies.delete(id);
   }
   /** After a load: the living back in one shape (see shaped). */
   reshape() {
-    this.livingList = this.living().map((wr) => this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = shaped(wr));
+    const old = this;
+    if (old.zoneBodies) {
+      const tombs = new Set(this.tombstones.values());
+      this.bodies = /* @__PURE__ */ new Map();
+      this.tombList = [];
+      this.tombIndex = /* @__PURE__ */ new Map();
+      this.deadAs = Array.from({ length: ZONES }, () => new Uint8Array(0));
+      old.zoneBodies.forEach((zb, z) => {
+        for (let n = 0; n < zb.length; n++) {
+          const wr = zb[n];
+          if (!wr) continue;
+          const id = n * ZONES + z;
+          if (tombs.has(wr)) this.bury(id, wr);
+          else this.bodies.set(id, wr);
+        }
+      });
+      old.zoneBodies = void 0;
+    }
+    this.livingList = this.living().map((wr) => {
+      const s = shaped(wr);
+      this.bodies.set(wr.id, s);
+      return s;
+    });
   }
   /** Living warriors, in id order. */
   living() {
@@ -1314,7 +1362,7 @@ var World = class {
         };
         this.tombstones.set(wr.lineage, tomb);
       }
-      this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = tomb;
+      this.bury(wr.id, tomb);
     }
   }
   /**
