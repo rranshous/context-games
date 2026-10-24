@@ -1,7 +1,7 @@
 // Who eats what in a climb run, over time: for comparing runs (say, rich corpses against the
 // old kill credit). Reads a bake's checkpoints, any rules version.
 //
-//   node dist/diet.mjs runs/bake/climb3-s4 runs/bake/climb-s4 [--every 50000] [--to 300000]
+//   node dist/diet.mjs runs/bake/climb7-s2 runs/bake/climb7-s4 [--every 100000] [--to 900000]
 //
 // For each run, at every --every ticks: how many bodies live on plants only, meat only, both
 // or nothing (their traits: B cells give a taste for meat, more C than B for plants), the
@@ -19,11 +19,11 @@ if (!args.length) { console.log('usage: node dist/diet.mjs <bake dir> [...] [--e
 
 const pad = (v: string | number, n: number) => String(v).padStart(n);
 for (const dir of args) {
-  const index = JSON.parse(readFileSync(`${dir}/index.json`, 'utf8')) as { rules?: number; marks: { t: number; file: string }[] };
+  const index = JSON.parse(readFileSync(`${dir}/index.json`, 'utf8')) as { rules?: number; marks: { t: number; file?: string }[] };
   console.log(`\n${basename(dir)} (rules ${index.rules ?? '1-2'})`);
   console.log(`${pad('tick', 8)} ${pad('alive', 6)} ${pad('plants', 7)} ${pad('meat', 6)} ${pad('both', 6)} ${pad('none', 5)}  ${pad('meat %', 6)} ${pad('meat avg', 8)} ${pad('meat max', 8)}  ${pad('dead cells', 10)} ${pad('rich', 6)}`);
   for (const m of index.marks) {
-    if (m.t % every || m.t > to) continue;
+    if (m.t % every || m.t > to || !m.file) continue; // (thinned marks have no file)
     const w = loadWorld(gunzipSync(readFileSync(`${dir}/${m.file}`)));
     let plants = 0, meat = 0, both = 0, none = 0, mCells = 0, mMax = 0;
     for (const b of w.living()) {

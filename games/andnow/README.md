@@ -37,7 +37,7 @@ The current mode is a world that grows forever, both up and down.
 
 ### Forever runs
 
-Six seeds are baking on the current rules (rules 6), saving a checkpoint every 1,000 ticks. Two have broken out of the middle steps:
+Six seeds are baking on the current rules (rules 6), saving a checkpoint every 1,000 ticks (older ones thin out: see below). Two have broken out of the middle steps:
 
 | seed | tick | alive | notes |
 |---|---|---|---|
@@ -92,7 +92,8 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 
 | tool | what it does |
 |---|---|
-| `bake.mjs "<query>" <ticks\|forever> --out runs/bake/<name>` | runs a world and saves checkpoints; open the result with `?bake=runs/bake/<name>` |
+| `bake.mjs "<query>" <ticks\|forever> --out runs/bake/<name>` | runs a world and saves checkpoints; open the result with `?bake=runs/bake/<name>`. Checkpoints thin out with age: all of the newest 100, every 10th of the 1,000 before, every 100th further back. The timeline snaps to the kept ones; a tick between them loads the one before and simulates on |
+| `thin.mjs runs/bake/<name> [...] [--dry]` | thins a stopped bake's checkpoints the same way (for runs baked before bakes did it) |
 | `headless.mjs` | plays a match without the viewer |
 | `evolve.mjs` | the genetic-algorithm and MAP-Elites warrior search |
 | `petri.mjs` | runs the petri dish |

@@ -2671,7 +2671,7 @@ for (const dir of args) {
 ${basename(dir)} (rules ${index.rules ?? "1-2"})`);
   console.log(`${pad("tick", 8)} ${pad("alive", 6)} ${pad("plants", 7)} ${pad("meat", 6)} ${pad("both", 6)} ${pad("none", 5)}  ${pad("meat %", 6)} ${pad("meat avg", 8)} ${pad("meat max", 8)}  ${pad("dead cells", 10)} ${pad("rich", 6)}`);
   for (const m of index.marks) {
-    if (m.t % every || m.t > to) continue;
+    if (m.t % every || m.t > to || !m.file) continue;
     const w = loadWorld(gunzipSync(readFileSync(`${dir}/${m.file}`)));
     let plants = 0, meat = 0, both = 0, none = 0, mCells = 0, mMax = 0;
     for (const b of w.living()) {

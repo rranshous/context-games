@@ -508,7 +508,7 @@ canvas.onmouseleave = () => { tip.style.display = 'none'; };
 // written by dist/bake.mjs) it loads the nearest saved checkpoint first, so tick 150,000
 // is a download away, and the timeline under the board shows the whole run to tap through.
 
-interface Mark { t: number; file: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
+interface Mark { t: number; file?: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
 interface Bake { query: string; every: number; ticks: number | null; done?: boolean; marks: Mark[] }
 const BAKE = params.get('bake');
 let bake: Bake | null = null;
@@ -575,7 +575,7 @@ async function seek(target: number, then?: () => void) {
   const follow = climbView?.follow ?? null;
   if (bake) {
     let m: Mark | undefined;
-    for (const k of bake.marks) if (k.t <= target) m = k;
+    for (const k of bake.marks) if (k.t <= target && k.file) m = k; // (thinned marks have no file)
     if (m && (world.t > target || m.t > world.t)) {
       seekTo = null;
       tickEl.textContent = `loading tick ${m.t}…`;
@@ -649,8 +649,10 @@ function renderTimeline() {
   const tickAt = (e: PointerEvent) => {
     const r = timeline.getBoundingClientRect(), T = Math.max(bake?.marks[bake.marks.length - 1].t ?? 0, world.t, 1);
     const t = Math.round(((e.clientX - r.left) / r.width) * T);
-    const every = bake?.every ?? 1;
-    return Math.max(0, Math.min(T, Math.round(t / every) * every)); // snap to checkpoints: instant to load
+    // Snap to the nearest checkpoint with a file: instant to load.
+    let best = Math.max(0, Math.min(T, t));
+    if (bake) { let d = Infinity; for (const m of bake.marks) if (m.file && Math.abs(m.t - t) < d) { d = Math.abs(m.t - t); best = m.t; } }
+    return best;
   };
   timeline.addEventListener('pointerdown', (e) => { timeline.setPointerCapture(e.pointerId); scrub = tickAt(e); renderTimeline(); });
   timeline.addEventListener('pointermove', (e) => { if (scrub !== null) { scrub = tickAt(e); renderTimeline(); } });

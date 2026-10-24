@@ -19,7 +19,7 @@ def bakes():
         # 15+ minutes per checkpoint), so a slow run isn't called stopped.
         d = os.path.dirname(f)
         try: gap = os.path.getmtime(f'{d}/{last["file"]}') - os.path.getmtime(f'{d}/{marks[-2]["file"]}') if len(marks) > 1 else 0
-        except OSError: gap = 0
+        except (OSError, KeyError): gap = 0  # (thinned: no file)
         out.append({
             'path': os.path.dirname(f), 'name': os.path.basename(os.path.dirname(f)), 'query': b['query'], 'rules': b.get('rules'),
             't': last['t'], 'alive': last['alive'], 'biggest': (last.get('biggest') or {}).get('cells', 0),

@@ -2407,3 +2407,25 @@ after it, one entry per line, encoded and decoded a few MB at a time. Version 1 
 load: every checkpoint on disk is one. Checked on s2's 919k checkpoint: v1 → v2 → re-saved
 is the same bytes, and the worlds from v1 and from v2 match byte for byte after 200 ticks.
 Saving that world takes about 50 s, and the file is 866 MB unzipped.
+
+## The disk: checkpoints thin out
+
+The disk got to 99%: 209 GB of bake checkpoints, one every 1,000 ticks, never deleted
+(climb7-s13 alone was 14,406 files, 58 GB). Two cleanups:
+
+- The 29 bakes from older rules (climb, climb2–climb6; rules 1–5, which can't carry on)
+  are deleted, 94 GB. The journal keeps what they showed.
+- Bakes thin their checkpoints as they go (`bake-thin.ts`): every one for the newest 100,
+  every 10th for the 1,000 before that, every 100th further back, and the first. A thinned
+  mark stays in `index.json` with its facts and without its file, so the timeline graph and
+  "biggest ever" still see the whole run. The index is saved before any file is deleted,
+  so it never names a missing file, and only checkpoint files no kept mark names are deleted.
+  `dist/thin.mjs` does the same to an existing bake (with `--dry` to look first), and won't
+  touch one that's baking: a bake holds `.baking` with its pid while it runs.
+
+The viewer's timeline snaps to kept checkpoints; any other tick loads the one before and
+simulates on. That's slow in the browser (about a tick a second on these worlds), so a link
+to a tick deep in an old stretch can take a long while to arrive. Tested on a throwaway bake
+saved every tick (1,251 marks, 202 files kept, index and disk agree, resume works), then on
+the six climb7 runs: 109.7 GB freed, 334 files kept for s13, all of the index matching disk.
+`runs/bake` is 11.5 GB now.

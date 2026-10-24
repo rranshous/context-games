@@ -4148,7 +4148,7 @@ async function seek(target, then) {
   const follow = climbView?.follow ?? null;
   if (bake) {
     let m;
-    for (const k of bake.marks) if (k.t <= target) m = k;
+    for (const k of bake.marks) if (k.t <= target && k.file) m = k;
     if (m && (world.t > target || m.t > world.t)) {
       seekTo = null;
       tickEl.textContent = `loading tick ${m.t}\u2026`;
@@ -4227,8 +4227,15 @@ function renderTimeline() {
   const tickAt = (e) => {
     const r = timeline.getBoundingClientRect(), T = Math.max(bake?.marks[bake.marks.length - 1].t ?? 0, world.t, 1);
     const t = Math.round((e.clientX - r.left) / r.width * T);
-    const every = bake?.every ?? 1;
-    return Math.max(0, Math.min(T, Math.round(t / every) * every));
+    let best = Math.max(0, Math.min(T, t));
+    if (bake) {
+      let d = Infinity;
+      for (const m of bake.marks) if (m.file && Math.abs(m.t - t) < d) {
+        d = Math.abs(m.t - t);
+        best = m.t;
+      }
+    }
+    return best;
   };
   timeline.addEventListener("pointerdown", (e) => {
     timeline.setPointerCapture(e.pointerId);

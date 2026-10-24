@@ -1,6 +1,50 @@
 // src/bake.ts
-import { existsSync, mkdirSync, readFileSync, renameSync, statfsSync, writeFileSync } from "node:fs";
+import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, renameSync, statfsSync, unlinkSync as unlinkSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
+
+// src/bake-thin.ts
+import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+function keeps(t, last, every2) {
+  const age = last - t;
+  if (age < 100 * every2) return true;
+  if (age < 1100 * every2) return t % (10 * every2) === 0;
+  return t % (100 * every2) === 0;
+}
+function toThin(marks, every2) {
+  if (!marks.length) return [];
+  const last = marks[marks.length - 1].t;
+  return marks.filter((m, i) => m.file && i > 0 && i < marks.length - 1 && !keeps(m.t, last, every2));
+}
+var CHECKPOINT = /^t\d+\.andnow\.gz$/;
+function dropFiles(dir, marks, gone, put2) {
+  const files = gone.map((m) => m.file).filter((f) => CHECKPOINT.test(f));
+  for (const m of gone) delete m.file;
+  const kept = new Set(marks.map((m) => m.file).filter(Boolean));
+  put2();
+  let freed = 0;
+  for (const f of files) {
+    if (kept.has(f)) continue;
+    const p = `${dir}/${f}`;
+    if (!existsSync(p)) continue;
+    freed += statSync(p).size;
+    unlinkSync(p);
+  }
+  return freed;
+}
+function bakingPid(dir) {
+  const p = `${dir}/.baking`;
+  if (!existsSync(p)) return null;
+  const pid = Number(readFileSync(p, "utf8"));
+  try {
+    process.kill(pid, 0);
+    return pid;
+  } catch {
+    return null;
+  }
+}
+function holdBaking(dir) {
+  writeFileSync(`${dir}/.baking`, String(process.pid));
+}
 
 // src/sim/glyphs.ts
 var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAKI~xn";
@@ -2973,20 +3017,35 @@ if (!query || !ticks) {
 var params = new URLSearchParams(query);
 applyDish((k) => params.get(k));
 var names = (params.get("w") ?? "climber,diver,hunter").split(",");
-var source = (n) => n.startsWith("evo:") ? readFileSync(`warriors/evolved/${n.slice(4)}.warrior`, "utf8") : BUNDLED[n] ?? readFileSync(`warriors/${n}.warrior`, "utf8");
+var source = (n) => n.startsWith("evo:") ? readFileSync2(`warriors/evolved/${n.slice(4)}.warrior`, "utf8") : BUNDLED[n] ?? readFileSync2(`warriors/${n}.warrior`, "utf8");
 var world = new World(Number(params.get("seed")) || 1, names.map((n, i) => parseWarrior(source(n), `warrior${i + 1}`)));
 mkdirSync(out, { recursive: true });
+{
+  const pid = bakingPid(out);
+  if (pid) throw new Error(`${out} is being baked already (pid ${pid})`);
+}
+holdBaking(out);
+process.on("exit", () => {
+  try {
+    unlinkSync2(`${out}/.baking`);
+  } catch {
+  }
+});
 var index = { query, rules: RULES, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] };
-if (resume && existsSync(`${out}/index.json`)) {
-  const old = JSON.parse(readFileSync(`${out}/index.json`, "utf8"));
+if (resume && existsSync2(`${out}/index.json`)) {
+  const old = JSON.parse(readFileSync2(`${out}/index.json`, "utf8"));
   if (old.query !== query || old.every !== every) throw new Error(`${out} is a different bake (${old.query}, every ${old.every})`);
   if (old.rules !== RULES) throw new Error(`${out} was made on rules ${old.rules ?? "1 or 2"}, these are rules ${RULES}: it can't carry on`);
   index = { ...old, ticks: index.ticks, done: false };
   for (; ; ) {
     const m = index.marks[index.marks.length - 1];
     if (!m) throw new Error(`${out} has no checkpoint that reads`);
+    if (!m.file) {
+      index.marks.pop();
+      continue;
+    }
     try {
-      world = loadWorld(gunzipSync(readFileSync(`${out}/${m.file}`)));
+      world = loadWorld(gunzipSync(readFileSync2(`${out}/${m.file}`)));
       break;
     } catch (e) {
       console.log(`skipping ${m.file}: ${e.message}`);
@@ -2994,9 +3053,9 @@ if (resume && existsSync(`${out}/index.json`)) {
     }
   }
   console.log(`resuming at tick ${world.t}`);
-} else if (existsSync(`${out}/index.json`)) console.log(`(overwriting ${out})`);
+} else if (existsSync2(`${out}/index.json`)) console.log(`(overwriting ${out})`);
 var put = (path, data) => {
-  writeFileSync(`${path}.tmp`, data);
+  writeFileSync2(`${path}.tmp`, data);
   renameSync(`${path}.tmp`, path);
 };
 var save = () => {
@@ -3007,7 +3066,7 @@ var save = () => {
   for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount, x: w.ipX, y: w.ipY, name: w.name, genome: "" };
   if (big) big.genome = genomeOf(world, big.id);
   index.marks.push({ t: world.t, file, alive: world.living().length, kb: Math.round(gz.length / 1024), biggest: big });
-  put(`${out}/index.json`, JSON.stringify(index));
+  dropFiles(out, index.marks, toThin(index.marks, every), () => put(`${out}/index.json`, JSON.stringify(index)));
 };
 var diskLow = () => {
   const f = statfsSync(out);

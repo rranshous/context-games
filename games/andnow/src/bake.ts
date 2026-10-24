@@ -7,11 +7,12 @@
 // index.json listing them with a few facts each (who's alive, the biggest body and where).
 // --resume carries on from the last checkpoint in --out (same run: the sim is deterministic).
 // <ticks> can be "forever": it runs until the dish dies out, or the disk gets under 20 GB free.
-// index.json says done: true once it stops. serve.py lists every bake at /bakes.json.
+// Older checkpoints thin out as it goes (see bake-thin.ts). index.json says done: true once it stops. serve.py lists every bake at /bakes.json.
 // Open it in the viewer with ?bake=runs/bake/<name>. Same seed and settings as a safari
 // dish replay the same run.
-import { existsSync, mkdirSync, readFileSync, renameSync, statfsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statfsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
+import { bakingPid, dropFiles, holdBaking, toThin } from './bake-thin';
 import { applyDish, genomeOf } from './sim/dish';
 import { loadWorld, saveWorld } from './sim/save';
 import { parseWarrior } from './sim/warrior-file';
@@ -37,8 +38,11 @@ const names = (params.get('w') ?? 'climber,diver,hunter').split(',');
 const source = (n: string) => n.startsWith('evo:') ? readFileSync(`warriors/evolved/${n.slice(4)}.warrior`, 'utf8') : BUNDLED[n] ?? readFileSync(`warriors/${n}.warrior`, 'utf8');
 let world = new World(Number(params.get('seed')) || 1, names.map((n, i) => parseWarrior(source(n), `warrior${i + 1}`)));
 
-interface Mark { t: number; file: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
+interface Mark { t: number; file?: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
 mkdirSync(out, { recursive: true });
+{ const pid = bakingPid(out); if (pid) throw new Error(`${out} is being baked already (pid ${pid})`); }
+holdBaking(out);
+process.on('exit', () => { try { unlinkSync(`${out}/.baking`); } catch { /* gone already */ } });
 // (ticks: null is forever: JSON has no Infinity)
 let index = { query, rules: RULES, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] as Mark[] };
 if (resume && existsSync(`${out}/index.json`)) {
@@ -51,6 +55,7 @@ if (resume && existsSync(`${out}/index.json`)) {
   for (;;) {
     const m = index.marks[index.marks.length - 1];
     if (!m) throw new Error(`${out} has no checkpoint that reads`);
+    if (!m.file) { index.marks.pop(); continue; } // (thinned: its file is gone, not broken)
     try { world = loadWorld(gunzipSync(readFileSync(`${out}/${m.file}`))); break; }
     catch (e) { console.log(`skipping ${m.file}: ${(e as Error).message}`); index.marks.pop(); }
   }
@@ -67,7 +72,7 @@ const save = () => {
   for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount, x: w.ipX, y: w.ipY, name: w.name, genome: '' };
   if (big) big.genome = genomeOf(world, big.id);
   index.marks.push({ t: world.t, file, alive: world.living().length, kb: Math.round(gz.length / 1024), biggest: big });
-  put(`${out}/index.json`, JSON.stringify(index));
+  dropFiles(out, index.marks, toThin(index.marks, every), () => put(`${out}/index.json`, JSON.stringify(index)));
 };
 
 const diskLow = () => { const f = statfsSync(out); return f.bavail * f.bsize < 20e9; };
