@@ -32,7 +32,7 @@
 //
 // API (JSON, under /api)
 //   GET  config                                  -> { version, model, hasKey, logs, public, sandbox }   version: what's running (hosted)
-//   GET  ludants?ids=a,b&mine=1                  -> [{ id, name, updated, checkpoints, lineage, people, spent }]   mine: and
+//   GET  ludants?mine=1                          -> [{ id, name, updated, checkpoints, lineage, people, spent }]   mine: and
 //                                                   every one the person asking owns
 //                                                   (without ids: every ludant, unless the install is public)
 //   POST ludants        { by }                   -> { id }          seed a new one, with a fresh given name, owned by the
@@ -511,15 +511,11 @@ export function createCore({ store, settings }) {
 
     if (a === 'ludants') {
       if (!b && method === 'GET') {
-        // A public install lists only the ludants asked for by id (the ones this browser
-        // has sat with): an unpublished ludant is reached by its link.
-        const ids = (query.get('ids') || '').split(',').filter(Boolean).slice(0, 100);
+        // mine=1: every ludant the person asking owns, whichever device they made it on. A
+        // public install lists nothing else: anyone else's unpublished ludant is reached by its link.
         let found;
-        if (ids.length || query.get('mine')) {
-          found = (await Promise.all(ids.map((id) => store.get('ludants', safe(id))))).filter((l) => l && !l.abandoned);
-          // mine=1: every ludant the person asking owns, whichever device they made it on.
-          if (query.get('mine') && from.person) for (const l of await store.list('ludants')) if (l.owner === from.person && !l.abandoned && !found.some((f) => f.id === l.id)) found.push(l);
-        } else found = isPublic ? [] : (await store.list('ludants')).filter((l) => !l.abandoned);
+        if (query.get('mine')) found = from.person ? (await store.list('ludants')).filter((l) => l.owner === from.person && !l.abandoned) : [];
+        else found = isPublic ? [] : (await store.list('ludants')).filter((l) => !l.abandoned);
         return found.map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
       }
       if (!b && method === 'POST') {
@@ -547,7 +543,7 @@ export function createCore({ store, settings }) {
         // What was said, sketched and saved is for its owners (every device with its key).
         // Anyone else with the link sees what a copy would get: its game and its art.
         if (!owns(ludant, from)) {
-          return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false };
+          return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false, unclaimed: !ludant.owner };
         }
         return { ...rest, familyNames, yours: true };
       }

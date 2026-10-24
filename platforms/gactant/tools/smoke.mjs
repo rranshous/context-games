@@ -75,6 +75,8 @@ try {
   ok('a stranger can\'t save over it', (await call('PUT', `ludants/${id}`, { token: 'w', soma, surfaces: {} }, as(stranger))).status === 403);
   ok('the owner reads the chat', JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(pass))).json.surfaces).includes('a secret'));
   ok('a stranger doesn\'t', !JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(stranger))).json).includes('a secret'));
+  ok('and is told it isn\'t theirs', (await call('GET', `ludants/${id}`, undefined, as(stranger))).json.yours === false);
+  ok('nor finds it in their lobby', !(await call('GET', 'ludants?mine=1', undefined, as(stranger))).json.some((l) => l.id === id));
   ok('arrive', (await call('POST', `ludants/${id}/arrive`, { token: 'w', who: 'smoke' }, as(pass))).status === 200);
   ok('a picture of it', (await call('POST', `ludants/${id}/thumb`, { token: 'w', image: 'data:image/jpeg;base64,AAAA' }, as(pass))).status === 200);
 

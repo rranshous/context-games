@@ -13,6 +13,7 @@
 // the stage shows the pictures), the people's controls, inference, and keeping things.
 
 import { Bus } from './bus.js';
+import { who } from './identity.js';
 import { nameOf } from './names.js';
 import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Art } from './surfaces/art.js';
@@ -119,25 +120,8 @@ class Frame {
     addEventListener('pagehide', () => navigator.sendBeacon(`/api/ludants/${this.recordId}/release`, JSON.stringify({ token: this.token })));
   }
 
-  /** Someone else's ludant: whoever has its link can look, or take a copy of their own. The
-   *  frame goes no further (it never holds it). */
-  notYours(unclaimed = false) {
-    const by = this.record.lineage?.takenBy || this.record.lineage?.seededBy;
-    const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
-      el('p', {}, unclaimed
-        ? [el('strong', {}, `${this.actant.name} hasn't been claimed by its owner yet${by ? ` (${by})` : ''}. `), 'It\'s from before ludants had owners, so nobody can change it until they do. You can take a copy of your own, as it is now, and play and shape that one.']
-        : [el('strong', {}, `${this.actant.name} belongs to someone else${by ? ` (${by})` : ''}. `), 'Only they can change it. You can take a copy of your own, as it is now, and play and shape that one.']),
-      el('button', { class: 'top-btn primary', onclick: async () => {
-        try {
-          const { id } = await api('POST', `ludants/${this.recordId}/copy`, { by: this.seat });
-          remember(id);
-          location.href = `/frame.html?l=${id}`;
-        } catch (err) { alert(`couldn't take a copy: ${err.message}`); }
-      } }, 'take my own copy'),
-      el('a', { class: 'top-btn', href: '/' }, 'to the lobby')));
-    document.body.append(box);
-    return new Promise(() => {});   // the sitting doesn't start
-  }
+  /** Someone else's ludant, found out on holding it (it's checked on opening, too). */
+  notYours(unclaimed = false) { return notYours(this.record, unclaimed); }
 
   /** Another window has the ludant now. This one stops: no saving, no thinking, no game. */
   lose(heldBy) {
@@ -682,15 +666,38 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   }
 }
 
+/** Someone else's ludant: whoever has its link can take a copy of their own. Nothing is
+ *  asked of them before they choose to (taking one makes them someone here, if they aren't),
+ *  and the sitting never starts. */
+function notYours(record, unclaimed = false) {
+  const name = nameOf(record.soma);
+  const by = record.lineage?.takenBy || record.lineage?.seededBy;
+  const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
+    el('p', {}, unclaimed
+      ? [el('strong', {}, `${name} hasn't been claimed by its owner yet${by ? ` (${by})` : ''}. `), 'It\'s from before ludants had owners, so nobody can change it until they do. You can take a copy of your own, as it is now, and play and shape that one.']
+      : [el('strong', {}, `${name} belongs to someone else${by ? ` (${by})` : ''}. `), 'Only they can change it. You can take a copy of your own, as it is now, and play and shape that one.']),
+    el('button', { class: 'top-btn primary', onclick: async () => {
+      box.remove();
+      const seat = await askName(`Taking a copy of ${name} gives you your own, and it will know you by this name.`);
+      try {
+        const { id } = await api('POST', `ludants/${record.id}/copy`, { by: seat });
+        remember(id);
+        location.href = `/frame.html?l=${id}`;
+      } catch (err) { alert(`couldn't take a copy: ${err.message}`); document.body.append(box); }
+    } }, 'take my own copy'),
+    el('a', { class: 'top-btn', href: '/' }, 'to the lobby'),
+    // The owner, on a device they haven't added yet, sees this too: let them add it.
+    who() ? null : el('button', { class: 'link-btn', onclick: async () => { box.remove(); await askName(); location.reload(); } }, 'It\'s yours, from another device? Use this one as you')));
+  document.body.append(box);
+  return new Promise(() => {});   // the sitting doesn't start
+}
+
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
   // Controllers from the start, so even the first question (a name) can be answered with one.
   const pads = new Pads();
   const askNav = new PadNav(pads, { scope: () => document.querySelector('.cover') });
-  const seat = await askName();
-  askNav.enabled = false;
-  remember(id);
   let record, config;
   try { [record, config] = await Promise.all([api('GET', `ludants/${id}`), api('GET', 'config')]); }
   catch (err) {
@@ -706,6 +713,11 @@ async function boot() {
       el('a', { class: 'top-btn primary', href: '/' }, 'to the lobby'))));
     return;
   }
+  // Someone else's: say so, before asking anything of them.
+  if (!record.yours) return notYours(record, record.unclaimed);
+  const seat = await askName();
+  askNav.enabled = false;
+  remember(id);
   const frame = new Frame(record, seat);
   frame.config = config;
   frame.noticeName();

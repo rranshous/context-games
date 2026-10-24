@@ -156,12 +156,13 @@ async function render() {
   const [config, published, yours] = await Promise.all([
     api('GET', 'config'),
     api('GET', 'published'),
-    // The ones this browser has sat with, and every one its person owns (from any device).
-    api('GET', `ludants?mine=1${ids.length ? `&ids=${ids.join(',')}` : ''}`),
+    // Every one this browser's person owns, from any device.
+    api('GET', 'ludants?mine=1'),
   ]);
   // A local install can also show every ludant here, for the person running it.
   const everyone = config.public ? [] : await api('GET', 'ludants');
-  // Ones that are gone (abandoned) quietly leave this browser's list.
+  // Ones that aren't theirs (gone, or someone else's) quietly leave this browser's list; it
+  // only orders them, most recently sat with first.
   for (const id of ids) if (!yours.some((l) => l.id === id)) forget(id);
   for (const l of yours) if (!ids.includes(l.id)) ids.push(l.id);
   const order = new Map(ids.map((id, i) => [id, i]));
