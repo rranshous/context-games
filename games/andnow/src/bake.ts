@@ -10,11 +10,13 @@
 // Older checkpoints thin out as it goes (see bake-thin.ts). index.json says done: true once it stops. serve.py lists every bake at /bakes.json.
 // Open it in the viewer with ?bake=runs/bake/<name>. Same seed and settings as a safari
 // dish replay the same run.
-import { existsSync, mkdirSync, readFileSync, renameSync, statfsSync, unlinkSync, writeFileSync } from 'node:fs';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { createGzip, gunzipSync } from 'node:zlib';
 import { bakingPid, dropFiles, holdBaking, toThin } from './bake-thin';
 import { applyDish, genomeOf } from './sim/dish';
-import { loadWorld, saveWorld } from './sim/save';
+import { loadWorld, saveChunks } from './sim/save';
 import { parseWarrior } from './sim/warrior-file';
 import { RULES, World } from './sim/world';
 import { BUNDLED } from './warriors';
@@ -64,10 +66,13 @@ if (resume && existsSync(`${out}/index.json`)) {
 
 // Write to a temp file and rename it in, so a crash never leaves half a file.
 const put = (path: string, data: string | Buffer) => { writeFileSync(`${path}.tmp`, data); renameSync(`${path}.tmp`, path); };
-const save = () => {
-  const file = `t${String(world.t).padStart(7, '0')}.andnow.gz`;
-  const gz = gzipSync(saveWorld(world, query), { level: 6 });
-  put(`${out}/${file}`, gz);
+// A save streams out (save → gzip → file) without the whole of it in memory at once; the
+// world waits until it's written.
+const save = async () => {
+  const file = `t${String(world.t).padStart(7, '0')}.andnow.gz`, path = `${out}/${file}`;
+  await pipeline(Readable.from(saveChunks(world, query)), createGzip({ level: 6 }), createWriteStream(`${path}.tmp`));
+  renameSync(`${path}.tmp`, path);
+  const gz = { length: statSync(path).size };
   let big: Mark['biggest'];
   for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount, x: w.ipX, y: w.ipY, name: w.name, genome: '' };
   if (big) big.genome = genomeOf(world, big.id);
@@ -77,18 +82,18 @@ const save = () => {
 
 const diskLow = () => { const f = statfsSync(out); return f.bavail * f.bsize < 20e9; };
 const t0 = Date.now(), tStart = world.t;
-if (!resume || !index.marks.length) save();
+if (!resume || !index.marks.length) await save();
 let stop = '';
 while (world.t < ticks && world.living().length && !world.result.over) {
   world.tick();
   if (world.t % every === 0) {
     if (diskLow()) { stop = 'disk under 20 GB free'; break; }
-    save();
+    await save();
     const m = index.marks[index.marks.length - 1];
     if (world.t % (every * 10) === 0) console.log(`t${world.t} alive ${m.alive} biggest ${m.biggest?.cells ?? 0} · ${((Date.now() - t0) / (world.t - tStart)).toFixed(1)} ms/tick · ${m.kb} KB`);
   }
 }
 index.done = true;
-if (!stop && world.t % every !== 0) save();
+if (!stop && world.t % every !== 0) await save();
 else put(`${out}/index.json`, JSON.stringify(index));
 console.log(`done${stop ? ` (${stop})` : world.living().length ? '' : ' (died out)'}: ${index.marks.length} checkpoints in ${out}`);

@@ -2429,3 +2429,17 @@ to a tick deep in an old stretch can take a long while to arrive. Tested on a th
 saved every tick (1,251 marks, 202 files kept, index and disk agree, resume works), then on
 the six climb7 runs: 109.7 GB freed, 334 files kept for s13, all of the index matching disk.
 `runs/bake` is 11.5 GB now.
+
+## Memory: the save was the hog
+
+s2 died out of memory with an 8 GB heap at 100k bodies. A pass on s1 (30k alive, 4.9M
+ticks) found the world itself small: about 620 MB, 1–2 KB a body plus its cells. Saving it
+took about 3.3 GB more, held all at once: the whole world as table objects (1.5 GB), those
+as strings (0.5 GB), as bytes (0.5 GB), and the finished buffer (0.75 GB).
+
+Save format 3 streams. The table is written breadth first, so every entry is done when
+it's reached and goes straight out; `saveChunks` yields the save in ~1 MB pieces and the
+bake pipes them through gzip into the file. The header goes last (only then is the table's
+length known), behind a magic first line. On s1: the process grew 110 MB while saving
+(3.3 GB before), 11 s; the bytes match the one-buffer save, the reloaded world re-saves the
+same, and both still match after 200 ticks. Formats 1 and 2 still load.

@@ -1,6 +1,8 @@
 // src/bake.ts
-import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, renameSync, statfsSync, unlinkSync as unlinkSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { createWriteStream, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, renameSync, statfsSync, statSync as statSync2, unlinkSync as unlinkSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { createGzip, gunzipSync } from "node:zlib";
 
 // src/bake-thin.ts
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
@@ -2777,86 +2779,95 @@ var TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Floa
 function num(v) {
   return Number.isFinite(v) ? v : { $n: String(v) };
 }
-function saveWorld(world2, query2) {
-  const table = [];
+var MAGIC = new TextEncoder().encode("andnow save 3\n");
+function* saveChunks(world2, query2) {
   const ids = /* @__PURE__ */ new Map();
+  const queue = [];
   const blobs = [];
   let offset = 0;
-  const enc = (v) => {
+  const ref = (v) => {
     if (v === void 0) return { $u: 1 };
     if (v === null || typeof v === "boolean" || typeof v === "string") return v;
     if (typeof v === "number") return num(v);
     if (typeof v === "function") return { $u: 1 };
     const o = v;
-    const seen = ids.get(o);
-    if (seen !== void 0) return { $r: seen };
-    const id = table.length;
-    ids.set(o, id);
-    table.push(null);
-    let body;
+    let id = ids.get(o);
+    if (id === void 0) {
+      id = queue.length;
+      ids.set(o, id);
+      queue.push(o);
+    }
+    return { $r: id };
+  };
+  const entry = (o) => {
     if (ArrayBuffer.isView(o)) {
       const name = o.constructor.name;
       if (!(name in TYPED)) throw new Error(`can't save a ${name}`);
       offset = Math.ceil(offset / 8) * 8;
-      body = { $ta: name, off: offset, len: o.length };
+      const e = { $ta: name, off: offset, len: o.length };
       blobs.push(o);
       offset += o.byteLength;
-    } else if (Array.isArray(o)) body = { $a: o.map(enc) };
-    else if (o instanceof Map) body = { $m: [...o.entries()].map(([k2, x]) => [enc(k2), enc(x)]) };
-    else if (o instanceof Set || o instanceof Cells) body = { $s: [...o].map(enc) };
-    else {
-      const out3 = {};
-      for (const [k2, x] of Object.entries(o).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) if (x !== void 0 && typeof x !== "function") out3[k2] = enc(x);
-      body = { $o: out3 };
+      return e;
     }
-    table[id] = body;
-    return { $r: id };
+    if (Array.isArray(o)) return { $a: o.map(ref) };
+    if (o instanceof Map) return { $m: [...o.entries()].map(([k, x]) => [ref(k), ref(x)]) };
+    if (o instanceof Set || o instanceof Cells) return { $s: [...o].map(ref) };
+    const out2 = {};
+    for (const [k, x] of Object.entries(o).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) if (x !== void 0 && typeof x !== "function") out2[k] = ref(x);
+    return { $o: out2 };
   };
-  const root = enc(world2);
-  const config = enc({ ...CONFIG });
-  const te = new TextEncoder(), lines = [];
+  const root = ref(world2);
+  const config = ref({ ...CONFIG });
+  const te = new TextEncoder();
+  yield MAGIC;
   let tableBytes = 0, chunk = "";
   const flush = () => {
     const b = te.encode(chunk);
-    lines.push(b);
     tableBytes += b.length;
     chunk = "";
+    return b;
   };
-  for (const e of table) {
-    chunk += JSON.stringify(e) + "\n";
-    if (chunk.length > 1 << 23) flush();
+  for (let i = 0; i < queue.length; i++) {
+    chunk += JSON.stringify(entry(queue[i])) + "\n";
+    queue[i] = null;
+    if (chunk.length > 1 << 20) yield flush();
   }
-  flush();
-  const header = { version: 2, query: query2, t: world2.t, config, root, tableBytes, rng: world2.rng.state };
+  yield flush();
+  let at = MAGIC.length + tableBytes;
+  const pad = (to) => {
+    const z = new Uint8Array(to - at);
+    at = to;
+    return z;
+  };
+  const blobAt = Math.ceil(at / 8) * 8;
+  yield pad(blobAt);
+  for (const a of blobs) {
+    yield pad(blobAt + Math.ceil((at - blobAt) / 8) * 8);
+    yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    at += a.byteLength;
+  }
+  const header = { version: 3, query: query2, t: world2.t, config, root, tableBytes, rng: world2.rng.state };
   const json = te.encode(JSON.stringify(header));
-  const start = Math.ceil((4 + json.length + tableBytes) / 8) * 8;
-  const out2 = new Uint8Array(start + offset);
-  new DataView(out2.buffer).setUint32(0, json.length, true);
-  out2.set(json, 4);
-  let at = 4 + json.length;
-  for (const b of lines) {
-    out2.set(b, at);
-    at += b.length;
-  }
-  let k = 0;
-  for (const e of table) {
-    const b = e;
-    if (!b || !b.$ta) continue;
-    const a = blobs[k++];
-    out2.set(new Uint8Array(a.buffer, a.byteOffset, a.byteLength), start + b.off);
-  }
-  return out2;
+  yield json;
+  const n = new Uint8Array(4);
+  new DataView(n.buffer).setUint32(0, json.length, true);
+  yield n;
 }
-function readHeader(bytes) {
-  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  return JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + n)));
+function layout(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), td = new TextDecoder();
+  if (MAGIC.every((b, i) => bytes[i] === b)) {
+    const n2 = dv.getUint32(bytes.length - 4, true);
+    const header2 = JSON.parse(td.decode(bytes.subarray(bytes.length - 4 - n2, bytes.length - 4)));
+    return { header: header2, tableAt: MAGIC.length, blobAt: Math.ceil((MAGIC.length + header2.tableBytes) / 8) * 8 };
+  }
+  const n = dv.getUint32(0, true);
+  const header = JSON.parse(td.decode(bytes.subarray(4, 4 + n)));
+  return { header, tableAt: 4 + n, blobAt: Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8 };
 }
 function loadWorld(bytes) {
-  const header = readHeader(bytes);
-  if (header.version !== 1 && header.version !== 2) throw new Error(`unknown save version ${header.version}`);
-  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  const start = Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8;
-  const table = header.table ?? readTable(bytes.subarray(4 + n, 4 + n + header.tableBytes));
+  const { header, tableAt, blobAt: start } = layout(bytes);
+  if (![1, 2, 3].includes(header.version)) throw new Error(`unknown save version ${header.version}`);
+  const table = header.table ?? readTable(bytes.subarray(tableAt, tableAt + header.tableBytes));
   const rootId = header.root.$r;
   const objs = table.map((e) => {
     if ("$o" in e) return e.$o;
@@ -3058,10 +3069,11 @@ var put = (path, data) => {
   writeFileSync2(`${path}.tmp`, data);
   renameSync(`${path}.tmp`, path);
 };
-var save = () => {
-  const file = `t${String(world.t).padStart(7, "0")}.andnow.gz`;
-  const gz = gzipSync(saveWorld(world, query), { level: 6 });
-  put(`${out}/${file}`, gz);
+var save = async () => {
+  const file = `t${String(world.t).padStart(7, "0")}.andnow.gz`, path = `${out}/${file}`;
+  await pipeline(Readable.from(saveChunks(world, query)), createGzip({ level: 6 }), createWriteStream(`${path}.tmp`));
+  renameSync(`${path}.tmp`, path);
+  const gz = { length: statSync2(path).size };
   let big;
   for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount, x: w.ipX, y: w.ipY, name: w.name, genome: "" };
   if (big) big.genome = genomeOf(world, big.id);
@@ -3074,7 +3086,7 @@ var diskLow = () => {
 };
 var t0 = Date.now();
 var tStart = world.t;
-if (!resume || !index.marks.length) save();
+if (!resume || !index.marks.length) await save();
 var stop = "";
 while (world.t < ticks && world.living().length && !world.result.over) {
   world.tick();
@@ -3083,13 +3095,13 @@ while (world.t < ticks && world.living().length && !world.result.over) {
       stop = "disk under 20 GB free";
       break;
     }
-    save();
+    await save();
     const m = index.marks[index.marks.length - 1];
     if (world.t % (every * 10) === 0) console.log(`t${world.t} alive ${m.alive} biggest ${m.biggest?.cells ?? 0} \xB7 ${((Date.now() - t0) / (world.t - tStart)).toFixed(1)} ms/tick \xB7 ${m.kb} KB`);
   }
 }
 index.done = true;
-if (!stop && world.t % every !== 0) save();
+if (!stop && world.t % every !== 0) await save();
 else put(`${out}/index.json`, JSON.stringify(index));
 console.log(`done${stop ? ` (${stop})` : world.living().length ? "" : " (died out)"}: ${index.marks.length} checkpoints in ${out}`);
 //# sourceMappingURL=bake.mjs.map

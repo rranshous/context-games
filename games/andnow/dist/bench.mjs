@@ -2576,86 +2576,105 @@ var TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Floa
 function num(v) {
   return Number.isFinite(v) ? v : { $n: String(v) };
 }
-function saveWorld(world2, query) {
-  const table = [];
+var MAGIC = new TextEncoder().encode("andnow save 3\n");
+function* saveChunks(world2, query) {
   const ids = /* @__PURE__ */ new Map();
+  const queue = [];
   const blobs = [];
   let offset = 0;
-  const enc = (v) => {
+  const ref = (v) => {
     if (v === void 0) return { $u: 1 };
     if (v === null || typeof v === "boolean" || typeof v === "string") return v;
     if (typeof v === "number") return num(v);
     if (typeof v === "function") return { $u: 1 };
     const o = v;
-    const seen = ids.get(o);
-    if (seen !== void 0) return { $r: seen };
-    const id = table.length;
-    ids.set(o, id);
-    table.push(null);
-    let body;
+    let id = ids.get(o);
+    if (id === void 0) {
+      id = queue.length;
+      ids.set(o, id);
+      queue.push(o);
+    }
+    return { $r: id };
+  };
+  const entry = (o) => {
     if (ArrayBuffer.isView(o)) {
       const name = o.constructor.name;
       if (!(name in TYPED)) throw new Error(`can't save a ${name}`);
       offset = Math.ceil(offset / 8) * 8;
-      body = { $ta: name, off: offset, len: o.length };
+      const e = { $ta: name, off: offset, len: o.length };
       blobs.push(o);
       offset += o.byteLength;
-    } else if (Array.isArray(o)) body = { $a: o.map(enc) };
-    else if (o instanceof Map) body = { $m: [...o.entries()].map(([k2, x]) => [enc(k2), enc(x)]) };
-    else if (o instanceof Set || o instanceof Cells) body = { $s: [...o].map(enc) };
-    else {
-      const out2 = {};
-      for (const [k2, x] of Object.entries(o).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) if (x !== void 0 && typeof x !== "function") out2[k2] = enc(x);
-      body = { $o: out2 };
+      return e;
     }
-    table[id] = body;
-    return { $r: id };
+    if (Array.isArray(o)) return { $a: o.map(ref) };
+    if (o instanceof Map) return { $m: [...o.entries()].map(([k, x]) => [ref(k), ref(x)]) };
+    if (o instanceof Set || o instanceof Cells) return { $s: [...o].map(ref) };
+    const out = {};
+    for (const [k, x] of Object.entries(o).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) if (x !== void 0 && typeof x !== "function") out[k] = ref(x);
+    return { $o: out };
   };
-  const root = enc(world2);
-  const config = enc({ ...CONFIG });
-  const te = new TextEncoder(), lines = [];
+  const root = ref(world2);
+  const config = ref({ ...CONFIG });
+  const te = new TextEncoder();
+  yield MAGIC;
   let tableBytes = 0, chunk = "";
   const flush = () => {
     const b = te.encode(chunk);
-    lines.push(b);
     tableBytes += b.length;
     chunk = "";
+    return b;
   };
-  for (const e of table) {
-    chunk += JSON.stringify(e) + "\n";
-    if (chunk.length > 1 << 23) flush();
+  for (let i = 0; i < queue.length; i++) {
+    chunk += JSON.stringify(entry(queue[i])) + "\n";
+    queue[i] = null;
+    if (chunk.length > 1 << 20) yield flush();
   }
-  flush();
-  const header = { version: 2, query, t: world2.t, config, root, tableBytes, rng: world2.rng.state };
+  yield flush();
+  let at = MAGIC.length + tableBytes;
+  const pad = (to) => {
+    const z = new Uint8Array(to - at);
+    at = to;
+    return z;
+  };
+  const blobAt = Math.ceil(at / 8) * 8;
+  yield pad(blobAt);
+  for (const a of blobs) {
+    yield pad(blobAt + Math.ceil((at - blobAt) / 8) * 8);
+    yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    at += a.byteLength;
+  }
+  const header = { version: 3, query, t: world2.t, config, root, tableBytes, rng: world2.rng.state };
   const json = te.encode(JSON.stringify(header));
-  const start2 = Math.ceil((4 + json.length + tableBytes) / 8) * 8;
-  const out = new Uint8Array(start2 + offset);
-  new DataView(out.buffer).setUint32(0, json.length, true);
-  out.set(json, 4);
-  let at = 4 + json.length;
-  for (const b of lines) {
-    out.set(b, at);
-    at += b.length;
-  }
-  let k = 0;
-  for (const e of table) {
-    const b = e;
-    if (!b || !b.$ta) continue;
-    const a = blobs[k++];
-    out.set(new Uint8Array(a.buffer, a.byteOffset, a.byteLength), start2 + b.off);
+  yield json;
+  const n = new Uint8Array(4);
+  new DataView(n.buffer).setUint32(0, json.length, true);
+  yield n;
+}
+function saveWorld(world2, query) {
+  const parts = [...saveChunks(world2, query)];
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
   }
   return out;
 }
-function readHeader(bytes) {
-  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  return JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + n)));
+function layout(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), td = new TextDecoder();
+  if (MAGIC.every((b, i) => bytes[i] === b)) {
+    const n2 = dv.getUint32(bytes.length - 4, true);
+    const header2 = JSON.parse(td.decode(bytes.subarray(bytes.length - 4 - n2, bytes.length - 4)));
+    return { header: header2, tableAt: MAGIC.length, blobAt: Math.ceil((MAGIC.length + header2.tableBytes) / 8) * 8 };
+  }
+  const n = dv.getUint32(0, true);
+  const header = JSON.parse(td.decode(bytes.subarray(4, 4 + n)));
+  return { header, tableAt: 4 + n, blobAt: Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8 };
 }
 function loadWorld(bytes) {
-  const header = readHeader(bytes);
-  if (header.version !== 1 && header.version !== 2) throw new Error(`unknown save version ${header.version}`);
-  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  const start2 = Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8;
-  const table = header.table ?? readTable(bytes.subarray(4 + n, 4 + n + header.tableBytes));
+  const { header, tableAt, blobAt: start2 } = layout(bytes);
+  if (![1, 2, 3].includes(header.version)) throw new Error(`unknown save version ${header.version}`);
+  const table = header.table ?? readTable(bytes.subarray(tableAt, tableAt + header.tableBytes));
   const rootId = header.root.$r;
   const objs = table.map((e) => {
     if ("$o" in e) return e.$o;

@@ -2573,16 +2573,22 @@ var World = class {
 
 // src/sim/save.ts
 var TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array };
-function readHeader(bytes) {
-  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  return JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + n)));
+var MAGIC = new TextEncoder().encode("andnow save 3\n");
+function layout(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), td = new TextDecoder();
+  if (MAGIC.every((b, i) => bytes[i] === b)) {
+    const n2 = dv.getUint32(bytes.length - 4, true);
+    const header2 = JSON.parse(td.decode(bytes.subarray(bytes.length - 4 - n2, bytes.length - 4)));
+    return { header: header2, tableAt: MAGIC.length, blobAt: Math.ceil((MAGIC.length + header2.tableBytes) / 8) * 8 };
+  }
+  const n = dv.getUint32(0, true);
+  const header = JSON.parse(td.decode(bytes.subarray(4, 4 + n)));
+  return { header, tableAt: 4 + n, blobAt: Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8 };
 }
 function loadWorld(bytes) {
-  const header = readHeader(bytes);
-  if (header.version !== 1 && header.version !== 2) throw new Error(`unknown save version ${header.version}`);
-  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
-  const start = Math.ceil((4 + n + (header.tableBytes ?? 0)) / 8) * 8;
-  const table = header.table ?? readTable(bytes.subarray(4 + n, 4 + n + header.tableBytes));
+  const { header, tableAt, blobAt: start } = layout(bytes);
+  if (![1, 2, 3].includes(header.version)) throw new Error(`unknown save version ${header.version}`);
+  const table = header.table ?? readTable(bytes.subarray(tableAt, tableAt + header.tableBytes));
   const rootId = header.root.$r;
   const objs = table.map((e) => {
     if ("$o" in e) return e.$o;
