@@ -800,15 +800,17 @@ export function sameOrigin(origin, host) {
 
 // The site's own pages hold what matters most in a browser: a person's OpenRouter key, and
 // their owner keys. So they run only the platform's own scripts, talk only to this site
-// and OpenRouter, embed only the sandbox, and can't be framed by anyone else.
+// and OpenRouter, embed only the sandbox, and can't be framed by anyone else. Hosted, they
+// also let in Cloudflare's Web Analytics beacon (which Cloudflare adds to each page itself).
 export function pageHeaders(sandboxOrigin = '', https = false) {
+  const analytics = https ? { script: ' https://static.cloudflareinsights.com', connect: ' https://cloudflareinsights.com' } : { script: '', connect: '' };
   return {
     'Content-Security-Policy': [
       "default-src 'self'",
-      "script-src 'self'",
+      `script-src 'self'${analytics.script}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
-      "connect-src 'self' https://openrouter.ai",
+      `connect-src 'self' https://openrouter.ai${analytics.connect}`,
       `frame-src ${sandboxOrigin || "'self'"}`,
       "worker-src 'self'",
       "object-src 'none'",

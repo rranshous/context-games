@@ -80,6 +80,9 @@ async function asset(request, env, path) {
   const out = new Response(res.body, res);
   out.headers.set('Access-Control-Allow-Origin', '*');
   out.headers.set('X-Content-Type-Options', 'nosniff');
+  // Cloudflare's Web Analytics beacon is for the site's pages, never the sandbox host's:
+  // no-transform keeps Cloudflare from adding it there.
+  if (env.SANDBOX_ORIGIN && url.host === new URL(env.SANDBOX_ORIGIN).host && url.pathname.endsWith('.html')) out.headers.set('Cache-Control', [res.headers.get('Cache-Control'), 'no-transform'].filter(Boolean).join(', '));
   if (url.pathname === '/sandbox.html') out.headers.set('Content-Security-Policy', SANDBOX_POLICY);
   else if (url.pathname.endsWith('.html')) for (const [k, v] of Object.entries(pageHeaders(env.SANDBOX_ORIGIN, true))) out.headers.set(k, v);
   return out;
