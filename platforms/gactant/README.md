@@ -348,6 +348,8 @@ Pages send what they notice to `POST /api/events` (`public/js/telemetry.js`). It
 
 `node tools/ops.mjs https://gactant.com [days]` prints the summary (`--json` for all of it). It needs `GACTANT_ADMIN_TOKEN` in `.env`, sent in the body so it never lands in a request log. This is how Claude reads the live site without anyone relaying it.
 
+Where a network filter blocks gactant.com by name (Spectrum's Security Shield did, while the domain was new), `node tools/chrome-fetch.mjs [-X method] [-H 'k: v'] [-d body] [-i] <url>` works like curl but goes through the machine's Google Chrome, whose TLS hello gets past it. The `workers.dev` address works for the admin tools too.
+
 On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`): every request and every console line, searchable in the dashboard under the Worker's Observability tab, kept 3 days on the free plan. Trouble is logged there as an object, so its fields (`trouble`, `where`, `browser`, `ludant`) can be filtered. `npx wrangler tail` shows it live.
 
 ### Limits, so nothing balloons

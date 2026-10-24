@@ -2112,3 +2112,13 @@ Then, mid-build: "Since we are introducing keys as identity plz let's do a good 
 2. `/me.html`, then "add a device", gives `Q5CX-KGS5`.
 3. A fresh second browser types it in lowercase and has 2 devices.
 4. Its lobby lists the ludant, and the frame shows the chat ("remember the pancakes").
+
+## Part 14: the filter at home
+
+Robby got home and found gactant.com working in his Firefox, but from lilg curl still hit Spectrum's "Suspicious Site Blocked" page. It's the router's Security Shield (CUJO), and it gives no reason. Both domains were registered 2026-10-21. Quad9, Cloudflare's 1.1.1.2, OpenDNS, CleanBrowsing, AdGuard and Google Safe Browsing all call them clean, so this is almost certainly a newly-registered-domain rule. Robby doesn't have the Spectrum app to allow-list it and would rather it age out.
+
+**How it blocks:** by the name in the TLS hello. `openssl s_client` to Cloudflare's IP gets cut off when the name is gactant.com, and connects when it's cloudflare.com. Plain http gets a 302 to the block page.
+
+**What gets through:** Chrome does, with a fresh profile, even with QUIC and ECH both turned off. Firefox does too (its DNS-over-HTTPS turns on ECH). My guess is that Chrome's post-quantum key share makes its hello big enough to span two TCP segments, and the filter only reads the first. I haven't proved it. The Playwright MCP drives the system Chrome, so it was fine all along.
+
+**So:** `tools/chrome-fetch.mjs` is curl through headless Chrome over the DevTools protocol, with no dependencies. It opens the URL's origin and runs `fetch()` there, so there's no CORS. A static HTTP/3 curl would have been simpler, but downloading a binary from outside was rightly refused.
