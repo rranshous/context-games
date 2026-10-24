@@ -52,6 +52,8 @@ export function watchPage(where) {
   addEventListener('error', (e) => {
     // A script from elsewhere says only "Script error.": nothing to go on.
     if (!e.message || e.message === 'Script error.') return;
+    // The browser noting a layout settled a frame late: harmless, and not a crash.
+    if (e.message.startsWith('ResizeObserver loop')) return;
     report('crash', { where, message: e.message, sample: e.error?.stack ?? `${e.filename}:${e.lineno}:${e.colno}` });
   });
   addEventListener('unhandledrejection', (e) => {

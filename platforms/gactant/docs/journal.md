@@ -2122,3 +2122,14 @@ Robby got home and found gactant.com working in his Firefox, but from lilg curl 
 **What gets through:** Chrome does, with a fresh profile, even with QUIC and ECH both turned off. Firefox does too (its DNS-over-HTTPS turns on ECH). My guess is that Chrome's post-quantum key share makes its hello big enough to span two TCP segments, and the filter only reads the first. I haven't proved it. The Playwright MCP drives the system Chrome, so it was fine all along.
 
 **So:** `tools/chrome-fetch.mjs` is curl through headless Chrome over the DevTools protocol, with no dependencies. It opens the URL's origin and runs `fetch()` there, so there's no CORS. A static HTTP/3 curl would have been simpler, but downloading a binary from outside was rightly refused.
+
+### Looking around the live site
+
+Once Chrome could reach it, I walked the whole site as a test person, "claude (testing)": the lobby, a publication, playing it, chat, the OpenRouter prompt, /me, robots, the sitemap, link previews, gactantbox.com, headers, and the phone layout. Most of it holds up. Playing a publication makes your copy and the game runs. The OpenRouter prompt appears only when you speak, and "just play" puts the ludant back to resting. Your own copy's chat comes back on reload. The pages scroll vertically only on a phone. Afterwards I abandoned the test copy.
+
+**Found and fixed:**
+- **The lobby called ludants you'd only visited "yours: you're shaping this".** The lobby still sent the ids this browser had visited, which is how ownership worked before people, and listed them all as yours. Now `ludants?mine=1` is exactly what the person owns, and the browser's list only orders them. Smoke checks that a stranger's lobby doesn't show someone else's ludant.
+- **Opening someone else's ludant asked your name first.** Only then did it say it wasn't yours. Now the frame asks the server first and offers a copy straight away; the name is asked when you take one. On a device that isn't anyone's yet, the offer also says "It's yours, from another device? Use this one as you", because that's also what the owner sees on a new device.
+- **"ResizeObserver loop completed…" was reported as a crash.** It's the browser noting a late layout, so telemetry now ignores it.
+
+**Left for Robby:** Cloudflare Web Analytics is turned on for the zone and injects its beacon into every page, the sandbox included. Our CSP blocks it, so every page logs a console error, and the analytics count nothing. Either turn off its automatic setup in the dashboard (ops.mjs already covers traffic), or allow `static.cloudflareinsights.com` and `cloudflareinsights.com` in the CSP.
