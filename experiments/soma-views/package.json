@@ -1,0 +1,10 @@
+{
+  "name": "soma-views",
+  "private": true,
+  "type": "module",
+  "description": "Experiments: how a ludant can see and change a body too big to show whole",
+  "dependencies": {
+    "acorn": "^8.19.0",
+    "playwright-core": "^1.55.1"
+  }
+}
