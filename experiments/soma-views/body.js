@@ -21,6 +21,7 @@ class Viewed extends Actant {
   constructor(chassis, soma, approach, navSchemas) {
     super(chassis, soma);
     this.approach = approach;
+    this.view = approach === 'live' ? 'outline' : approach;   // live is the outline, drawn after the conversation
     this.navSchemas = navSchemas;
   }
 
@@ -28,7 +29,14 @@ class Viewed extends Actant {
     const text = await super.systemText(threw);
     if (this.approach === 'full') return text;
     const open = text.indexOf(`<soma name="${this.name}">\n`), close = text.indexOf('\n</soma>');
-    const shown = await window.benchView(this.approach, this.soma.sections);
+    // live: the soma isn't here at all. It's drawn fresh, as it is right now, in a system
+    // note after the conversation, every time it thinks (run.mjs adds it), so this stays
+    // the same all wake and is read from cache.
+    if (this.approach === 'live') {
+      return `${text.slice(0, open)}<soma name="${this.name}">\n(Shown in the system note at the end of the conversation, as it is right now, redrawn every time you think.)${text.slice(close)}`
+        .replace('This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.', 'Your soma is shown as it is right now, in the system note at the end of the conversation: an edit you make shows there the next time you think.');
+    }
+    const shown = await window.benchView(this.view, this.soma.sections);
     return `${text.slice(0, open)}<soma name="${this.name}">\n${shown}${text.slice(close)}`;
   }
 
@@ -43,7 +51,7 @@ class Viewed extends Actant {
     if (!NAV.has(name)) return super.runTool(call);
     let input = {};
     try { input = JSON.parse(call.function.arguments || '{}'); } catch { return { text: JSON.stringify({ error: 'arguments were not valid JSON' }) }; }
-    const out = await window.benchNav(this.approach, name, input, this.soma.sections);
+    const out = await window.benchNav(this.view, name, input, this.soma.sections);
     this.note('did', `${name} ${JSON.stringify(input).slice(0, 160)}`);
     return { text: typeof out === 'string' ? out : JSON.stringify(out), images: [] };
   }
@@ -105,18 +113,21 @@ async function build(soma) {
     send(kind, ...args) { if (kind === 'note') log.notes.push({ kind: args[0], text: String(args[1]).slice(0, 2000) }); },
     sendWith() {},
     async call(what, args) {
-      if (what === 'infer') return window.benchInfer(args);
-      if (what === 'perceive') return { context: config.context, company: config.company, surfaces: describe(store) };
+      if (what === 'infer') return window.benchInfer({ ...args, name: actant.name, sections: actant.soma.sections, faults: actant.faults });
+      // As on the site, what it's told about the room (the cost meter with it) is fresh each wake.
+      if (what === 'perceive') return { context: config.context, company: await window.benchCompany(), surfaces: describe(store) };
       throw new Error(`the bench has no ${what}`);
     },
   };
-  const nav = await window.benchNavSchemas(config.approach);
+  const nav = await window.benchNavSchemas(config.approach === 'live' ? 'outline' : config.approach);
   actant = new Viewed(chassis, soma, config.approach, nav);
   actant.rebuild();
-  // The frame's clock: 60 ticks a second, as a display would.
+  // The frame's clock, while it's awake: 15 ticks a second, not a display's 60. Checking
+  // plays by advance(), not by this, and three pages of software-rendered 3D at 60 starved
+  // the machine (trials took ten minutes of wall time for three calls).
   clearInterval(ticking);
   let t = 0, frame = 0;
-  ticking = setInterval(() => { t += 1 / 60; frame++; stage.tick({ dt: 1 / 60, t, frame, fps: 60, input: null }); }, 1000 / 60);
+  ticking = setInterval(() => { t += 1 / 15; frame++; stage.tick({ dt: 1 / 15, t, frame, fps: 15, input: null }); }, 1000 / 15);
 }
 
 window.bench = {

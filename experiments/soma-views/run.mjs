@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { extname, join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 import { APPROACHES, navTools, renderSections, runNav } from './views.mjs';
-import { GAMES, PLAY } from './tasks.mjs';
+import { GAMES, PLAY, playFor } from './tasks.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const GACTANT = join(ROOT, 'platforms/gactant');
@@ -26,7 +26,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, all) => (
 const list = (k, d) => (args[k] ?? d).split(',').filter(Boolean);
 const games = list('games', Object.keys(GAMES).join(','));
 const tasks = list('tasks', 'tweak,feature,across');
-const approaches = list('approaches', APPROACHES.join(','));
+const approaches = list('approaches', APPROACHES.join(','));   // a view, and +split for a cache mark between the soma and the frame
 const models = list('models', 'sonnet,haiku');
 const reps = Number(args.reps ?? 1), parallel = Number(args.parallel ?? 2), floor = Number(args.floor ?? 4);
 const out = resolve(args.out ?? `runs/${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`);
@@ -68,23 +68,24 @@ const BASE = `http://127.0.0.1:${server.address().port}`;
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
-async function benchPage(onInfer) {
+async function benchPage(onInfer, onCompany = () => '') {
   const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
   page.on('pageerror', (e) => console.warn('  page error:', e.message.slice(0, 200)));
   await page.exposeFunction('benchInfer', onInfer);
   await page.exposeFunction('benchView', (approach, sections) => renderSections(approach, sections));
   await page.exposeFunction('benchNav', (approach, tool, input, sections) => runNav(approach, tool, input, sections));
   await page.exposeFunction('benchNavSchemas', (approach) => navTools(approach));
+  await page.exposeFunction('benchCompany', onCompany);
   await page.goto(`${BASE}/experiments/soma-views/body.html`);
   await page.waitForFunction(() => window.benchReady, null, { timeout: 30000 });
   return page;
 }
 
-function company(ludant) {
+function company(ludant, spent = 0, live = false) {
   const l = ludant.lineage ?? {}, s = ludant.soma;
   const name = `${s.given}${s.sections.title ? `-${s.sections.title.trim().split(/\s+/).map((w) => w[0].toUpperCase() + w.slice(1)).join('-')}` : ''}`;
   const lineage = l.from ? `You are a copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}.` : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
-  return `Your name is ${name}: your given name ${s.given}, and your title section.\nHere with you now: ${PERSON}. Your thinking in this sitting has cost $0.00 so far, and ${PERSON} pays for it, through their own OpenRouter account. The people here can see that meter. ${lineage} People who have sat with you: ${PERSON}.
+  return `Your name is ${name}: your given name ${s.given}, and your title section.\nHere with you now: ${PERSON}. ${live ? 'Your thinking in this sitting has a cost, shown in the note at the end of the conversation' : `Your thinking in this sitting has cost $${spent.toFixed(2)} so far`}, and ${PERSON} pays for it, through their own OpenRouter account. The people here can see that meter. ${lineage} People who have sat with you: ${PERSON}.
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
 }
 
@@ -118,13 +119,15 @@ function diff(a, b) {
 }
 
 async function judge(trial, before, after, changes, chat) {
+  const asked = trial.requests.length === 1 ? `The player asked: "${trial.requests[0]}"`
+    : `Over one sitting the player said these, in order (the AI woke for each, remembering only what it wrote into itself):\n${trial.requests.map((r, i) => `${i + 1}. "${r}"`).join('\n')}\nJudge "done" over everything that asked for a change (a question only needed a true answer in the chat), and give each line its own score in "each".`;
   const pic = (url) => ({ type: 'image_url', image_url: { url } });
   const changed = changes.map((c) => `### section ${c.section} (+${c.added} −${c.removed} lines)\n${c.text.slice(0, 14000)}`).join('\n\n') || '(no code section changed)';
   const said = chat.filter((m) => m.who !== PERSON).map((m) => `- ${m.text}`).join('\n') || '(it said nothing in the chat)';
   const res = await openrouter({
     model: JUDGE, max_tokens: 1500, temperature: 0,
     messages: [{ role: 'user', content: [
-      { type: 'text', text: `You are grading an AI that changed its own browser game's code because a player asked.\n\nThe game: ${GAMES[trial.game].about}\nThe player asked: "${trial.request}"\n\nWhat the AI said to the player in the chat:\n${said}\n\nWhat changed in the code:\n${changed}\n\nBelow: a picture of the game before the change, then after it, both taken after the same scripted few seconds of play (waiting, a press of space, arrows, a click). The game was rebuilt from scratch for each. ${after.faults && Object.keys(after.faults).length ? `After the change, building the code reported faults: ${JSON.stringify(after.faults)}.` : 'After the change, the code built without faults.'} ${after.halted ? `The game halted while playing: ${after.halted}.` : ''} ${after.errors?.length ? `Errors while playing: ${JSON.stringify(after.errors).slice(0, 800)}.` : 'No errors while playing.'}\n\nJudge from the code mostly; the pictures only show the game still works and how it looks. Answer with only a JSON object: {"done": 2 if the request is fully and sensibly done, 1 if partly or with a real flaw, 0 if not done, "broke": true if the change broke something that worked before (the game no longer runs, or a feature it had is gone), "notes": "one or two sentences"}` },
+      { type: 'text', text: `You are grading an AI that changed its own browser game's code because a player asked.\n\nThe game: ${GAMES[trial.game].about}\n${asked}\n\nWhat the AI said to the player in the chat:\n${said}\n\nWhat changed in the code:\n${changed}\n\nBelow: a picture of the game before the change, then after it, both taken after the same scripted few seconds of play (waiting, a press of space, arrows, a click). The game was rebuilt from scratch for each. ${after.faults && Object.keys(after.faults).length ? `After the change, building the code reported faults: ${JSON.stringify(after.faults)}.` : 'After the change, the code built without faults.'} ${after.halted ? `The game halted while playing: ${after.halted}.` : ''} ${after.errors?.length ? `Errors while playing: ${JSON.stringify(after.errors).slice(0, 800)}.` : 'No errors while playing.'}\n\nJudge from the code mostly; the pictures only show the game still works and how it looks. Answer with only a JSON object: {"each": [one 0/1/2 per line the player said], "done": 2 if the request is fully and sensibly done, 1 if partly or with a real flaw, 0 if not done, "broke": true if the change broke something that worked before (the game no longer runs, or a feature it had is gone), "notes": "one or two sentences"}` },
       { type: 'text', text: 'Before:' }, pic(before.pics.at(-1)), { type: 'text', text: 'After:' }, pic(after.pics.at(-1)),
     ] }],
   });
@@ -133,30 +136,53 @@ async function judge(trial, before, after, changes, chat) {
   catch { return { done: null, broke: null, notes: `judge said: ${text.slice(0, 300)}`, cost: res.usage?.cost ?? 0 }; }
 }
 
+/** A wake's conversation, shortened: what woke it, what it thought and called, what came back. */
+const clip = (x, n) => { const s = typeof x === 'string' ? x : Array.isArray(x) ? x.map((c) => c.text ?? `[${c.type}]`).join(' ') : JSON.stringify(x ?? ''); return s.length > n ? `${s.slice(0, n)}…` : s; };
+const trace = (msgs) => msgs.map((x) => ({ role: x.role, text: clip(x.content, 600), calls: x.tool_calls?.map((c) => `${c.function.name}(${clip(c.function.arguments, 400)})`) }));
+
 async function trial(t) {
   const file = join(out, `${t.id}.json`);
   if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));   // done already: a rerun picks up where it stopped
   const ludant = JSON.parse(readFileSync(join(import.meta.dirname, 'data', `${t.game}.json`), 'utf8'));
   const art = ludant.art.map(({ name, w, h, prompt, image }) => ({ name, w, h, prompt, image }));
-  const m = { calls: 0, prompt: 0, cached: 0, written: 0, completion: 0, cost: 0, tools: {}, started: Date.now() };
-  const onInfer = async ({ messages, tools }) => {
-    if (m.calls >= 40) throw new Error('the bench stops a trial after 40 calls');
+  const m = { calls: 0, prompt: 0, cached: 0, written: 0, completion: 0, cost: 0, tools: {}, started: Date.now(), log: [], wakes: [] };
+  const [view, split] = [t.approach.split('+')[0], t.approach.includes('+split')];
+  const onInfer = async ({ messages, tools, name, sections, faults }) => {
+    // live: the soma as it is right now, and the meter, after everything else, so the
+    // cached prefix (the system text and the conversation) never changes for it.
+    if (view === 'live') {
+      const f = Object.entries(faults ?? {}).map(([k, v]) => `- ${k}: ${v}`).join('\n');
+      messages = [...messages, { role: 'system', content: `<soma name="${name}" as-of="now">\n${renderSections('outline', sections)}\n</soma>\nYour thinking in this sitting has cost $${m.cost.toFixed(2)} so far.${f ? `\nFaults in your code sections right now:\n${f}` : ''}` }];
+    }
+    if (m.calls >= 40 * t.requests.length) throw new Error('the bench stops a trial after 40 calls a wake');
+    // +split: what the site would do with a second cache mark, after the soma and before the
+    // frame (whose cost meter changes every wake), so an unchanged soma is read from cache.
+    if (split) {
+      const sys = messages[0].content[0], at = sys.text.indexOf('\n\n<frame>\n');
+      messages = [{ role: 'system', content: [{ type: 'text', text: sys.text.slice(0, at), cache_control: { type: 'ephemeral' } }, { type: 'text', text: sys.text.slice(at), cache_control: { type: 'ephemeral' } }] }, ...messages.slice(1)];
+    }
     const res = await openrouter({ model: MODELS[t.model], messages, tools });
+    m.last = [...messages.slice(1), res.choices?.[0]?.message ?? {}];
     const u = res.usage ?? {};
     m.calls++; m.prompt += u.prompt_tokens ?? 0; m.completion += u.completion_tokens ?? 0; m.cost += u.cost ?? 0;
     m.cached += u.prompt_tokens_details?.cached_tokens ?? 0; m.written += u.prompt_tokens_details?.cache_write_tokens ?? 0;
     m.firstPrompt ??= u.prompt_tokens;
+    m.log.push({ wake: m.wakes.length, prompt: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens ?? 0, written: u.prompt_tokens_details?.cache_write_tokens ?? 0, completion: u.completion_tokens, cost: u.cost ?? 0 });
     for (const c of res.choices?.[0]?.message?.tool_calls ?? []) m.tools[c.function.name] = (m.tools[c.function.name] ?? 0) + 1;
     return res;
   };
-  const page = await benchPage(onInfer);
+  const page = await benchPage(onInfer, () => company(ludant, m.cost, view === 'live'));
   try {
-    await page.evaluate((cfg) => window.bench.start(cfg), { soma: ludant.soma, art, approach: t.approach, context: CONTEXT, company: company(ludant), person: PERSON });
-    await page.evaluate((text) => window.bench.say(text), t.request);
+    await page.evaluate((cfg) => window.bench.start(cfg), { soma: ludant.soma, art, approach: view, context: CONTEXT, person: PERSON });
+    for (const text of t.requests) {
+      const at = { calls: m.calls, cost: m.cost };
+      await page.evaluate((x) => window.bench.say(x), text);
+      m.wakes.push({ calls: m.calls - at.calls, cost: m.cost - at.cost, trace: trace(m.last ?? []) });
+    }
     const r = await page.evaluate(() => window.bench.result());
     m.seconds = Math.round((Date.now() - m.started) / 1000);
-    const before = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [ludant.soma, PLAY]);
-    const after = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [r.soma, PLAY]);
+    const before = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [ludant.soma, playFor(t.game, t.task)]);
+    const after = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [r.soma, playFor(t.game, t.task)]);
     const changes = CODE.filter((s) => (ludant.soma.sections[s] ?? '') !== (r.soma.sections[s] ?? '')).map((s) => ({ section: s, ...diff(ludant.soma.sections[s] ?? '', r.soma.sections[s] ?? '') }));
     const failedEdits = r.notes.filter((n) => n.kind === 'fault' && /^edit_section/.test(n.text)).map((n) => n.text.split('→ ').pop());
     const verdict = await judge(t, before, after, changes, r.chat);
@@ -179,9 +205,9 @@ async function trial(t) {
 if (args.dry) {
   for (const game of games) {
     const ludant = JSON.parse(readFileSync(join(import.meta.dirname, 'data', `${game}.json`), 'utf8'));
-    const page = await benchPage(async () => { throw new Error('no thinking in a dry run'); });
-    const started = await page.evaluate((cfg) => window.bench.start(cfg), { soma: ludant.soma, art: ludant.art, approach: 'full', context: CONTEXT, company: company(ludant), person: PERSON });
-    const played = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [ludant.soma, PLAY]);
+    const page = await benchPage(async () => { throw new Error('no thinking in a dry run'); }, () => company(ludant));
+    const started = await page.evaluate((cfg) => window.bench.start(cfg), { soma: ludant.soma, art: ludant.art, approach: 'full', context: CONTEXT, person: PERSON });
+    const played = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [ludant.soma, playFor(game, args.task)]);
     played.pics.forEach((p, i) => writeFileSync(join(out, `${game}-dry-${i}.png`), Buffer.from(p.split(',')[1], 'base64')));
     console.log(game, started.name, 'faults', JSON.stringify(played.faults), 'halted', played.halted, 'errors', JSON.stringify(played.errors).slice(0, 300));
     await page.close();
@@ -193,12 +219,15 @@ if (args.dry) {
 
 const plan = [];
 for (let rep = 1; rep <= reps; rep++) for (const game of games) for (const task of tasks) for (const model of models) for (const approach of approaches) {
-  plan.push({ id: `${game.split('-')[0]}-${task}-${model}-${approach}-${rep}`, game, task, model, approach, rep, request: GAMES[game].tasks[task] });
+  const requests = task === 'convo' ? GAMES[game].convo : [GAMES[game].tasks[task]];
+  if (!requests?.[0]) continue;
+  plan.push({ id: `${game.split('-')[0]}-${task}-${model}-${approach}-${rep}`, game, task, model, approach, rep, requests });
 }
 console.log(`${plan.length} trials into ${out}`);
 
 const done = [];
 let next = 0, stopped = false;
+if (args.shuffle) plan.sort(() => Math.random() - 0.5);
 async function worker() {
   while (next < plan.length && !stopped) {
     const t = plan[next++];
