@@ -26,3 +26,24 @@ Section load/unload isn't a separate arm. These somas have one big code section 
 The dry run built and played all three games, the 3D one (Genek) included, through headless Chrome with SwiftShader.
 
 The first real trial was Evevina, "the big golden fish at dusk should be worth double", on Haiku with the outline view. It searched, read one stretch, and made one exact edit that doubles points only for the gold palette at dusk. Then it told Robby what it did, and asked whether the red ones should count too. That took 4 calls, 10 seconds and $0.002.
+
+## Round 1 (108 trials: 3 ludants × 3 requests × 3 views × 2 models × 2 reps)
+
+It cost $7.68 of key, judge included; $17.23 left. "done" is the judge's 0/1/2, averaged.
+
+| | done | broke | $ / trial | first prompt (tokens) | calls | cached share of input |
+|---|---|---|---|---|---|---|
+| Haiku full | 1.83 | 0 | 0.0063 | 27.5k | 3.3 | 67% |
+| Haiku outline | 1.89 | 0 | 0.0058 | 9.6k | 5.8 | 77% |
+| Haiku skeleton | 1.83 | 0 | 0.0061 | 13.6k | 5.3 | 73% |
+| Sonnet full | 1.94 | 0 | 0.134 | 27.5k | 4.6 | 73% |
+| Sonnet outline | **2.00** | 0 | 0.100 | 9.6k | 6.1 | 80% |
+| Sonnet skeleton | 1.94 | 0 | 0.103 | 13.6k | 6.2 | 80% |
+
+**Seeing less of the body didn't hurt.** Outline shows about a third of the soma, and it scored at least as well as full on both models. No trial broke its game. One edit failed in 108 trials, and it was retried. The work is real: Sonnet's outline log feature on Genek is an instanced mesh, pickup by radius, a count in the HUD and a reset on rebuild.
+
+**Savings grow with the body.** Sonnet on Genek, the biggest soma (32k tokens), cost $0.22 a trial with full and $0.12 with outline. On Evevina and Anithis it was roughly even: within one request, full's body is cached after the first call, and outline makes extra read and search calls. A cold start pays for the whole body, though, and that happens each time a ludant is spoken to after the cache has expired.
+
+**Haiku gets the self-reflective body now.** It searched its body, read it, edited it exactly and told the player what it did, at about 1/20th of Sonnet's cost and with no extra scaffolding. Its misses are judgment, not mechanics. "A *little* more patient" turned skunks 3–4× more patient in all six of its trials. Both models doubled the red fish along with the golden one.
+
+**Skeleton isn't worth it over outline.** It's bigger, needs as many calls, and scored no better. Searching and reading lines fits what the models are trained on, which matches Robby's earlier result that grep beats a section-loading scheme.
