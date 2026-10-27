@@ -153,3 +153,19 @@ Robby: "What would it take to prove that live outline is as good as or better th
 - **Scripts:** 7 four-request conversations (`convo` and `convo2` on Evevina, Anithis and Genek; `convo2` on the arcade), 4 reps each: 28 conversations, 112 requests, per arm per model. They run rep by rep, so a run cut short by the key stays balanced across arms.
 - **The rule:** for each model, live passes if its mean score per request is at least full's minus 0.1, with the one-sided 95% bound (by conversation, so the four requests of one sitting aren't counted as independent) above that, and if it breaks no more games than full. It has to hold under both judges, Sonnet (in the run) and Opus (`--rejudge` after).
 - **Cost:** about $26 for Sonnet, $3 for Haiku, $5 for the Opus judging. `proof.sh` runs it; it can be stopped and started again.
+
+## Round 4: held out (Haiku, 8 conversations a view)
+
+| | per request | by wake | broke | $ / convo | calls | cached |
+|---|---|---|---|---|---|---|
+| full | 1.75 | 1.88 1.75 1.63 1.75 | 0 | 0.029 | 11 | 63% |
+| live | **1.88** | 2 2 1.63 1.88 | 1 | 0.028 | 19 | 61% |
+| delta | 1.59 | 1.88 1.50 1.63 1.38 | 0 | 0.025 | 21 | 76% |
+
+The new requests are harder than the old: every view scores lower. Live leads full again, on requests no view was shaped on. Its one break is a judgment call: asked for "a cat that sits on the boat; if I reel in a fish while it's there, it eats it", Haiku made a cat that never leaves, so fishing can't score. Haiku with full made the same cat in both its arcade trials, and the judge didn't call those broken. The other misses are the old kinds: "a little faster" made 50–55% faster, and a "safe spot" under the porch light that barely reaches where the skunks wander.
+
+**Delta is out.** It caches best and scored worst, and it takes the most calls (21 a conversation, up to 15 in a wake): with two copies of a changed section in view, the old one above and the new one below, Haiku searches more and edits less well. Cheaper per token, not per result.
+
+**The first-play cache miss is the bench's.** Calls now carry their time. Of 12 total misses within a wake, 11 came after a gap of 300 to 518 seconds; of 306 hits, none came after more than 342 (the median gap is 4). It's the five-minute cache lifetime, crossed when a play on this starved machine takes minutes. On the platform a play is fast, so a wake doesn't pay it.
+
+**But it matters for the platform between wakes.** Live's main saving is a wake opening on a cached prefix, and that only happens if the wake comes within five minutes of the last call. People talking with a ludant often leave longer gaps than that. Anthropic's cache can be marked to last an hour instead (`cache_control: { type: 'ephemeral', ttl: '1h' }`), at twice the price to write it instead of 1.25×. For a stable prefix that's read at the next wake, that's worth it, and with live the prefix is stable. Untested here.

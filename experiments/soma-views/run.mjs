@@ -40,10 +40,11 @@ const CONTEXT = readFileSync(join(GACTANT, 'public/js/frame.js'), 'utf8').match(
 
 async function openrouter(body) {
   for (let attempt = 0; ; attempt++) {
+    // The network can drop too ("fetch failed"): that's tried again like a 5xx.
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ max_tokens: 32000, usage: { include: true }, provider: { order: ['anthropic'], allow_fallbacks: true }, ...body }),
-    });
+    }).catch((err) => ({ ok: false, status: 599, json: async () => ({ error: { message: err.message } }) }));
     const json = await res.json().catch(() => ({}));
     if (res.ok && !json.error && json.choices?.length) return json;
     // An answer with no choices (it happens: no tokens, no error) is tried again too.
