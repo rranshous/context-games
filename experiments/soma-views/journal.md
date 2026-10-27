@@ -144,3 +144,12 @@ A probe with the platform's exact shape (a tool result, then a user message of p
 ## Held-out conversations
 
 `convo2` in `tasks.mjs`: four new requests for each body, written after rounds 1–3 so no view was shaped on them, including one across games on the arcade (a cat in skuntin', then one in day-fishing too).
+
+## The proof, set before running
+
+Robby: "What would it take to prove that live outline is as good as or better than the current implementation?" The current one is gactant today: the full soma in the system text, drawn once per wake.
+
+- **Arms:** `full` and `live`, on Haiku and on Sonnet.
+- **Scripts:** 7 four-request conversations (`convo` and `convo2` on Evevina, Anithis and Genek; `convo2` on the arcade), 4 reps each: 28 conversations, 112 requests, per arm per model. They run rep by rep, so a run cut short by the key stays balanced across arms.
+- **The rule:** for each model, live passes if its mean score per request is at least full's minus 0.1, with the one-sided 95% bound (by conversation, so the four requests of one sitting aren't counted as independent) above that, and if it breaks no more games than full. It has to hold under both judges, Sonnet (in the run) and Opus (`--rejudge` after).
+- **Cost:** about $26 for Sonnet, $3 for Haiku, $5 for the Opus judging. `proof.sh` runs it; it can be stopped and started again.
