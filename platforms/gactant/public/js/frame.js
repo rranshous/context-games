@@ -168,7 +168,7 @@ class Frame {
       res = await complete(request);
       if (this.config.logs) {
         api('POST', `log/${this.recordId}`, { at: new Date().toISOString(), ms: Date.now() - started, model: request.model, status: 200, via: 'browser',
-          usage: res.usage, last: request.messages.at(-1), reply: res.choices?.[0]?.message }).catch(() => {});
+          usage: res.usage, last: request.messages.findLast((m) => m.role !== 'system'), reply: res.choices?.[0]?.message }).catch(() => {});
       }
     } else {
       res = await api('POST', 'infer', { who: this.recordId, messages, tools });
@@ -249,9 +249,11 @@ class Frame {
   connectThinking() { return connect().then((ok) => { this.refreshKey(); this.status.render(); return ok; }); }
   disconnectThinking() { disconnect(); this.status.render(); }
 
-  /** What the frame tells the ludant when it wakes: the experiment, who's here, how
-   *  they're related to it, and the surfaces on this side. (The chassis adds its soma,
-   *  the stage beside it, and how its code runs.) */
+  /** What the frame tells the ludant: the experiment, who it is and how it's related to
+   *  people, and the surfaces on this side, which stay the same while it's here (the
+   *  system text, read from cache); and what's happening now (who's here, what they're
+   *  doing, the meter), which is drawn fresh for every call, after the conversation. (The
+   *  chassis adds its soma and how its code runs.) */
   perception() {
     const soma = this.actant.soma, name = this.actant.name;
     const r = this.record, l = r.lineage ?? {};
@@ -271,10 +273,12 @@ class Frame {
     const left = this.left();
     const room = left ? ` Their key has ${[left.remaining != null ? `$${left.remaining.toFixed(2)} left of its $${left.limit} limit` : null, left.balance != null ? `$${left.balance.toFixed(2)} in their account` : null].filter(Boolean).join(', ')}.` : '';
     const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}.${room} The people here can see that meter.`;
-    const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view}${busy}${away} ${cost} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+    const company = `${naming}\n${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored} Your thinking has a cost, and the people here can see a meter of it; what it has come to in this sitting is shown with what's happening now, at the end of the conversation.
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
+    const states = this.surfaces.map((s) => s.state?.(name)).filter(Boolean).map((d) => `- ${d}`).join('\n');
+    const now = `Here with you now: ${[...this.people].join(', ')}.${view}${busy}${away} ${cost}${states ? `\nThe surfaces now:\n${states}` : ''}`;
     const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
-    return { context: CONTEXT, company, surfaces };
+    return { context: CONTEXT, company, now, surfaces };
   }
 
   /** The ludant's name is its given name plus its title, so a retitle (or a restore that

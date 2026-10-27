@@ -23,8 +23,10 @@ export class Choices {
   }
 
   describe() {
-    return `choices: put a question to the people here with 2 to 6 options to pick from, each with a picture (an art name, or 'stage') or just words. They pick with a click, a tap or a controller, and their pick reaches you in the chat as their words. It's the easiest way for them to answer, above all from a couch, and the way to show options rather than describe them (say, three concept pictures of how you could look). Actions: offer({ question, options: [{ label, image, note }] }), withdraw().${this.open ? ` Open now: "${this.open.question}" (${this.open.options.map((o) => o.label).join(' / ')}).` : ''}`;
+    return `choices: put a question to the people here with 2 to 6 options to pick from, each with a picture (an art name, or 'stage') or just words. They pick with a click, a tap or a controller, and their pick reaches you in the chat as their words. It's the easiest way for them to answer, above all from a couch, and the way to show options rather than describe them (say, three concept pictures of how you could look). Actions: offer({ question, options: [{ label, image, note }] }), withdraw().`;
   }
+
+  state() { return this.open ? `choices: open now, "${this.open.question}" (${this.open.options.map((o) => o.label).join(' / ')}).` : null; }
 
   actions(who) {
     return { offer: (o) => this.offer(who, o), withdraw: () => this.withdraw(who) };

@@ -41,8 +41,12 @@ export class Art {
   }
 
   describe() {
+    return `art: pictures made for you by an image model (sprites cut out on transparency, backgrounds, anything), kept with you, and drawn in your game with stage.image(name). Actions: make({ name, prompt, style, transparent (default true), reference ('stage', an art name, or a list), quality ('fast' about 3¢ / 'best' about 7¢), size }), concept({ name, style, prompt }) (your game as it is now, reimagined: good for showing people options), look(name), list(), remove(name). Each picture is painted fresh: the painter remembers nothing between pictures, so "the same three people" means nothing to it unless you pass the earlier picture as reference (and describe them again). Each picture costs money like thinking does, on the same meter.`;
+  }
+
+  state() {
     const names = [...this.assets.keys()];
-    return `art: pictures made for you by an image model (sprites cut out on transparency, backgrounds, anything), kept with you, and drawn in your game with stage.image(name). ${names.length ? `You have ${names.length}: ${names.slice(0, 24).join(', ')}${names.length > 24 ? ', …' : ''}.` : 'You have none yet.'} Actions: make({ name, prompt, style, transparent (default true), reference ('stage', an art name, or a list), quality ('fast' about 3¢ / 'best' about 7¢), size }), concept({ name, style, prompt }) (your game as it is now, reimagined: good for showing people options), look(name), list(), remove(name). Each picture is painted fresh: the painter remembers nothing between pictures, so "the same three people" means nothing to it unless you pass the earlier picture as reference (and describe them again). Each picture costs money like thinking does, on the same meter.`;
+    return `art: ${names.length ? `you have ${names.length}: ${names.slice(0, 24).join(', ')}${names.length > 24 ? ', …' : ''}` : 'you have none yet'}.`;
   }
 
   actions(who) {

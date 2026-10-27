@@ -297,8 +297,9 @@ export function createCore({ store, settings }) {
     if (!isPublic) {
       await log(who, {
         at: now(), ms: Date.now() - started, model: request.model, status: res.status, usage: json.usage, error: json.error,
-        // The last message is what woke this turn (an event, or tool results); the reply is what came back.
-        last: summarize(request.messages.at(-1)), reply: summarize(json.choices?.[0]?.message),
+        // The last message is what woke this turn (an event, or tool results; not the system
+        // note of the soma as it is now, which comes after it); the reply is what came back.
+        last: summarize(request.messages.findLast((m) => m.role !== 'system')), reply: summarize(json.choices?.[0]?.message),
       });
     }
     if (!res.ok || json.error) throw httpError(502, `openrouter ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 500)}`);

@@ -47,11 +47,15 @@ export class Whiteboard {
     }, 'whiteboard');
   }
 
-  describe(viewer) {
+  describe() {
+    return 'whiteboard: a shared sketch board, 100 wide by 60 tall in board units (origin top-left), with a baton passed between whoever is drawing.';
+  }
+
+  state(viewer) {
     const by = {};
     for (const it of this.items) by[it.by] = (by[it.by] ?? 0) + 1;
     const who = Object.entries(by).map(([k, v]) => `${v} by ${k}`).join(', ') || 'blank';
-    return `whiteboard: a shared sketch board, 100 wide by 60 tall in board units (origin top-left); ${this.items.length} marks (${who}); the baton is with ${this.baton === viewer && viewer ? `you${this.batonFrom ? `, passed by ${this.batonFrom}, who is waiting for you to pass it back when you're done` : ''}` : this.baton ?? 'nobody'}.`;
+    return `whiteboard: ${this.items.length} marks (${who}); the baton is with ${this.baton === viewer && viewer ? `you${this.batonFrom ? `, passed by ${this.batonFrom}, who is waiting for you to pass it back when you're done` : ''}` : this.baton ?? 'nobody'}.`;
   }
 
   actions(who) {
@@ -127,7 +131,7 @@ export class Whiteboard {
     if (who) { this.lastLook = { who, at: Date.now() }; this.seen[who] = this.rev; this.renderBaton(); this.frame.bus.emit('whiteboard.looked', { who }); }
     const texts = this.items.filter((i) => i.type === 'text').map((i) => `"${i.text}" (${i.by})`);
     return {
-      text: `${this.describe()}${texts.length ? ` Words on the board: ${texts.join(', ')}.` : ''}${this.note ? ` Note with the baton: "${this.note}".` : ''}`,
+      text: `${this.state()}${texts.length ? ` Words on the board: ${texts.join(', ')}.` : ''}${this.note ? ` Note with the baton: "${this.note}".` : ''}`,
       image: this.picture(),
     };
   }

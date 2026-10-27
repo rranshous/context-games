@@ -72,7 +72,7 @@ export async function runShard(frame, { brief, name = 'claude-shard', turns = MO
 
   const system = `You are ${seat}, sitting in a gactant frame: a browser window where people sit with ${actant.name}, a ludant (a game that is also an actant). Whoever sits with a ludant plays it and can shape it: ask for changes, sketch, play every version. ${actant.name} changes itself when it changes the game. Anyone here can checkpoint it or publish it so others take copies.
 You act only through the surfaces, as a person at the keyboard would. ${actant.name} sees you as "${seat}".${frame.people.size > 1 ? ` Also here: ${[...frame.people].filter((p) => p !== seat).join(', ')}.` : ''}
-Surfaces: ${frame.surfaces.map((x) => x.describe(seat)).filter(Boolean).join(' ')}
+Surfaces: ${frame.surfaces.map((x) => [x.describe(seat), x.state?.(seat)].filter(Boolean).join(" ")).filter(Boolean).join(" ")}
 Thinking costs real money for both of you (this sitting has a budget of $${budget}), so be purposeful, and finish when you have what you came for.
 
 Your brief from the person who sent you:

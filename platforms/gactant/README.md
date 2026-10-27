@@ -86,18 +86,29 @@ Inference happens only when a hook calls `me.wake(event)`, for example when some
 in the chat, passes the baton, sits down for the first time, or restores it. An idle
 ludant costs nothing.
 
-Every wake starts with a **context block** that explains the experiment, what a ludant
-is, the levels, and that people see only the surfaces. Next comes the soma (as it was on
-waking), then the frame's perception: who's here, its lineage, the surfaces, and how the
-frame runs its code. At the moments a ludant tends to slip, the frame nudges it once. For
-example, if a person woke it and it's about to go quiet without posting in the chat, the
-frame tells it.
+Every think starts with a **system text** that stays the same while the ludant is here: a
+context block that explains the experiment, what a ludant is, the levels, and that people
+see only the surfaces; then who it is and its lineage, what each surface is, and how the
+frame runs its code. It's read from cache, wake after wake.
+
+**It sees its soma live.** Before every call, the soma is drawn as it is right now in a
+system note at the end of the conversation, with what's happening now: who's here, what
+they're doing, the meter, each surface's state, and any faults. Text sections are shown
+whole. A code section too long to show whole is shown as an outline of where things
+start in it, by line number, and the ludant reads and searches the rest with
+`read_section` and `search_sections`, the way coding agents work in a codebase. (Those
+two, with `write_section` and `edit_section`, are innate: always its own, whatever it does
+to its tools.) `experiments/soma-views` is where this was tried against showing the whole
+soma once per wake: it did as well or better, for the same cost, on 112 conversations.
+
+At the moments a ludant tends to slip, the frame nudges it once. For example, if a person
+woke it and it's about to go quiet without posting in the chat, the frame tells it.
 
 ### How it feels its own errors
 
 - **Won't compile or start** (a syntax error, or a game factory that throws): the section
-  keeps a *fault*. `write_section` returns it at once, and it's listed in the frame text
-  at every wake until fixed. Other sections keep running.
+  keeps a *fault*. `write_section` returns it at once, and it's listed in the note
+  on every think until fixed. Other sections keep running.
 - **Throws in a `stage.frame` handler**: the stage halts, which shows on the stage, and
   `stage.halted` wakes the ludant (the seed's hooks do that).
 - **Throws anywhere else** (a key or pointer handler, a hook, a timer, a promise nobody
@@ -149,7 +160,7 @@ promises that playing is free. Instead:
   amount), the frame says what it has cost, with "keep playing" and "leave". Nothing is
   stopped from outside. Cutting off a ludant's thinking would break a body whose hooks
   count on waking. Leaving is how a person stops.
-- **The ludant is told** at every wake what the sitting has cost, its rate, and who's
+- **The ludant is told** on every think what the sitting has cost, its rate, and who's
   paying, so it can be careful with it itself.
 - **Cost per hour of play**: heartbeats report time watched and spend. Those add up on
   the ludant and, while it's still exactly a published snapshot, on that publication, so

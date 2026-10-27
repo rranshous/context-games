@@ -125,10 +125,15 @@ export class Stage {
     this.flashEl.classList.remove('on'); void this.flashEl.offsetWidth; this.flashEl.classList.add('on');
   }
 
+  // What it is (the system text, which stays the same), and how it is now (drawn fresh for
+  // every think). Every surface splits these the same way, so the system text is cached.
   describe() {
-    const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
-    const mode = this.three ? ' It is drawing in 3D now (three.js under a 2D overlay).' : '';
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. Controllers: ${this.controllers() ? `${this.controllers()} connected now` : 'none connected right now'}; a game reads them through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input (and keys you still hold are let go when you stop thinking), and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").${mode}`;
+    return `stage: a canvas with a frame clock and keyboard/pointer input. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. A game reads controllers through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input (and keys you still hold are let go when you stop thinking), and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").`;
+  }
+
+  state() {
+    const running = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
+    return `stage: ${this.width}×${this.height}, ${running}${this.three ? ', drawing in 3D (three.js under a 2D overlay)' : ''}; controllers: ${this.controllers() ? `${this.controllers()} connected` : 'none connected'}.`;
   }
 
   actions() {
@@ -305,7 +310,7 @@ export class Stage {
     g.imageSmoothingEnabled = false;
     g.drawImage(this.canvas, 0, 0, c.width, c.height);
     const moment = ` This look is at game time ${this.t.toFixed(1)} s (frame ${this.count}).${this.caption ? ` Caption: "${this.caption}"` : ' No caption is set.'}`;
-    return { text: `${this.describe()}${moment}${k > 1 ? ` (This picture is enlarged ${k}× so pixels are clear; coordinates are still stage coordinates, ${this.width}×${this.height}.)` : ''}`, image: c.toDataURL('image/png') };
+    return { text: `${this.state()}${moment}${k > 1 ? ` (This picture is enlarged ${k}× so pixels are clear; coordinates are still stage coordinates, ${this.width}×${this.height}.)` : ''}`, image: c.toDataURL('image/png') };
   }
 
   mount(root) {

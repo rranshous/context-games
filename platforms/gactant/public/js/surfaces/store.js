@@ -24,8 +24,12 @@ export class Store {
   }
 
   describe() {
+    return `store: a persistent store for structured state (keys holding JSON values) that lasts across sittings, reloads and rebuilds of your game; it stays with this copy of you, so copies start with it empty, and holds up to ${LIMIT} characters. Actions (all synchronous): get(key, fallback), set(key, value), update(key, fn, fallback), delete(key), keys(prefix), all().`;
+  }
+
+  state() {
     const keys = Object.keys(this.data);
-    return `store: a persistent store for structured state (keys holding JSON values) that lasts across sittings, reloads and rebuilds of your game; it stays with this copy of you, so copies start with it empty. ${keys.length ? `${keys.length} keys (${keys.slice(0, 12).join(', ')}${keys.length > 12 ? ', …' : ''}), ${this.size()} of ${LIMIT} characters used` : 'Empty'}. Actions (all synchronous): get(key, fallback), set(key, value), update(key, fn, fallback), delete(key), keys(prefix), all().`;
+    return `store: ${keys.length ? `${keys.length} keys (${keys.slice(0, 12).join(', ')}${keys.length > 12 ? ', …' : ''}), ${this.size()} of ${LIMIT} characters used` : 'empty'}.`;
   }
 
   actions(who) {

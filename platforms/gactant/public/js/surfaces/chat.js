@@ -18,8 +18,10 @@ export class Chat {
   }
 
   describe() {
-    return `chat: a conversation shared by everyone in the frame (${this.messages.length} messages so far).`;
+    return 'chat: a conversation shared by everyone in the frame.';
   }
+
+  state() { return `chat: ${this.messages.length} messages so far.`; }
 
   actions(who) {
     return {
