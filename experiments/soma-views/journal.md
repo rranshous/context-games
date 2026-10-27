@@ -110,3 +110,37 @@ Rounds 2 and 3, with the probes and the live smoke test, cost $11.13 of key (jud
 - **Show the soma live, in a trailing system note.** It closed the keyhole gap in these trials (equal to full), keeps the system text cacheable across wakes, and the ludant always sees itself as it is. That's what Robby asked for: the reflection of the body is live. It costs about what showing the full body does today, because the note is paid fresh each call. A note of only what changed since waking should cut that; that's the next thing to try.
 - **Move the meter out of the cached prefix either way.** Today "Your thinking in this sitting has cost $X so far" sits after the soma and changes every wake, so every wake misses the cache for the whole soma. In the trailing note it costs nothing.
 - **Find the first-play miss.** It costs a full rewrite of the prefix once per wake that plays.
+
+## Checking the judge
+
+Robby: "Double check to make sure the environment and judging is good."
+
+- **The judge was never deterministic.** OpenRouter doesn't pass `temperature` for these models (it isn't in their supported parameters), so the `temperature: 0` did nothing.
+- **It now answers in a schema** (`response_format` json_schema) and is asked again if the answer doesn't parse or has the wrong number of scores. An API reply with no choices is retried too: that's what the Sonnet arcade trial with no tokens was.
+- **No diff was ever cut short** for the judge: 185 section diffs, the largest 8k characters, against a 14k cut.
+- **Judged again** (`--rejudge`): all 45 conversation trials, from their saved evidence, by Sonnet again and by Opus 5.5 ($2.53). Sonnet agreed with its own first scores on 97% of the 180 requests, and Opus agreed with them on 92%. Every view ranks the same under all three:
+
+| | Sonnet | Sonnet again | Opus |
+|---|---|---|---|
+| Haiku full | 1.92 | 1.96 | 1.92 |
+| Haiku outline | 1.75 | 1.79 | 1.79 |
+| Haiku live | 1.92 | 1.92 | 1.88 |
+| Sonnet full | 2.00 | 1.92 | 2.00 |
+| Sonnet outline | 1.83 | 1.83 | 1.83 |
+| Sonnet live | 2.00 | 2.00 | 2.00 |
+
+What the judge can't do: it reads the diff (with two lines around each change), the chat and two pictures. It checks code by reading it, and it doesn't run the feature. A shark that arrives at 14 seconds isn't in a picture taken at 9. So "done" means "a careful reviewer thinks it's done", and a second reviewer agrees.
+
+## delta: a smaller live note
+
+The live note is 7–12k characters, and most of it never changes: hooks, origin and tools are 60–80% of it. The game outline itself is 1.2–3.4k (6.1k on the arcade). So **delta** puts the soma as it was when the sitting began in the system text (the same for every wake, so it's cached), and puts only the sections changed since then in the trailing note, as they are now, with the meter and faults.
+
+Smoke test, Haiku on the Evevina conversation: 88% of input cached, 4% uncached (live: 63% and 18%), every wake started with the whole base soma from cache. But it scored [2, 2, 0, 2]: on the night-warning wake Haiku searched for "shark" about fifteen times, read the same stretch three times, and never edited. One trial can't tell a Haiku search loop from confusion between two copies of the game section (the old one above, the new one below). It's in the held-out run.
+
+## The first-play cache miss isn't the pictures
+
+A probe with the platform's exact shape (a tool result, then a user message of pictures with the cache mark on the last one) hit the cache. The likeliest cause now is time: the cache lasts five minutes, and on this machine (load near 18) the first play of a wake, which builds and runs the game in software 3D, can take that long. Calls are now logged with their time (`at`, seconds into the trial) to check. If so, it's the bench's, not the platform's.
+
+## Held-out conversations
+
+`convo2` in `tasks.mjs`: four new requests for each body, written after rounds 1–3 so no view was shaped on them, including one across games on the arcade (a cat in skuntin', then one in day-fishing too).

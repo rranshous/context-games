@@ -17,11 +17,13 @@ import { Store } from '/platforms/gactant/public/js/surfaces/store.js';
 const NAV = new Set(['read_section', 'search_sections', 'expand_code']);
 
 /** The real Actant, seeing its soma through a view, with the view's tools beside its own. */
+const LIVE = new Set(['live', 'delta']);   // views drawn (in whole or in part) after the conversation
+
 class Viewed extends Actant {
   constructor(chassis, soma, approach, navSchemas) {
     super(chassis, soma);
     this.approach = approach;
-    this.view = approach === 'live' ? 'outline' : approach;   // live is the outline, drawn after the conversation
+    this.view = LIVE.has(approach) ? 'outline' : approach;   // live is the outline, drawn after the conversation
     this.navSchemas = navSchemas;
   }
 
@@ -35,6 +37,15 @@ class Viewed extends Actant {
     if (this.approach === 'live') {
       return `${text.slice(0, open)}<soma name="${this.name}">\n(Shown in the system note at the end of the conversation, as it is right now, redrawn every time you think.)${text.slice(close)}`
         .replace('This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.', 'Your soma is shown as it is right now, in the system note at the end of the conversation: an edit you make shows there the next time you think.');
+    }
+    // delta: the soma as it was when this sitting began, the same for every wake of it so it's
+    // read from cache. A section changed since then is shown again, as it is now, in the
+    // system note at the end (run.mjs adds it), and that one is the one that counts.
+    if (this.approach === 'delta') {
+      this.base ??= { ...this.soma.sections };
+      const shown = await window.benchView('outline', this.base);
+      return `${text.slice(0, open)}<soma name="${this.name}" as-of="when this sitting began">\n${shown}${text.slice(close)}`
+        .replace('This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.', 'This is your soma as it was when this sitting began. A section you have changed since is shown again, as it is right now, in the system note at the end of the conversation, and that one is the one that counts: an edit you make shows there the next time you think.');
     }
     const shown = await window.benchView(this.view, this.soma.sections);
     return `${text.slice(0, open)}<soma name="${this.name}">\n${shown}${text.slice(close)}`;
@@ -119,7 +130,7 @@ async function build(soma) {
       throw new Error(`the bench has no ${what}`);
     },
   };
-  const nav = await window.benchNavSchemas(config.approach === 'live' ? 'outline' : config.approach);
+  const nav = await window.benchNavSchemas(LIVE.has(config.approach) ? 'outline' : config.approach);
   actant = new Viewed(chassis, soma, config.approach, nav);
   actant.rebuild();
   // The frame's clock, while it's awake: 15 ticks a second, not a display's 60. Checking

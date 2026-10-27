@@ -19,7 +19,7 @@ import { GAMES, PLAY, playFor } from './tasks.mjs';
 const ROOT = resolve(import.meta.dirname, '../..');
 const GACTANT = join(ROOT, 'platforms/gactant');
 const MODELS = { sonnet: 'anthropic/claude-sonnet-5.5', haiku: 'anthropic/claude-haiku-5.5' };
-const JUDGE = MODELS.sonnet;
+const JUDGES = { ...MODELS, opus: 'anthropic/claude-opus-5.5' };
 const PERSON = 'Robby';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, all) => (x.startsWith('--') ? [...a, [x.slice(2), all[i + 1]]] : a), []));
@@ -28,6 +28,7 @@ const games = list('games', Object.keys(GAMES).join(','));
 const tasks = list('tasks', 'tweak,feature,across');
 const approaches = list('approaches', APPROACHES.join(','));   // a view, and +split for a cache mark between the soma and the frame
 const models = list('models', 'sonnet,haiku');
+const JUDGE = JUDGES[args.judge ?? 'sonnet'];
 const reps = Number(args.reps ?? 1), parallel = Number(args.parallel ?? 2), floor = Number(args.floor ?? 4);
 const out = resolve(args.out ?? `runs/${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`);
 mkdirSync(out, { recursive: true });
@@ -44,8 +45,9 @@ async function openrouter(body) {
       body: JSON.stringify({ max_tokens: 32000, usage: { include: true }, provider: { order: ['anthropic'], allow_fallbacks: true }, ...body }),
     });
     const json = await res.json().catch(() => ({}));
-    if (res.ok && !json.error) return json;
-    if (attempt < 3 && (res.status === 429 || res.status >= 500 || json.error?.code >= 500)) { await new Promise((r) => setTimeout(r, 4000 * (attempt + 1))); continue; }
+    if (res.ok && !json.error && json.choices?.length) return json;
+    // An answer with no choices (it happens: no tokens, no error) is tried again too.
+    if (attempt < 3 && (res.status === 429 || res.status >= 500 || json.error?.code >= 500 || (res.ok && !json.error))) { await new Promise((r) => setTimeout(r, 4000 * (attempt + 1))); continue; }
     throw new Error(`openrouter ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 300)}`);
   }
 }
@@ -124,17 +126,30 @@ async function judge(trial, before, after, changes, chat) {
   const pic = (url) => ({ type: 'image_url', image_url: { url } });
   const changed = changes.map((c) => `### section ${c.section} (+${c.added} −${c.removed} lines)\n${c.text.slice(0, 14000)}`).join('\n\n') || '(no code section changed)';
   const said = chat.filter((m) => m.who !== PERSON).map((m) => `- ${m.text}`).join('\n') || '(it said nothing in the chat)';
-  const res = await openrouter({
-    model: JUDGE, max_tokens: 1500, temperature: 0,
+  const body = {
+    model: JUDGE, max_tokens: 1500,
+    response_format: { type: 'json_schema', json_schema: { name: 'verdict', strict: true, schema: VERDICT } },
     messages: [{ role: 'user', content: [
       { type: 'text', text: `You are grading an AI that changed its own browser game's code because a player asked.\n\nThe game: ${GAMES[trial.game].about}\n${asked}\n\nWhat the AI said to the player in the chat:\n${said}\n\nWhat changed in the code:\n${changed}\n\nBelow: a picture of the game before the change, then after it, both taken after the same scripted few seconds of play (waiting, a press of space, arrows, a click). The game was rebuilt from scratch for each. ${after.faults && Object.keys(after.faults).length ? `After the change, building the code reported faults: ${JSON.stringify(after.faults)}.` : 'After the change, the code built without faults.'} ${after.halted ? `The game halted while playing: ${after.halted}.` : ''} ${after.errors?.length ? `Errors while playing: ${JSON.stringify(after.errors).slice(0, 800)}.` : 'No errors while playing.'}\n\nJudge from the code mostly; the pictures only show the game still works and how it looks. Answer with only a JSON object: {"each": [one 0/1/2 per line the player said], "done": 2 if the request is fully and sensibly done, 1 if partly or with a real flaw, 0 if not done, "broke": true if the change broke something that worked before (the game no longer runs, or a feature it had is gone), "notes": "one or two sentences"}` },
       { type: 'text', text: 'Before:' }, pic(before.pics.at(-1)), { type: 'text', text: 'After:' }, pic(after.pics.at(-1)),
     ] }],
-  });
-  const text = res.choices?.[0]?.message?.content ?? '';
-  try { return { ...JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)), cost: res.usage?.cost ?? 0 }; }
-  catch { return { done: null, broke: null, notes: `judge said: ${text.slice(0, 300)}`, cost: res.usage?.cost ?? 0 }; }
+  };
+  let cost = 0, text = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await openrouter(body);
+    cost += res.usage?.cost ?? 0;
+    text = res.choices?.[0]?.message?.content ?? '';
+    try {
+      const v = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      if (Array.isArray(v.each) && v.each.length === trial.requests.length) return { ...v, cost, judge: JUDGE };
+    } catch {}
+  }
+  return { done: null, broke: null, notes: `judge said: ${text.slice(0, 300)}`, cost, judge: JUDGE };
 }
+
+const VERDICT = { type: 'object', additionalProperties: false, required: ['each', 'done', 'broke', 'notes'], properties: {
+  each: { type: 'array', items: { type: 'integer', enum: [0, 1, 2] } }, done: { type: 'integer', enum: [0, 1, 2] }, broke: { type: 'boolean' }, notes: { type: 'string' },
+} };
 
 /** A wake's conversation, shortened: what woke it, what it thought and called, what came back. */
 const clip = (x, n) => { const s = typeof x === 'string' ? x : Array.isArray(x) ? x.map((c) => c.text ?? `[${c.type}]`).join(' ') : JSON.stringify(x ?? ''); return s.length > n ? `${s.slice(0, n)}…` : s; };
@@ -150,9 +165,17 @@ async function trial(t) {
   const onInfer = async ({ messages, tools, name, sections, faults }) => {
     // live: the soma as it is right now, and the meter, after everything else, so the
     // cached prefix (the system text and the conversation) never changes for it.
-    if (view === 'live') {
+    // delta: only the sections changed since the sitting began (the system text has the rest).
+    if (view === 'live' || view === 'delta') {
       const f = Object.entries(faults ?? {}).map(([k, v]) => `- ${k}: ${v}`).join('\n');
-      messages = [...messages, { role: 'system', content: `<soma name="${name}" as-of="now">\n${renderSections('outline', sections)}\n</soma>\nYour thinking in this sitting has cost $${m.cost.toFixed(2)} so far.${f ? `\nFaults in your code sections right now:\n${f}` : ''}` }];
+      m.base ??= { ...sections };
+      const changed = Object.fromEntries(Object.entries(sections).filter(([k, v]) => m.base[k] !== v));
+      const gone = Object.keys(m.base).filter((k) => !(k in sections));
+      const soma = view === 'live' ? `<soma name="${name}" as-of="now">\n${renderSections('outline', sections)}\n</soma>`
+        : Object.keys(changed).length || gone.length
+          ? `Sections changed since this sitting began, as they are now:\n<soma name="${name}" as-of="now">\n${renderSections('outline', changed)}${gone.length ? `\n(removed: ${gone.join(', ')})` : ''}\n</soma>`
+          : 'No section of your soma has changed since this sitting began.';
+      messages = [...messages, { role: 'system', content: `${soma}\nYour thinking in this sitting has cost $${m.cost.toFixed(2)} so far.${f ? `\nFaults in your code sections right now:\n${f}` : ''}` }];
     }
     if (m.calls >= 40 * t.requests.length) throw new Error('the bench stops a trial after 40 calls a wake');
     // +split: what the site would do with a second cache mark, after the soma and before the
@@ -167,11 +190,11 @@ async function trial(t) {
     m.calls++; m.prompt += u.prompt_tokens ?? 0; m.completion += u.completion_tokens ?? 0; m.cost += u.cost ?? 0;
     m.cached += u.prompt_tokens_details?.cached_tokens ?? 0; m.written += u.prompt_tokens_details?.cache_write_tokens ?? 0;
     m.firstPrompt ??= u.prompt_tokens;
-    m.log.push({ wake: m.wakes.length, prompt: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens ?? 0, written: u.prompt_tokens_details?.cache_write_tokens ?? 0, completion: u.completion_tokens, cost: u.cost ?? 0 });
+    m.log.push({ wake: m.wakes.length, at: Math.round((Date.now() - m.started) / 1000), prompt: u.prompt_tokens, cached: u.prompt_tokens_details?.cached_tokens ?? 0, written: u.prompt_tokens_details?.cache_write_tokens ?? 0, completion: u.completion_tokens, cost: u.cost ?? 0 });
     for (const c of res.choices?.[0]?.message?.tool_calls ?? []) m.tools[c.function.name] = (m.tools[c.function.name] ?? 0) + 1;
     return res;
   };
-  const page = await benchPage(onInfer, () => company(ludant, m.cost, view === 'live'));
+  const page = await benchPage(onInfer, () => company(ludant, m.cost, view === 'live' || view === 'delta'));
   try {
     await page.evaluate((cfg) => window.bench.start(cfg), { soma: ludant.soma, art, approach: view, context: CONTEXT, person: PERSON });
     for (const text of t.requests) {
@@ -215,11 +238,40 @@ if (args.dry) {
   await browser.close(); server.close(); process.exit(0);
 }
 
+// ---------- judging again: the same evidence, judged again (by the same judge, or another) ----------
+//   node run.mjs --rejudge runs/r2-convo,runs/r2-arcade --judge opus --out runs/judge-opus
+
+if (args.rejudge) {
+  const befores = {};
+  const rows = list('rejudge').flatMap((d) => readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => join(d, f)));
+  for (const path of rows) {
+    const r = JSON.parse(readFileSync(path, 'utf8'));
+    const file = join(out, `${r.id}.json`);
+    if (existsSync(file)) continue;
+    const key = `${r.game}/${r.task}`;
+    if (!befores[key]) {
+      const ludant = JSON.parse(readFileSync(join(import.meta.dirname, 'data', `${r.game}.json`), 'utf8'));
+      const page = await benchPage(async () => { throw new Error('no thinking when judging again'); }, () => company(ludant));
+      await page.evaluate((cfg) => window.bench.start(cfg), { soma: ludant.soma, art: ludant.art, approach: 'full', context: CONTEXT, person: PERSON });
+      befores[key] = await page.evaluate(([soma, steps]) => window.bench.play(soma, steps), [ludant.soma, playFor(r.game, r.task)]);
+      await page.close();
+    }
+    const dir = path.slice(0, path.lastIndexOf('/'));
+    const pics = readdirSync(dir).filter((f) => f.startsWith(`${r.id}-after-`)).sort().map((f) => `data:image/png;base64,${readFileSync(join(dir, f)).toString('base64')}`);
+    const texts = Object.fromEntries((r.diff ?? '').split(/^### /m).filter(Boolean).map((p) => [p.slice(0, p.indexOf('\n')), p.slice(p.indexOf('\n') + 1)]));
+    const changes = r.changed.map((c) => ({ ...c, text: texts[c.section] ?? '' }));
+    const verdict = await judge(r, befores[key], { pics, faults: r.faults, halted: r.halted, errors: r.errors }, changes, r.said.map((text) => ({ who: 'ludant', text })));
+    writeFileSync(file, JSON.stringify({ id: r.id, from: path, model: r.model, approach: r.approach, before: r.verdict, verdict }, null, 1));
+    console.log(`${r.id}: was ${JSON.stringify(r.verdict.each)} now ${JSON.stringify(verdict.each)}`);
+  }
+  await browser.close(); server.close(); process.exit(0);
+}
+
 // ---------- the plan ----------
 
 const plan = [];
 for (let rep = 1; rep <= reps; rep++) for (const game of games) for (const task of tasks) for (const model of models) for (const approach of approaches) {
-  const requests = task === 'convo' ? GAMES[game].convo : [GAMES[game].tasks[task]];
+  const requests = task.startsWith('convo') ? GAMES[game][task] : [GAMES[game].tasks[task]];
   if (!requests?.[0]) continue;
   plan.push({ id: `${game.split('-')[0]}-${task}-${model}-${approach}-${rep}`, game, task, model, approach, rep, requests });
 }
