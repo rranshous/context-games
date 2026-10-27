@@ -125,7 +125,7 @@ async function judge(trial, before, after, changes, chat) {
   const asked = trial.requests.length === 1 ? `The player asked: "${trial.requests[0]}"`
     : `Over one sitting the player said these, in order (the AI woke for each, remembering only what it wrote into itself):\n${trial.requests.map((r, i) => `${i + 1}. "${r}"`).join('\n')}\nJudge "done" over everything that asked for a change (a question only needed a true answer in the chat), and give each line its own score in "each".`;
   const pic = (url) => ({ type: 'image_url', image_url: { url } });
-  const changed = changes.map((c) => `### section ${c.section} (+${c.added} −${c.removed} lines)\n${c.text.slice(0, 14000)}`).join('\n\n') || '(no code section changed)';
+  const changed = changes.map((c) => `### section ${c.section} (+${c.added} −${c.removed} lines)\n${c.text.slice(0, 80000)}`).join('\n\n') || '(no code section changed)';
   const said = chat.filter((m) => m.who !== PERSON).map((m) => `- ${m.text}`).join('\n') || '(it said nothing in the chat)';
   const body = {
     model: JUDGE, max_tokens: 1500,

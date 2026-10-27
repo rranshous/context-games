@@ -169,3 +169,30 @@ The new requests are harder than the old: every view scores lower. Live leads fu
 **The first-play cache miss is the bench's.** Calls now carry their time. Of 12 total misses within a wake, 11 came after a gap of 300 to 518 seconds; of 306 hits, none came after more than 342 (the median gap is 4). It's the five-minute cache lifetime, crossed when a play on this starved machine takes minutes. On the platform a play is fast, so a wake doesn't pay it.
 
 **But it matters for the platform between wakes.** Live's main saving is a wake opening on a cached prefix, and that only happens if the wake comes within five minutes of the last call. People talking with a ludant often leave longer gaps than that. Anthropic's cache can be marked to last an hour instead (`cache_control: { type: 'ephemeral', ttl: '1h' }`), at twice the price to write it instead of 1.25×. For a stable prefix that's read at the next wake, that's worth it, and with live the prefix is stable. Untested here.
+
+## The proof: the verdict
+
+All 112 trials ran (28 conversations per arm per model, 448 requests), judged by Sonnet and again by Opus. They agreed on 93% of requests. `node prove.mjs runs/proof runs/proof-opus` applies the rule:
+
+| model | judge | full | live | live − full | 95% lower bound (needs > −0.1) | broke full / live | |
+|---|---|---|---|---|---|---|---|
+| Sonnet | Sonnet | 1.821 | 1.911 | +0.089 | −0.014 | 0 / 0 | pass |
+| Sonnet | Opus | 1.857 | 1.884 | +0.027 | −0.070 | 0 / 0 | pass |
+| Haiku | Sonnet | 1.848 | 1.884 | +0.036 | −0.029 | 2 / 3 | **fail** |
+| Haiku | Opus | 1.839 | 1.893 | +0.054 | −0.010 | 1 / 1 | pass |
+
+**On Sonnet, live is proven at least as good as full,** under both judges, with live ahead by a little under each.
+
+**On Haiku, live scores at least as well under both judges, but it fails the rule as written,** by one break, under one judge. All five breaks Sonnet called (and both Opus called) are one request: on the arcade, "put a cat on the boat; if I reel in a fish while it is there, it eats it." Both views built a cat that never leaves, so fishing can't score, and whether that's "broke" is a coin the judges flip. It's my request that's at fault: it's ambiguous. Left out (`--without arcade-convo2`, a separate look, not the rule), every row passes and no view breaks anything. The rule stands as it was set: Haiku is not proven by it; Sonnet is.
+
+**Cost: the same.** Live takes nearly twice the calls (Haiku 19 to 10, Sonnet 21 to 12), reading and searching what full has in front of it, and each is smaller. Per conversation it comes out even: Haiku $0.024 to $0.026, Sonnet $0.52 to $0.52.
+
+**Two judging faults found on the way, both fixed and rejudged:**
+- *The judge saw only the first 14,000 characters of a diff.* That held for every trial in rounds 1–4, but seven of Sonnet's proof conversations (four requests of changes on the biggest bodies) went past it. In one, the speed change was at character 15,265, so the judge said it was never made and scored it 0. The cut is now 80,000, and all seven were judged again by both judges with the whole diff.
+- *Twice the judge's answer came back empty three times running.* Both were judged again.
+
+Proof run and judging: about $32.
+
+## Where this leaves gactant
+
+Show the soma as an outline in a trailing system note, redrawn every call, with read and search tools, and the cost meter and faults in the note instead of the cached prefix. On Sonnet it's proven at least as good as showing the whole soma, on Haiku it scored at least as well and the one thing against it is an ambiguous request. It costs the same per conversation now, at today's body sizes; outline's saving grows with the body (half the cost on the arcade), and the prefix stays the same across wakes, so with an hour-long cache mark a wake that comes back later still reads it from cache.
