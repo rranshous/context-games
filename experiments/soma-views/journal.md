@@ -47,3 +47,66 @@ It cost $7.68 of key, judge included; $17.23 left. "done" is the judge's 0/1/2, 
 **Haiku gets the self-reflective body now.** It searched its body, read it, edited it exactly and told the player what it did, at about 1/20th of Sonnet's cost and with no extra scaffolding. Its misses are judgment, not mechanics. "A *little* more patient" turned skunks 3–4× more patient in all six of its trials. Both models doubled the red fish along with the golden one.
 
 **Skeleton isn't worth it over outline.** It's bigger, needs as many calls, and scored no better. Searching and reading lines fits what the models are trained on, which matches Robby's earlier result that grep beats a section-loading scheme.
+
+## Round 2: a grown body, and conversations
+
+**The arcade** (`make-arcade.mjs`): Genek's soma with its game grown into a cabinet of three (sword-walk, day-fishing and skuntin', kept whole as inner functions, switched with 1, 2 and 3). The game section is 97k characters and 1,609 lines, and the soma is 108k, more than any live ludant has yet. Four requests (one per game, plus a badge across all three), 2 reps, 32 trials.
+
+| | done | broke | $ / trial |
+|---|---|---|---|
+| Haiku full | 1.63 | 1 | 0.017 |
+| Haiku outline | 1.75* | 0 | 0.007 |
+| Sonnet full | 2.00* | 0 | 0.242 |
+| Sonnet outline | 2.00 | 0 | 0.132 |
+
+\* Two trials are measurement errors, left out here. One Sonnet full trial got a reply with no tokens from the API and did nothing (scored 0). One Haiku outline trial's judge answer didn't parse (counted 0, though its notes are favourable). The runner should retry both kinds; it doesn't yet.
+
+The only broken game in either round was Haiku with the full arcade in front of it. It called `T_X(f.i)` and `T_Z(f.i)`, which exist nowhere in the body, so felling a tree threw on every frame. Both failed edits on the arcade were also full: an `old` text that appeared more than once. With a whole big body in view, the model writes from its impression of it instead of looking. On the big body outline cost half as much on both models.
+
+**Conversations** (`convo` in `tasks.mjs`): four wakes in a row on one body, each starting with fresh messages, as the platform does: a feature, a question about it, a follow-up that changes it, then a tweak elsewhere. Only the soma carries what happened. Haiku 6 per view (3 ludants × 2), Sonnet 3–6. Scores are per request.
+
+| | per request | by wake | $ / convo | calls | cached | uncached | wakes started from cache |
+|---|---|---|---|---|---|---|---|
+| Haiku full | 1.92 | 2 2 2 1.67 | 0.018 | 10 | 68% | 0 | 6/18 |
+| Haiku full+split | 1.88 | 2 1.83 2 1.67 | 0.017 | 11 | 77% | 0 | 7/18 |
+| Haiku outline | 1.75 | 2 2 1.67 1.33 | 0.016 | 19 | 75% | 0 | 6/18 |
+| Haiku outline+split | 1.88 | 2 2 1.83 1.67 | 0.015 | 19 | 84% | 0 | 7/18 |
+| Haiku live | 1.92 | 2 2 2 1.67 | 0.021 | 17 | 63% | 18% | 17/18 |
+| Sonnet full | 2.00 | 2 2 2 2 | 0.421 | 13 | 68% | 0 | 1/9 |
+| Sonnet outline | 1.83 | 2 1.5 2 1.83 | 0.317 | 20 | 78% | 0 | 2/18 |
+| Sonnet live | **2.00** | 2 2 2 2 | 0.411 | 20 | 67% | 16% | 15/18 |
+
+Nothing broke in any conversation.
+
+**What the lower scores are.** Robby asked what the trade-offs are, relative to full. Reading every judge note under 2:
+- *Most misses are the model's, under every view.* "A little more patient" made Haiku's skunks 2.5–5× more patient in 8 of its 10 Anithis conversations, under every view. "Make each slash reach further" changed only the wide slash's radius, under full and outline alike.
+- *Outline's own cost is a keyhole.* Haiku, asked to warn before the shark at night, searched "shark" and edited from the three-line snippets the search returned, never reading the loop around them. It missed that the spawn timer keeps counting while a shark is on screen, so at night the warning is often skipped. Sonnet, asked on a fresh wake how to keep fish from the shark, read one stretch and gave advice (move the boat sideways) that doesn't help a shark that crosses the whole screen. Full has the surroundings in view for free; outline sees what it chose to look at, and it chooses least on follow-up wakes, where it has to rediscover its own earlier work.
+- *Full's own cost is overconfidence.* That's the arcade crash and the failed edits above. It grows with the body.
+
+## Round 3: live
+
+The **live** view (`live` in `body.js` and `run.mjs`) takes the soma out of the system text altogether. The system text keeps a line saying where the soma is, and stays the same for every call of every wake while the soma changes. The outline of the soma as it is right now goes in a system message at the end of the conversation, redrawn for every call, with the meter and the faults. Sonnet 5.5 and Haiku 5.5 take a system message after a tool result or user message, and OpenRouter passes it through. The probes are in this session's scratchpad (`trailing*.mjs`): after a tool result both models act on such a note, and the cached prefix before it still hits while the note changes.
+
+Robby: "I have confidence the trailing system message will work, let's prove that."
+
+**It works.** Live scored the same as full on both models: Sonnet 2.00 on all 24 requests, Haiku 1.92, its only misses being the skunk overshoot every view has. Outline scored 1.75 and 1.83. They're the same outline: live differs only in where it's shown (last, labelled "as it is right now") and when (every call, not once per wake). With six trials a view that's one or two requests, so it's a lead rather than a proof. It does point the same way as the keyhole misses, which were on later wakes.
+
+**What it costs.** About what full costs, and 30% more than outline: Sonnet $0.41 a conversation, against $0.42 for full and $0.32 for outline.
+- *Across wakes it does what it was for.* 32 of 36 wakes after the first started with the static prefix (about 5.9k tokens) read from cache. Under the other views a wake after an edit misses everything: only 29 of 99 started from cache.
+- *Within a wake the note is paid in full every call.* It's 2.7k tokens, new each call, so it can never be read from cache: 16–18% of all input, about $0.10 a Sonnet conversation. I first told Robby a cache mark on the note would fix this. It wouldn't: the next call's note is different, so a cached copy of this one is never read. The cache already reaches the last message before the note. This cost is the price of being live.
+- *The extra cost sits in the first wake* (Sonnet live $0.22, outline $0.14), the feature, which takes the most calls.
+
+What would make it cheaper: shrink the note, not cache it. Show the outline once, in the cached prefix as of waking, and put in the trailing note only what has changed since waking (the edited stretches, the meter, the faults). A wake that only answers a question then pays for almost no note. That's untested.
+
+**An open cache puzzle.** In every view, the call after the model's first `play` in a wake often misses the cache completely, even the system text: 15 times in about 70 plays. Then the next calls hit again. A probe showed a picture alone doesn't do it, and it isn't OpenRouter falling back to another provider (every call went to Anthropic). Not explained yet. The platform pays it too.
+
+**The split** (a second cache mark between the soma and the frame) raised the cached share 8–9 points in both views, but only 1 more of 18 wakes started from cache: once the soma is edited, everything after it misses whatever the marks. It's worth having, for Haiku pennies, and it's what the platform should do short of live.
+
+Rounds 2 and 3, with the probes and the live smoke test, cost $11.13 of key (judge included). $6.10 is left.
+
+## For gactant
+
+- **Show a big body as an outline, with read and search.** It matches full on quality for single requests, costs half as much on the biggest body, and avoided the one break. Its weakness is a keyhole on follow-ups.
+- **Show the soma live, in a trailing system note.** It closed the keyhole gap in these trials (equal to full), keeps the system text cacheable across wakes, and the ludant always sees itself as it is. That's what Robby asked for: the reflection of the body is live. It costs about what showing the full body does today, because the note is paid fresh each call. A note of only what changed since waking should cut that; that's the next thing to try.
+- **Move the meter out of the cached prefix either way.** Today "Your thinking in this sitting has cost $X so far" sits after the soma and changes every wake, so every wake misses the cache for the whole soma. In the trailing note it costs nothing.
+- **Find the first-play miss.** It costs a full rewrite of the prefix once per wake that plays.

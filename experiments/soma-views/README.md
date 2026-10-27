@@ -13,14 +13,19 @@ Nothing here touches gactant: the bench imports the platform's `Actant`, `StageB
 | `full` | all of it (gactant today) | none |
 | `outline` | where things start, by line number (functions, methods, tools, banner comments) | `read_section(section, from, to)`, `search_sections(pattern, section)` |
 | `skeleton` | the code, with the bodies of long functions folded to `{ /* 23 lines folded: expand_code("game", "chop") */ }` | `expand_code(section, name)` |
+| `live` | the outline, not in the system text but in a system message at the end of the conversation, redrawn every call with the meter and faults; the system text stays the same all along | as outline |
+
+Add `+split` to any view (`outline+split`) for a second cache mark between the soma and the frame.
 
 A code section is folded when it's over 3,000 characters. Text sections (identity, memory and the rest) are always shown whole. Every view changes the body the same way, with the platform's own `edit_section` and `write_section`.
 
 ## A trial (`run.mjs`)
 
-1. A fresh body built from a copy of a ludant (`data/`, from `fetch-somas.mjs`) hears one request in its chat from Robby. It thinks with its usual loop (the platform's own `think()`, up to 16 turns), using its own tools: look at the stage, play, say. Art painting is off.
+1. A fresh body built from a copy of a ludant (or `data/arcade.json`, three games grown into one body, from `make-arcade.mjs`) (`data/`, from `fetch-somas.mjs`) hears one request in its chat from Robby. It thinks with its usual loop (the platform's own `think()`, up to 16 turns), using its own tools: look at the stage, play, say. Art painting is off.
 2. A fresh build of what it became is played by a fixed script (`PLAY` in `tasks.mjs`) and looked at, and the same is done for the original.
 3. A judge (Sonnet 5.5) reads the request, what it said, the diff and both pictures, and answers `done` (0/1/2), `broke` and `notes`.
+
+The `convo` task is four requests on one body, each a new wake with fresh messages, as the platform does; the judge scores each.
 
 Each trial records its cost, calls, tokens (first prompt, total, cached), seconds, tool use, edits that failed, faults and errors. They go in `runs/<name>/<trial>.json`, with the after pictures and a `summary.tsv`.
 
