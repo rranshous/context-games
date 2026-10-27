@@ -2469,3 +2469,33 @@ fresh climb (3,000 ticks) and petri dish (4,000) identical in grid, rng, every l
 dead-id lookups and the record list; s1's checkpoint run 200 ticks on both, identical.
 On s1 now: heap 414 → 49 MB, rss 2.7 GB → 0.65 GB, a save 745 → 293 MB unzipped (most
 of what's left is the grid's typed arrays) in 2.8 s, ticks as fast as before.
+
+## s2 and s4 on the new code; how the giant fell
+
+s2 and s4 restarted from their first format-3 checkpoints (`HEAP=12288 ./bake.sh 2`, `4`)
+on 2026-10-24. Three days on (s2 1.25M ticks, s4 1.19M): no errors, about 3.2 GB each and
+flat for two days while the populations levelled off (s2 ~151k, s4 ~124k; they were 8–13 GB
+and climbing before the memory fixes). Ticks have slowed with crowding, 0.8 → 1.4 s for s2,
+1.2 → 1.5 s for s4. Thinning holds `runs/bake` at about 14 GB. s1, s3, s7 and s13 stay
+paused (4.9M, 5.9M, 6.7M, 14.4M ticks).
+
+s2's timeline: ~2,400 bodies and a biggest of 191 from 300k to 700k, then the breakout boom
+(2k → 100k by 1M), then one body. Climber·27349073 held the biggest from ~1.03M to 1.124M,
+growing 7 cells every 2,000 ticks to 1,447, genome 10k → 12.8k glyphs, its IP's y fixed at
+~10,310: it barely moved. Mass 2,880 gives it a pace of 0.019, an action every ~50 ticks.
+Nobody had bitten it since tick 976,783.
+
+A replay from the t1,120,000 checkpoint, watching it tick by tick (scratch scripts
+`watch.ts`, `cut.ts`): it didn't die when it dropped off the timeline. At t1,124,521 one
+bite (`destroy` → `unreached`) cut it at a narrow point: 1,141 cells cut off at once, 388
+to debris, 752 gone, 308 kept. It regrew to 360 by 1.128M; by 1.235M it's dead (a
+tombstone keeps no cause or tick). The biggest since: ~600–700 cells, genomes ~650 glyphs.
+A sprawling giant carries its own weak points: the one bite that cost it 80% of itself.
+
+Loose thread: that tick also had 6,894 births (the ticks around it ~280), then 4,331,
+1,948, 1,381, while the population barely moved, so as many died. A coincidence of
+something worldwide or the counting; not run down yet.
+
+Noted, not fixed: a tombstone's `home` is the founder's `home` object, and the y-shift
+walks every record (`shift(wr.home)`), so a founder's start room may shift twice whenever
+its lineage has a tombstone. Only the start-room stats read it.
