@@ -103,6 +103,11 @@ async function world(env, request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // One address for each site: https, and the bare domain. Plain http and www. are sent
+    // there for good.
+    if (!url.host.endsWith('.workers.dev') && (url.protocol === 'http:' || url.host.startsWith('www.'))) {
+      return Response.redirect(`https://${url.host.replace(/^www\./, '')}${url.pathname}${url.search}`, 301);
+    }
     // The workers.dev address answers only what's running, so a deploy can be checked from
     // networks that block the site's own domain (tools/deploy.mjs).
     // It also takes the admin routes (they need the admin token wherever they're asked), so

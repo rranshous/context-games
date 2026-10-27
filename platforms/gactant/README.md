@@ -319,6 +319,8 @@ own.
 - There's no install key, so everyone thinks on their own OpenRouter account.
 - `SANDBOX_ORIGIN` names a second domain that serves only the sandbox, so a ludant's
   code runs in its own browser process.
+- Each site has one address: plain http and `www.gactant.com` are sent to
+  `https://gactant.com` (or `https://gactantbox.com`) with a 301, by the Worker.
 
 Both hosts run the same `core.mjs`: every route, given a store (`get`/`put`/`list` of
 JSON documents by kind: `ludants`, `published`, `checkpoints`, `names`). That's about

@@ -2149,3 +2149,7 @@ Robby: "Sonnet 5.5 supports trailing system messages so we can use system messag
 **Checked end to end** (a local install, a fresh seed, Sonnet 5.5): "Make the dot orange, and tell me what you changed" → it changed `#e8a33d` to `#ff7a00` and said so; the next wake, "What colour is the dot now, and where in your game is that set?" → "orange, #ff7a00, in frame(), on the line `ctx.fillStyle = '#ff7a00';`". Every call ended with the note. The logs record the last message of the conversation, not the note after it.
 
 Next, untested: Anthropic's hour-long cache mark (`ttl: '1h'`) on the system text, so a ludant someone comes back to after five minutes still reads it from cache.
+
+### www, and http
+
+Robby: "can you make sure that www.gactant.com works and that http forward to https plz". `www.gactant.com` had no DNS record at all. It's now a custom domain on the Worker (so Cloudflare made the record and the certificate), and the Worker sends plain http, and any `www.`, on to the https bare domain with a 301, keeping the path. Checked from outside (hackertarget's header fetch, since Spectrum's filter here answers plain http itself): http://gactant.com/rules.html, http://www.gactant.com/rules.html and https://www.gactant.com/rules.html all 301 to https://gactant.com/rules.html, which answers 200, and http://gactantbox.com/ goes to https://gactantbox.com/. No HSTS header yet: that waits on the preload decision.

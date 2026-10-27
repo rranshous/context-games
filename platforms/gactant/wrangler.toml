@@ -8,6 +8,7 @@ compatibility_date = "2025-09-01"
 # browser process). The Worker serves only the sandbox on gactantbox.com.
 routes = [
   { pattern = "gactant.com", custom_domain = true },
+  { pattern = "www.gactant.com", custom_domain = true },   # the Worker sends it on to gactant.com
   { pattern = "gactantbox.com", custom_domain = true },
 ]
 
