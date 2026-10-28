@@ -20,16 +20,16 @@ h1 { font-weight: normal; letter-spacing: 0.3em; text-transform: uppercase; marg
 #pick h1 { font-size: 40px; }
 .lede { color: var(--dim); max-width: 520px; margin: 16px auto 36px; }
 #aids { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-.aid { display: flex; flex-direction: column; gap: 6px; padding: 0 0 18px; overflow: hidden; text-align: left; }
-.aid img { width: 100%; aspect-ratio: 1; object-fit: cover; margin-bottom: 8px; }
-.aid > :not(img) { padding: 0 18px; }
-.aid strong { font-size: 20px; }
-.aid .title { color: var(--dim); }
-.aid .craft { display: flex; flex-wrap: wrap; gap: 5px; }
-.aid .craft .ability { padding: 2px 8px 2px 6px; font-size: 12px; }
+#aids .aid { display: flex; flex-direction: column; gap: 6px; padding: 0 0 18px; overflow: hidden; text-align: left; }
+#aids .aid img { width: 100%; aspect-ratio: 1; object-fit: cover; margin-bottom: 8px; }
+#aids .aid > :not(img) { padding: 0 18px; }
+#aids .aid strong { font-size: 20px; }
+#aids .aid .title { color: var(--dim); }
+#aids .aid .craft { display: flex; flex-wrap: wrap; gap: 5px; }
+#aids .aid .craft .ability { padding: 2px 8px 2px 6px; font-size: 12px; }
 #pick .aid:nth-child(1) { --aid: #7fb36a; }
 #pick .aid:nth-child(2) { --aid: #d0a050; }
-.aid .lean { font-size: 13px; color: var(--dim); }
+#aids .aid .lean { font-size: 13px; color: var(--dim); }
 
 /* ---------- the lab ---------- */
 #lab { display: grid; height: 100vh; height: 100dvh; grid-template: auto minmax(0, 1fr) auto / minmax(300px, 1fr) minmax(420px, 1.4fr); gap: 1px; background: var(--line); }
@@ -46,7 +46,8 @@ h1 { font-weight: normal; letter-spacing: 0.3em; text-transform: uppercase; marg
 #who img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--aid); }
 #who div { display: flex; flex-direction: column; }
 #who span { color: var(--dim); font-size: 13px; }
-#log { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+#log { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+#log > * { flex-shrink: 0; }   /* a long talk scrolls; its messages keep their size */
 #log p { margin: 0; max-width: 92%; white-space: pre-wrap; }
 #log .aid { border-left: 2px solid var(--aid); padding-left: 10px; }
 #log .me { align-self: flex-end; background: var(--panel); padding: 6px 10px; border-radius: 8px; }
@@ -240,9 +241,12 @@ body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
 
 @media (max-width: 800px) {
   #lab { height: auto; min-height: 100dvh; grid-template: auto auto auto auto / minmax(0, 1fr); }
-  #lab header #front { margin-left: auto; }
-  #switch { margin-left: 0; order: 3; }
-  #lab header { flex-wrap: wrap; gap: 8px 14px; }
+  /* three lines: who you're with; how it thinks; where to go */
+  #lab header { flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  #thinking { order: 2; flex-basis: 100%; }
+  #lab header a.quiet { order: 3; margin-left: 0; }
+  #switch { order: 3; margin-left: 0; padding-left: 0; }
+  #lab header #front { order: 4; margin-left: auto; }
   #talk { height: 55dvh; }
   #bench { grid-template-columns: minmax(0, 1fr); overflow: visible; }
   #art img { max-height: 40vh; }

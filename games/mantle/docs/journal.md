@@ -561,3 +561,18 @@ website".
   commander, and a picture stays stored after its design is deleted.
 - **Not yet:** `security.txt` and a contact address both need the email Robby hasn't
   picked.
+
+### The squished chat
+
+Robby: the lab's chat "gets squished as the length grows", on mobile too. Two causes stacked:
+
+- **Flex shrink.** The log is a flex column, and flex items shrink by default. Once a talk
+  outgrew the box, every message got squeezed instead of the log scrolling. Fixed with
+  `#log > * { flex-shrink: 0 }`.
+- **A shared class name.** The aid's messages are `p.aid`, and the opening screen's cards
+  are `button.aid`. The bare `.aid` card rules (flex, bottom padding, `overflow: hidden`)
+  were also landing on every message. `overflow: hidden` is what let them shrink to slivers.
+  The card rules are now scoped to `#aids .aid`.
+- **Also:** the FAQ link in the lab header had taken the header's `margin-left: auto`, which
+  wrapped the phone header badly. The phone header is now three deliberate lines: who
+  you're with, how it thinks, where to go.
