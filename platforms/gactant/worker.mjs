@@ -5,6 +5,11 @@
 //   World (one DO)    holds every document in its SQLite storage, and the holds in memory.
 //                     Cloudflare keeps it durable and can restore it to any point in the last
 //                     30 days, so there's no machine of ours to lose.
+//   Match (a DO each) one match of a table: its rulebook, state and signed log (match.mjs), so
+//                     a slow rulebook only slows its own match. The World indexes them and
+//                     checks every action before passing it on; looking at a match goes
+//                     straight there. A match that's over is archived to R2 (ARCHIVE) and its
+//                     object deleted (tables.mjs). Practice runs use one object per person.
 //   R2 (ART)          keeps the pictures (art and thumbs). Served from the bucket's own custom
 //                     domain (ART_BASE), so they go through Cloudflare's cache, which is what
 //                     the CSAM Scanning Tool looks at. /art/* here answers from R2 too, for
@@ -16,6 +21,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { makeCheck } from './check.mjs';
 import { SANDBOX_POLICY, createCore, pageHeaders, sameOrigin } from './core.mjs';
+import { archivedSummary, createMatch, practice } from './match.mjs';
+import { readPass } from './people.mjs';
 import { createRules } from './rules.mjs';
 // The rules engine's WebAssembly, compiled by wrangler when it bundles (a Worker can't compile it at run time).
 import quickjsWasm from './vendor/quickjs/quickjs.wasm';
@@ -28,6 +35,78 @@ const artStore = (bucket) => ({
 
 const json = (code, value) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
 
+/** Documents in a Durable Object's own SQLite, one table of them. Made when first written to,
+ *  so an object that's only read (or only runs practice) keeps nothing. */
+function docStore(sql) {
+  let made = false;
+  const make = () => { if (!made) { sql.exec('CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id))'); made = true; } };
+  const has = () => made || (made = sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'docs'").toArray().length > 0);
+  return {
+    async get(kind, id) { if (!has()) return null; const rows = sql.exec('SELECT json FROM docs WHERE kind = ? AND id = ?', kind, id).toArray(); return rows.length ? JSON.parse(rows[0].json) : null; },
+    async put(kind, id, doc) { make(); sql.exec('INSERT OR REPLACE INTO docs (kind, id, json) VALUES (?, ?, ?)', kind, id, JSON.stringify(doc)); },
+    async list(kind) { return has() ? sql.exec('SELECT json FROM docs WHERE kind = ?', kind).toArray().map((r) => JSON.parse(r.json)) : []; },
+    async remove(kind, id) { if (has()) sql.exec('DELETE FROM docs WHERE kind = ? AND id = ?', kind, id); },
+    async drop(kind) { if (has()) sql.exec('DELETE FROM docs WHERE kind = ?', kind); },
+  };
+}
+
+/** One match (match.mjs), or a person's practice runs. Asked by the World (create, act, log,
+ *  archive, practice, check) and by the Worker (look). */
+export class Match extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx; this.env = env;
+    this.rules = createRules(quickjsWasm);
+    this.match = this.rules.then((rules) => createMatch({ store: docStore(ctx.storage.sql), rules }));
+  }
+
+  async fetch(request) {
+    const op = new URL(request.url).pathname.slice(1);
+    try {
+      if (this.gone) return json(404, { error: 'this match has been archived', gone: true });
+      const body = await request.json().catch(() => ({}));
+      if (op === 'practice') return json(200, practice(await this.rules, body));
+      if (op === 'check') return json(200, (await this.rules).check(String(body.source ?? '')));
+      const match = await this.match;
+      if (op === 'archive') {
+        const doc = await match.op('export').catch((err) => { if (err.code === 404) return null; throw err; });
+        if (doc) await this.env.ARCHIVE.put(`matches/${doc.id}.json`, JSON.stringify(doc), { httpMetadata: { contentType: 'application/json' } });
+        await this.ctx.storage.deleteAll();
+        this.gone = true;
+        return json(200, doc ? archivedSummary(doc) : null);
+      }
+      return json(200, await match.op(op, body));
+    } catch (err) {
+      if (!err.code || err.code >= 500) console.error({ error: err.message, match: op });
+      return json(typeof err.code === 'number' ? err.code : 500, { error: err.message, ...(err.extra ?? {}) });
+    }
+  }
+}
+
+/** The World's way to its matches (tables.mjs: settings.matches and settings.archive). */
+function matchHost(env) {
+  const stub = (ref) => env.MATCH.get(typeof ref === 'string' ? env.MATCH.idFromName(ref) : env.MATCH.idFromString(ref.object));
+  const practiceStub = (person) => env.MATCH.get(env.MATCH.idFromName(`practice-${person}`));
+  const ask = async (s, op, body) => {
+    const res = await s.fetch(`https://match/${op}`, { method: 'POST', body: JSON.stringify(body ?? {}) });
+    const out = await res.json().catch(() => ({ error: `match ${res.status}` }));
+    if (!res.ok) throw Object.assign(new Error(out?.error ?? `match ${res.status}`), { code: res.status, extra: out });
+    return out;
+  };
+  return {
+    matches: {
+      op: (ref, name, body) => ask(stub(ref), name, body),
+      practice: (person, body) => ask(practiceStub(person), 'practice', body),
+      check: (person, source) => ask(practiceStub(person), 'check', { source }),
+      archive: (ref) => ask(stub(ref), 'archive', {}),
+    },
+    archive: {
+      async put(id, doc) { await env.ARCHIVE.put(`matches/${id}.json`, JSON.stringify(doc), { httpMetadata: { contentType: 'application/json' } }); },
+      async get(id) { const o = await env.ARCHIVE.get(`matches/${id}.json`); return o ? JSON.parse(await o.text()) : null; },
+    },
+  };
+}
+
 export class World extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -35,11 +114,7 @@ export class World extends DurableObject {
     const sql = ctx.storage.sql;
     sql.exec('CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id))');
     const store = {
-      async get(kind, id) { const rows = sql.exec('SELECT json FROM docs WHERE kind = ? AND id = ?', kind, id).toArray(); return rows.length ? JSON.parse(rows[0].json) : null; },
-      async put(kind, id, doc) { sql.exec('INSERT OR REPLACE INTO docs (kind, id, json) VALUES (?, ?, ?)', kind, id, JSON.stringify(doc)); },
-      async list(kind) { return sql.exec('SELECT json FROM docs WHERE kind = ?', kind).toArray().map((r) => JSON.parse(r.json)); },
-      async remove(kind, id) { sql.exec('DELETE FROM docs WHERE kind = ? AND id = ?', kind, id); },
-      async drop(kind) { sql.exec('DELETE FROM docs WHERE kind = ?', kind); },
+      ...docStore(sql),
       async size() {
         const kinds = Object.fromEntries(sql.exec('SELECT kind, count(*) AS docs, sum(length(json)) AS chars FROM docs GROUP BY kind').toArray().map((r) => [r.kind, { docs: r.docs, chars: r.chars }]));
         return { bytes: ctx.storage.sql.databaseSize, kinds };
@@ -55,7 +130,8 @@ export class World extends DurableObject {
         sandbox: env.SANDBOX_ORIGIN || '',
         art: artStore(env.ART),
         artBase: env.ART_BASE || '/art/',
-        loadRules: () => createRules(quickjsWasm),
+        ...matchHost(env),
+        archiveOverMs: env.ARCHIVE_OVER_MS ? Number(env.ARCHIVE_OVER_MS) : undefined,   // for testing under wrangler dev
         version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
         sessionSecret: env.SESSION_SECRET || '',   // signs challenges and passes (people.mjs); a wrangler secret
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
@@ -148,6 +224,15 @@ export default {
     }
     if (url.pathname.startsWith('/api/')) {
       if (!sameOrigin(request.headers.get('origin'), url.host)) return json(403, { error: 'the API answers only this site\'s own pages' });
+      // Looking at a match (and waiting for its next action) goes straight to the match, so
+      // the World isn't asked every time someone's game checks in. An archived match is the
+      // World's to answer.
+      const look = request.method === 'GET' && url.pathname.match(/^\/api\/matches\/(m-[0-9a-f]{12})$/);
+      if (look && env.SESSION_SECRET) {
+        const who = await readPass(request.headers.get('x-gactant-pass'), env.SESSION_SECRET);
+        const res = await env.MATCH.get(env.MATCH.idFromName(look[1])).fetch('https://match/look', { method: 'POST', body: JSON.stringify({ person: who?.person ?? null, after: url.searchParams.get('after') }) });
+        if (res.status !== 404) return res;
+      }
       return world(env, request);
     }
     return asset(request, env, url.pathname);

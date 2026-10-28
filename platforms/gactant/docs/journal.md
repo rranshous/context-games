@@ -2261,3 +2261,27 @@ All four ludants together cost about $0.85 of thinking.
 **Not done yet:** deploying (nothing here is live); standings per rulebook (`result` gives a winner by place, so a leaderboard needs results to name people, maybe a `winners: [player ids]` convention); and the lobby doesn't know about tables at all yet.
 
 A slip of mine, for the record: cleaning up `wrangler dev`, `pgrep -x workerd` matched every workerd, so I probably killed the workerd of another session's `wrangler dev` (port 8790); its wrangler started a new one. `pkill -f` in a shell also kills that shell when the pattern is in its own command line: use `pgrep -f "[w]rangler …"`, and check cwd or parent before killing.
+
+## Part 18: limits, and a match apart
+
+Before deploying, Robby: "we'll need to put some limits on things… We can have pretty generous limits, but we need to have limits on everything. I'm paying for the server time and the worker to run the game's backend, right? What's the best way, you think, to set limits for that?"
+
+**What costs what, with one World.** Duration is capped by the wall clock: there's one World, so it can't be awake more than 24 hours a day. Requests grow with play: following a match re-asked every 25 seconds, about 3,500 requests a day per open window, and the free plan (Robby's, probably) has about 100,000. Storage grows slowly. The real danger wasn't money but attention: a Durable Object does one thing at a time, so a 100 ms rulebook call stalled everyone on the site. Robby, new to Cloudflare, asked how the Worker works and why it's single-threaded. That led to the fix: "let's give each one its own durable object so that the constraints of the durable object apply only to a single match at a time."
+
+Then: "What are the implications for keeping the state of a match around?" An object never goes away by itself. So a match that ends goes to R2 as one file with its whole signed log, its object is deleted, and the World keeps a summary. I said Cloudflare can't list a class's objects. Robby: "It seems impossible that there is no way to delete an object we lose the ref for. I'd have to delete my account?" He was right: the account API lists them (`…/durable_objects/namespaces/<id>/objects`, with `hasStoredData`), as asking it showed. Hence the sweep tool.
+
+And on feedback: "does the table give good feedback during the draft session?" It didn't, on the thing that would matter most once there were limits: what a call costs.
+
+**Built:**
+- **`match.mjs`:** one match over its own store (create, act, look, log, export), and practice runs. **`Match`** in `worker.mjs` hosts one per Durable Object (`idFromName(match id)`); practice runs use `practice-<person>`. Its table is made only when first written to, so an object that only practices keeps nothing. Archiving writes `matches/<id>.json` to R2 and calls `deleteAll()`.
+- **`tables.mjs`, the World's side:** drafts, rulebooks, the `match-index` (n, head, result, members by name, an onlooker's view if it's under 4,000 characters), budgets, and signature checks before a match hears of anything. The World never runs a rule now; even checking a draft's functions goes to the person's practice object.
+- **The Worker takes `GET matches/<id>` straight to the match.** It reads the pass with `readPass` (HMAC and expiry, no store, so it can't see a just-removed device; for reading only). An archived match's object answers 404, and the World answers instead from its summary.
+- **Steps.** Measured: a cheap call registers 1 interrupt check, a million-iteration loop 201, so a step is about 5,000 simple operations. `rules.call` returns `{ value, steps }`, and errors carry `kind`, `steps`, and `line`/`column` in the rulebook's own lines (the prelude's lines subtracted).
+- **Budgets,** in memory per day (see the README for the numbers), with a 429 that says what's left, `GET tables/budget`, and install-wide daily caps so tables can't take the site down. Following stops while the page is hidden, a frame follows at most 20 matches, and a match that's over isn't followed any more. Waits are 50 seconds now.
+- **Practice feedback:** per call ok/refused/broken, the line, steps, state and view sizes, warnings past half a limit, and the weight (average and most steps per action), kept with the draft and shown at lock.
+- **`tools/sweep-matches.mjs`** lists Match objects with data and hands them to `admin/sweep`, which archives what's due and any the index doesn't know. Locally, the three demo matches from before the index were exactly that: swept, archived, and all three still check out from their archive files.
+- **Smoke: 89 checks,** and `tools/smoke.mjs --base <url>` runs them against a server already running. Under `wrangler dev` (https, `ADMIN_TOKEN`, `SESSION_SECRET`, `ARCHIVE_OVER_MS=0`, `ART_BASE=/art/`), all 89 pass through real Match objects and the local R2 archive.
+
+The kill went wrong again while restarting `wrangler dev`: walking the process tree from the dev server also hit the shell that had launched it (exit 144). Running the dev server as a background task, and stopping it as a task, avoids all of it.
+
+**Not done:** deploying, which needs the `v2` migration (the `Match` class) and the `gactant-matches` bucket, both ready. Lobbies and leaderboards come next.

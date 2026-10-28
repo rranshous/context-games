@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRules } from '../rules.mjs';
-import { genesisText, signedText } from '../tables.mjs';
+import { genesisText, signedText } from '../match.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [match, to = 'https://gactant.com'] = process.argv.slice(2);
@@ -30,7 +30,7 @@ console.log(`${match}: ${rb.name} (${m.rulebook.slice(0, 12)}…), ${log.length}
 let prev = await sha(genesisText({ id: match, rulebook: m.rulebook, seed: m.seed, options: m.options }));
 if (prev !== m.genesis) fail('the genesis doesn\'t match the match\'s id, rulebook, seed and options');
 const rules = await createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm'))));
-let state = rules.call(rb.source, 'init', [m.seed, m.options]);
+let state = rules.call(rb.source, 'init', [m.seed, m.options]).value;
 let unsigned = 0;
 for (const e of log) {
   const text = signedText({ match, n: e.n, prev, kind: e.kind, data: e.data });
@@ -42,12 +42,12 @@ for (const e of log) {
     const key = await crypto.subtle.importKey('jwk', keys[e.device], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text))) fail(`action ${e.n}: the signature isn't ${e.player.name}'s device's`);
   }
-  try { state = rules.call(rb.source, e.kind, [state, e.player, e.data]); } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
+  try { state = rules.call(rb.source, e.kind, [state, e.player, e.data]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
   console.log(`  ${String(e.n).padStart(3)} ${e.player.name}${e.through ? ` (through ${e.through.name})` : ''} ${e.kind} ${JSON.stringify(e.data)}`);
   prev = e.hash;
 }
 if (prev !== m.head) fail('the chain doesn\'t end at the match\'s head');
-const result = rules.call(rb.source, 'result', [state]) ?? null;
+const result = rules.call(rb.source, 'result', [state]).value ?? null;
 if (JSON.stringify(result) !== JSON.stringify(m.result ?? null)) fail(`replayed, the result is ${JSON.stringify(result)}, not ${JSON.stringify(m.result)}`);
 console.log(`result: ${JSON.stringify(result)}${unsigned ? ` (${unsigned} actions unsigned: devices without keys)` : ''}`);
 console.log(bad.length ? `\n${bad.length} problem(s)` : '\nchecks out: the chain, every signature, and the replay');

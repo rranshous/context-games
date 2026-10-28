@@ -27,9 +27,18 @@ html_handling = "none"    # serve sandbox.html as sandbox.html, not a redirect t
 name = "WORLD"
 class_name = "World"
 
+# One per match of a table (match.mjs), and one per person for practice runs.
+[[durable_objects.bindings]]
+name = "MATCH"
+class_name = "Match"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["World"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Match"]
 
 # Workers Logs: every request and every console line, kept 3 days (7 on a paid plan), in
 # the dashboard under the Worker's Observability tab. The free plan stops logging past
@@ -47,6 +56,12 @@ head_sampling_rate = 1
 [[r2_buckets]]
 binding = "ART"
 bucket_name = "gactant-art"
+
+# Matches that are over: each one's whole signed log, as matches/<id>.json (tables.mjs).
+# Read through the API, never served directly.
+[[r2_buckets]]
+binding = "ARCHIVE"
+bucket_name = "gactant-matches"
 
 # Workers AI, for the look each publication gets before it goes public (check.mjs).
 # Capped at 200 checks a day in core.mjs; a check is a few hundred neurons, and the

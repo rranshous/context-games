@@ -11,16 +11,19 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { genesisText, signedText } from '../tables.mjs';
+import { genesisText, signedText } from '../match.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PORT = 7799, base = `http://127.0.0.1:${PORT}`, TOKEN = `smoke-${Date.now()}`;
-const data = mkdtempSync(join(tmpdir(), 'gactant-smoke-'));
-const server = spawn(process.execPath, ['server.mjs', '--port', String(PORT), '--data', data], {
-  cwd: HERE, env: { ...process.env, GACTANT_ADMIN_TOKEN: TOKEN, GACTANT_PUBLIC: '1' }, stdio: ['ignore', 'ignore', 'pipe'],
+// --base <url>: against a server that's already running (`wrangler dev`, say, with ADMIN_TOKEN
+// and ARCHIVE_OVER_MS=0, and GACTANT_ADMIN_TOKEN here to match), instead of a fresh Node one.
+const given = process.argv.includes('--base') ? process.argv[process.argv.indexOf('--base') + 1] : null;
+const PORT = 7799, base = given ?? `http://127.0.0.1:${PORT}`, TOKEN = given ? process.env.GACTANT_ADMIN_TOKEN : `smoke-${Date.now()}`;
+const data = given ? null : mkdtempSync(join(tmpdir(), 'gactant-smoke-'));
+const server = given ? null : spawn(process.execPath, ['server.mjs', '--port', String(PORT), '--data', data], {
+  cwd: HERE, env: { ...process.env, GACTANT_ADMIN_TOKEN: TOKEN, GACTANT_PUBLIC: '1', GACTANT_ARCHIVE_OVER_MS: '0' }, stdio: ['ignore', 'ignore', 'pipe'],
 });
 let serverErr = '';
-server.stderr.on('data', (d) => { serverErr += d; });
+server?.stderr.on('data', (d) => { serverErr += d; });
 
 let failed = 0;
 const ok = (what, cond, detail = '') => { console.log(`${cond ? '  ok  ' : '  FAIL'} ${what}${!cond && detail ? `: ${detail}` : ''}`); if (!cond) failed++; };
@@ -187,14 +190,31 @@ try {
   ok('the log brings the signers\' public keys', keys && Object.values(keys).map((k) => k.x).sort().join() === [A.key.x, S.key.x].sort().join());
   ok('the log checks out: a chain of signed actions', chain && log.length === 7 && prev === head);
   ok('it says which ludant a move was played through', log.at(-1).through?.id === id);
+  const spent = (await call('GET', 'tables/budget', undefined, as(pass))).json;
+  ok('a budget says what\'s been used today', spent.actions?.used === 4 && spent.steps?.used > 0 && spent.steps.allowed > spent.steps.used, JSON.stringify(spent).slice(0, 200));
+  // Over: archived on the next sweep, its log whole, still checkable, and closed to actions.
+  const swept = (await call('POST', 'admin/sweep', { token: TOKEN })).json;
+  ok('a match that\'s over is archived', swept.archived >= 1, JSON.stringify(swept));
+  const after = (await call('GET', `matches/${match.id}`, undefined, as(stranger))).json;
+  ok('an archived match still says how it ended, and who was in it', after.archived && after.result?.winner === 'X' && after.you === true && after.players?.length === 2, JSON.stringify(after));
+  const kept = (await call('GET', `matches/${match.id}/log`)).json;
+  ok('its log is kept whole, with the keys', kept.log?.length === 7 && kept.log.at(-1).hash === head && Object.keys(kept.keys ?? {}).length === 2);
+  ok('an archived match takes no actions', (await act(stranger, S, 'move', { cell: 8 })).status === 410);
+  // Practice runs say what each call did and cost, and where broken rules broke.
+  const broken = (await call('POST', 'drafts', { name: 'broken', source: 'function init() { return { n: 0 } }\nfunction join(s) { return s }\nfunction move(s, p, a) {\n  return s.board.length;\n}\nfunction view(s) { return s }\nfunction result() { return null }' }, as(pass))).json;
+  const ran = (await call('POST', `drafts/${broken.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'move', as: 'a', data: {} }] }, as(pass))).json;
+  ok('a practice run counts steps and sizes', ran.steps?.[0]?.ok && ran.steps[0].steps >= 1 && ran.steps[0].stateSize > 0 && ran.limits?.stepsPerCall > 0, JSON.stringify(ran).slice(0, 300));
+  ok('and says a broken rule is broken, on its own line', ran.steps?.[1]?.broken === true && ran.steps[1].line === 4, JSON.stringify(ran.steps?.[1]));
+  const heavy = (await call('POST', 'drafts', { name: 'heavy', source: 'function init() { let s = 0; for (let i = 0; i < 3e6; i++) s += i; return { s } }\nfunction join(s) { return s }\nfunction move(s) { return s }\nfunction view(s) { return s }\nfunction result() { return null }' }, as(pass))).json;
+  ok('it warns past half of a limit', (await call('POST', `drafts/${heavy.id}/try`, { steps: [] }, as(pass))).json.warnings?.some((w) => /init steps/.test(w)));
 
   ok('abandon', (await call('POST', `ludants/${id}/abandon`, { token: 'w', by: 'smoke' }, as(pass))).status === 200);
   ok('its link says so', (await call('GET', `ludants/${id}`)).status === 410);
 } catch (err) {
   ok('the run itself', false, err.stack);
 } finally {
-  server.kill();
-  rmSync(data, { recursive: true, force: true });
+  server?.kill();
+  if (data) rmSync(data, { recursive: true, force: true });
 }
 if (serverErr.trim()) console.log(`server said:\n${serverErr.trim()}`);
 console.log(failed ? `\n${failed} failed` : '\nall good');

@@ -43,6 +43,19 @@ const PAIR_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 const pairCode = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => PAIR_CHARS[b % PAIR_CHARS.length]).join('').replace(/^(.{4})/, '$1-');
 const tidyPair = (s) => String(s ?? '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 
+/** Who a pass says it is, if the server's signature on it is good and it hasn't run out:
+ *  { person, device }, or null. Without the people store, so it can't tell whether the device
+ *  has been removed since: for reading only (the Worker uses it to send a look at a match
+ *  straight there). */
+export async function readPass(token, secret) {
+  const parts = String(token ?? '').split('.');
+  if (!secret || parts.length !== 5 || parts[0] !== 'v1') return null;
+  const [, person, device, until, mac] = parts;
+  if (Number(until) < Date.now()) return null;
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  try { return await crypto.subtle.verify('HMAC', key, unb64u(mac), enc.encode(`pass.v1.${person}.${device}.${until}`)) ? { person, device } : null; } catch { return null; }
+}
+
 export function createPeople({ store, settings, httpError, limit }) {
   const isPublic = Boolean(settings.public);
   // The server's own signature, over challenges and passes. Without a configured secret

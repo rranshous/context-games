@@ -14,23 +14,25 @@
 // no network, and no randomness but its seed: random(n) -> [a number in [0, 1), the next n]
 // is there for keeping a generator in the state.
 //
+// Work is counted in steps: QuickJS stops to ask whether to go on about every 5,000 simple
+// operations, and each ask is a step (a call costs at least 1). Steps, not the clock, are
+// the limit: a Worker's clock stands still while code runs, and a count cuts off at the
+// same place everywhere.
+//
 //   const rules = await createRules(wasmModule)   // a compiled quickjs.wasm (vendor/quickjs)
-//   rules.call(source, 'move', [state, player, action])  -> value, or throws { refused: message }
+//   rules.call(source, 'move', [state, player, action])  -> { value, steps }
+//       or throws a RuleError { kind: 'refused' (the rules said no) | 'broken', line?, column?, steps }
 //   rules.check(source)                                    -> [missing function names]
 
 import { newQuickJSWASMModuleFromVariant, newVariant } from './vendor/quickjs/index.mjs';
 
 export const RULE_FUNCTIONS = ['init', 'join', 'move', 'view', 'result'];
+export const MAX_STEPS = 1000;   // a call's steps: about 5 million simple operations
 const MAX_MEMORY = 16 * 1024 * 1024;
 const MAX_STACK = 512 * 1024;
-// QuickJS asks whether to stop every so often while it runs (about every 10,000 steps).
-// Counting those asks, not the clock, is the limit: a Worker's clock stands still while
-// code runs, and a count cuts off at the same place everywhere.
-const MAX_CHECKS = 1000;
 
 // What every rulebook starts with: no clock, no Math.random, and a seeded generator.
-const PRELUDE = `
-"use strict";
+const PRELUDE = `"use strict";
 Math.random = () => { throw new Error('rules have no randomness but their seed: keep random(n) in the state'); };
 globalThis.Date = undefined;
 globalThis.random = (n) => {
@@ -40,9 +42,10 @@ globalThis.random = (n) => {
   return [((r ^ (r >>> 14)) >>> 0) / 4294967296, t];
 };
 `;
+const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
 
 export class RuleError extends Error {
-  constructor(message, kind) { super(message); this.kind = kind; }   // kind: 'refused' (the rules said no) or 'broken'
+  constructor(message, { kind, line, column, steps }) { super(message); Object.assign(this, { kind, line, column, steps }); }
 }
 
 export async function createRules(wasmModule) {
@@ -52,29 +55,34 @@ export async function createRules(wasmModule) {
     importModuleLoader: () => import('./vendor/quickjs/emscripten-module.mjs').then((m) => m.default),
   }, { wasmModule }));
 
-  /** Run code in a fresh context; the code's value is a JSON string. */
+  /** Run code in a fresh context; the code's value is a JSON string. -> { value, steps } */
   function run(source, tail, input) {
     const runtime = quickjs.newRuntime();
     runtime.setMemoryLimit(MAX_MEMORY);
     runtime.setMaxStackSize(MAX_STACK);
-    let checks = 0;
-    runtime.setInterruptHandler(() => ++checks > MAX_CHECKS);
+    let steps = 0;
+    runtime.setInterruptHandler(() => ++steps > MAX_STEPS);
     const vm = runtime.newContext();
     try {
       const inp = vm.newString(JSON.stringify(input));
       vm.setProp(vm.global, '__input', inp);
       inp.dispose();
-      const out = vm.evalCode(`${PRELUDE}\n${source}\n;${tail}`, 'rulebook.js');
+      const out = vm.evalCode(`${PRELUDE}${source}\n;${tail}`, 'rulebook.js');
+      steps = Math.max(1, steps);
       if (out.error) {
         const err = vm.dump(out.error);
         out.error.dispose();
-        if (checks > MAX_CHECKS) throw new RuleError('the rules ran too long', 'broken');
+        if (steps > MAX_STEPS) throw new RuleError(`the rules ran too long (over ${MAX_STEPS} steps in one call)`, { kind: 'broken', steps });
         const message = typeof err === 'object' && err ? String(err.message ?? JSON.stringify(err)) : String(err);
-        throw new RuleError(message, /out of memory|stack overflow|SyntaxError|ReferenceError|TypeError/.test(`${err?.name} ${message}`) ? 'broken' : 'refused');
+        // Where in the rulebook it happened, in the rulebook's own lines.
+        const at = String(err?.stack ?? '').match(/rulebook\.js:(\d+):(\d+)/);
+        const line = at ? Number(at[1]) - PRELUDE_LINES : undefined;
+        const kind = /out of memory|stack overflow/.test(message) || /^(SyntaxError|ReferenceError|TypeError|RangeError|InternalError)$/.test(err?.name ?? '') ? 'broken' : 'refused';
+        throw new RuleError(message, { kind, steps, ...(line > 0 ? { line, column: Number(at[2]) } : {}) });
       }
       const text = vm.dump(out.value);
       out.value.dispose();
-      return text === undefined ? undefined : JSON.parse(text);
+      return { value: text === undefined ? undefined : JSON.parse(text), steps };
     } finally {
       vm.dispose();
       runtime.dispose();
@@ -83,11 +91,11 @@ export async function createRules(wasmModule) {
 
   return {
     call(source, fn, args) {
-      if (!RULE_FUNCTIONS.includes(fn)) throw new RuleError(`no rule ${fn}`, 'broken');
+      if (!RULE_FUNCTIONS.includes(fn)) throw new RuleError(`no rule ${fn}`, { kind: 'broken', steps: 0 });
       return run(source, `(() => { const v = ${fn}(...JSON.parse(__input)); return v === undefined ? undefined : JSON.stringify(v); })()`, args);
     },
     check(source) {
-      return run(source, `JSON.stringify(${JSON.stringify(RULE_FUNCTIONS)}.filter((f) => { try { return typeof eval(f) !== 'function'; } catch { return true; } }))`, null);
+      return run(source, `JSON.stringify(${JSON.stringify(RULE_FUNCTIONS)}.filter((f) => { try { return typeof eval(f) !== 'function'; } catch { return true; } }))`, null).value;
     },
   };
 }

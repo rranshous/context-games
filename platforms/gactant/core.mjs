@@ -162,8 +162,8 @@ export function createCore({ store, settings }) {
   const isPublic = Boolean(settings.public);
   const ops = createOps({ store, log: settings.opsLog });
   const people = createPeople({ store, settings, httpError, limit: (...a) => limit(...a) });
-  // Games many ludants play together (tables.mjs); the rules run in settings.loadRules().
-  const tables = createTables({ store, loadRules: settings.loadRules ?? (() => Promise.reject(httpError(501, 'this install has no rules engine'))), people, httpError, limit: (...a) => limit(...a), owns: (l, f) => owns(l, f) });
+  // Games many ludants play together (tables.mjs); each match apart, in settings.matches.
+  const tables = createTables({ store, people, httpError, owns: (l, f) => owns(l, f), settings: { ...settings, count: (k, n) => ops.count(k, n) } });
 
   // ---------- pictures: files in settings.art, served from artBase ----------
   const art = settings.art;
@@ -867,7 +867,9 @@ export function createCore({ store, settings }) {
     const reports = (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at));
     for (const r of reports.slice(200)) await store.remove('reports', r.id);
     if (cleared) ops.count('tidy cleared', cleared);
-    return { cleared };
+    // Matches over for an hour, or idle for a month, go to the archive.
+    const swept = settings.matches ? await tables.sweep().catch((err) => ({ error: err.message })) : null;
+    return { cleared, swept };
   }
 
   return { route, checkSome, tidy, flush: () => ops.flush(true) };

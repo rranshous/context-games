@@ -19,6 +19,7 @@
 //   join(match, request?) -> { view, result }              take a place, if the rules allow
 //   move(match, action) -> { view, result }                act, if the rules allow (refused: an error with their words)
 //   view(match) -> { view, n, result, you }                the latest seen (asked of the server if it hasn't been)
+//   budget() -> what this person has used today, and the limits
 // events
 //   table.changed { match, n, view, result, last: { kind, by, through, data } }   someone acted (you included)
 //   table.refused { match, kind, reason }
@@ -28,6 +29,7 @@ import { api } from '../ui.js';
 
 const signedText = ({ match, n, prev, kind, data }) => ['gactant/act/v1', match, n, prev, kind, JSON.stringify(data ?? null)].join('\n');
 const TRIES = 4;   // an action meets a newer head (someone else acted first): signed again on it
+const FOLLOWED = 20;   // matches one frame follows at once
 
 export class Table {
   id = 'table';
@@ -40,7 +42,7 @@ export class Table {
   }
 
   describe() {
-    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options), join(state, player, request), move(state, player, action), view(state, player), result(state). They're pure: state in, state out, everything JSON, no clock or network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. player is { id, name } (view gets null for an onlooker). result returns null until the game is over. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data }], seed, options }), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), view(match).`;
+    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options), join(state, player, request), move(state, player, action), view(state, player), result(state). They're pure: state in, state out, everything JSON, no clock or network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. player is { id, name } (view gets null for an onlooker). result returns null until the game is over. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over is archived after an hour (it can still be read). Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data }], seed, options }), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), view(match), budget().`;
   }
 
   state() {
@@ -69,6 +71,7 @@ export class Table {
       join: (match, request) => this.act(who, match, 'join', request ?? null),
       move: (match, action) => this.act(who, match, 'move', action ?? null),
       view: async (match) => structuredClone(this.seen.get(match) ?? await this.fetch(match)),
+      budget: () => api('GET', 'tables/budget'),
     };
   }
 
@@ -83,6 +86,7 @@ export class Table {
   async watch(match) {
     const now = await this.fetch(match);
     if (!this.watching.has(match)) {
+      if (this.watching.size >= FOLLOWED) throw new Error(`a frame follows up to ${FOLLOWED} matches at once; unwatch one first`);
       this.watching.add(match);
       this.frame.changed();
       this.poll(match);
@@ -102,7 +106,7 @@ export class Table {
     const m = await api('GET', `matches/${match}${after != null ? `?after=${after}` : ''}`);
     const before = this.seen.get(match);
     if (before && m.n < before.n) return structuredClone(before);   // an older answer, arriving late
-    const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name };
+    const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name, ...(m.archived ? { archived: true } : {}) };
     this.seen.set(match, s);
     if (before && m.n > before.n) this.frame.bus.emit('table.changed', { match, n: m.n, view: m.view, result: m.result, last: m.last });
     return structuredClone(s);
@@ -112,9 +116,12 @@ export class Table {
     const stop = new AbortController();
     this.polls.set(match, stop);
     let quiet = 0;
-    while (this.watching.has(match) && !stop.signal.aborted && !this.frame.lost) {
+    const done = () => this.seen.get(match)?.result || this.seen.get(match)?.archived;
+    while (this.watching.has(match) && !stop.signal.aborted && !this.frame.lost && !done()) {
+      // Nobody's looking at this page: don't keep asking. Catch up when it's seen again.
+      if (document.visibilityState === 'hidden') { await new Promise((r) => document.addEventListener('visibilitychange', r, { once: true })); continue; }
       try {
-        await this.fetch(match, this.seen.get(match)?.n ?? 0);
+        await this.fetch(match, this.seen.get(match)?.n ?? 0);   // once it's over (or archived), the loop ends
         quiet = 0;
       } catch {
         // The network, or the server restarting: wait a little longer each time.
@@ -137,7 +144,7 @@ export class Table {
         return { view: out.view, result: out.result };
       } catch (err) {
         if (err.status === 409 && i < TRIES) { s = await this.fetch(match); continue; }
-        if (err.status === 422) {
+        if (err.status === 422 || err.status === 410 || err.status === 429) {
           this.frame.bus.emit('table.refused', { match, kind, reason: err.body?.refused ?? err.message });
           throw new Error(err.body?.refused ?? err.message);
         }

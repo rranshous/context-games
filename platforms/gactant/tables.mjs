@@ -1,62 +1,76 @@
 // Tables: games many ludants play together, whatever each of them looks like. The rules
-// live here, not in any ludant (rules.mjs runs them), so every fork that plays the same
-// rulebook plays the same game, and only the rules decide what's legal.
+// live here, not in any ludant, so every fork that plays the same rulebook plays the same
+// game, and only the rules decide what's legal.
 //
 //   draft      a rulebook being written: private to its owner, still changing, and tried
-//              out with practice runs
+//              out with practice runs that report what every call did and cost
 //   rulebook   a draft locked: frozen, and named by the hash of its source. The hash is
 //              how anyone refers to it, and always means exactly those rules
-//   match      one run of a rulebook: its seed, and a log of signed actions (joins and
-//              moves). Its state is what the rules made of the log. Each action is its own
-//              document (`actions`, `<match>-<n>`), so a long match never makes one big one
+//   match      one run of a rulebook, kept apart from everything else (match.mjs): hosted,
+//              each is a Durable Object of its own, so a slow rulebook only slows its own
+//              match. The World keeps an index of them, decides who may act, and checks
+//              every signature before a match hears of it. The World never runs a rule.
 //
-// Every action is signed by the device of the person taking it, over the match, its
-// number, the hash of the log before it, and the action, so the log is a chain anyone can
-// check: replay it from the rulebook and the seed. (A device that keeps a secret instead of
-// a key, on a local install over plain http, can't sign; its actions say so.)
+// Every action is signed by the device of the person taking it (match.mjs has the text), so
+// the log is a chain anyone can check: tools/check-match.mjs. A match that's over (after an
+// hour) or idle for ARCHIVE_IDLE_DAYS is archived, its log whole, and its object deleted;
+// the index keeps its summary, and its log is still there to check.
 //
-// API (JSON, under /api; all but reading a rulebook or a match need a pass)
+// Hosts give the World settings.matches and settings.archive:
+//   matches: { op(ref, name, body), practice(person, body), check(person, source), archive(ref)
+//              -> summary, ids?() -> [match ids] }       ref: a match id, or { object } (hosted)
+//   archive: { put(id, doc), get(id) -> doc | null }
+//
+// API (JSON, under /api; reading a rulebook or a match needs no pass, the rest does)
 //   GET  drafts                          -> [{ id, name, updated }]          yours
 //   POST drafts { name, source, from? }  -> { id }                          from: a rulebook hash to start from
-//   GET  drafts/<id>                     -> { id, name, source, updated, missing }
+//   GET  drafts/<id>                     -> { id, name, source, updated, missing, lastTry }
 //   PUT  drafts/<id> { name?, source }   -> { missing }                     missing: rule functions not defined yet
 //   POST drafts/<id>/try { seed?, options?, steps: [{ do: join|move, as, data }] }
-//                                        -> { steps: [{ ok, error?, view }], state, result }   a practice run;
-//                                           as is a made-up player name (players are { id: as, name: as })
-//   POST drafts/<id>/lock                -> { rulebook }                    the hash
+//                                        -> { ok, init, steps: [{ ok, refused?, broken?, error?, line?, view, result,
+//                                             steps, stateSize, viewSize }], state, weight, warnings, limits, budget }
+//                                           a practice run; as is a made-up player name. Nothing is kept
+//   POST drafts/<id>/lock                -> { rulebook, weight }            the hash; weight from the last practice run
 //   POST drafts/<id>/remove              -> {}
-//   GET  rulebooks/<hash>                -> { id, name, source, by, at, from }
-//   GET  rulebooks/<hash>/matches        -> [{ id, at, n, over, view }]     newest first; view is an onlooker's
+//   GET  rulebooks/<hash>                -> { id, name, source, by, at, from, weight }
+//   GET  rulebooks/<hash>/matches        -> [{ id, at, updated, n, over, players, view }]   newest first; view: an onlooker's
 //   POST matches { rulebook, options? }  -> { id, n, head }                 a new match, nobody in it yet
-//   GET  matches/<id>?after=<n>          -> { id, rulebook, name, at, n, head, view, result, you, last }   view: yours;
-//                                           last: the latest action { kind, by, through, data }. With after, it
-//                                           waits (up to 25 seconds) until the match has more than n actions
+//   GET  matches/<id>?after=<n>          -> { id, rulebook, name, at, n, head, view, result, you, last, archived? }
+//                                           view: yours. With after, it waits (up to 50 seconds) until the
+//                                           match has more than n actions. Hosted, the Worker takes this
+//                                           straight to the match.
+//   GET  matches/<id>/log?from=0         -> { id, rulebook, seed, options, genesis, n, head, result, log, keys, more }
+//                                           keys: each signing device's public key (JWK), by device id
+//   POST matches/<id>/act { kind: join|move, data, n, prev, signature?, ludant? }
+//                                        -> { n, head, view, result, budget }   409 if n or prev aren't the latest;
+//                                           422 { refused } if the rules said no; 429 past a budget
+//   GET  tables/budget                   -> yours today: what's used and what's allowed
+//   POST admin/sweep { token, objects? } -> { archived, kept }   archive what's due, and any match the index
+//                                           doesn't know (objects: Durable Object ids, from the account's list)
 //
 // Actions are public (anyone can read the log, to check it). Anything secret, like a dealt
 // hand, belongs in the state, made from the seed, and shown only through view.
-//   GET  matches/<id>/log?from=0         -> { id, rulebook, seed, options, genesis, n, head, result, log, keys, more }
-//                                           to check it (tools/check-match.mjs); up to 1000 actions at a time;
-//                                           keys: each signing device's public key (JWK), by device id
-//   POST matches/<id>/act { kind: join|move, data, n, prev, signature?, ludant? }
-//                                        -> { n, head, view, result }       409 if n or prev aren't the latest;
-//                                           422 { refused } if the rules said no
-//
-// The text a device signs (signedText below), base64url ECDSA P-256 SHA-256:
-//   gactant/act/v1 \n match \n n \n prev \n kind \n JSON(data)
-// and an entry's hash, which the next entry's prev names: sha256(that text \n signature).
-// The first prev is the match's genesis: sha256(gactant/match/v1 \n id \n rulebook \n seed \n JSON(options)).
 
-import { RULE_FUNCTIONS, RuleError } from './rules.mjs';
+import { MAX_STEPS } from './rules.mjs';
+import { limits as matchLimits, signedText } from './match.mjs';
 
-const MAX_SOURCE = 60_000;       // characters in a rulebook
-const MAX_STATE = 200_000;       // characters of JSON in a match's state
-const MAX_ACTIONS = 20_000;      // actions in one match
-const MAX_DRAFTS = 50;           // drafts one person keeps
-const MAX_STEPS = 60;            // steps in a practice run
-const MATCHES_A_DAY = 100;       // matches one address may open in a day
-const LOCKS_A_DAY = 30;          // rulebooks one person may lock in a day
-const LISTED = 30;               // matches listed for a rulebook
-const WAIT_MS = 25_000;          // how long a look waits for something to happen
+const MAX_SOURCE = 60_000;          // characters in a rulebook
+const MAX_ACTION = 4_000;           // characters of JSON in one action, and in a match's options
+const MAX_DRAFTS = 50;              // drafts one person keeps
+// What one person may do in a day, and at once. Counted in memory: a restart forgives.
+const LOCKS_A_DAY = 30;
+const PRACTICE_A_DAY = 300;
+const MATCHES_A_DAY = 30;           // matches opened
+const ACTIONS_A_DAY = 3_000;
+const ACTIONS_A_MINUTE = 60;
+const STEPS_A_DAY = 50_000;         // steps of rules run for them, practice included
+const OPEN_AT_ONCE = 10;            // matches they're in that aren't over
+// The whole install in a day, so tables can't take the rest of the site down with them.
+const WORLD_ACTIONS_A_DAY = 20_000;
+const WORLD_MATCHES_A_DAY = 2_000;
+const ARCHIVE_OVER_MS = 3600_000;   // a match that's over is archived after this
+const ARCHIVE_IDLE_DAYS = 30;       // any match nobody acted in for this long is archived
+const LISTED = 30;                  // matches listed for a rulebook
 
 const enc = new TextEncoder();
 const sha = async (s) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(String(s)))), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -65,43 +79,47 @@ const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => 
 const now = () => new Date().toISOString();
 const name40 = (s, or) => String(s ?? '').trim().slice(0, 40) || or;
 
-export const signedText = ({ match, n, prev, kind, data }) => ['gactant/act/v1', match, n, prev, kind, JSON.stringify(data ?? null)].join('\n');
-export const genesisText = ({ id, rulebook, seed, options }) => ['gactant/match/v1', id, rulebook, seed, JSON.stringify(options ?? {})].join('\n');
+export { signedText };
+export { genesisText } from './match.mjs';
 
-export function createTables({ store, loadRules, people, httpError, limit, owns }) {
-  let rules = null, loading = null;   // QuickJS, loaded the first time a table is used
-  const waiting = new Map();   // match id -> Set of wake functions: looks waiting for its next action
-  const wake = (id) => { for (const w of waiting.get(id) ?? []) w(); waiting.delete(id); };
-  const changed = (id) => new Promise((resolve) => {
-    const done = () => { clearTimeout(timer); waiting.get(id)?.delete(done); resolve(); };
-    const timer = setTimeout(done, WAIT_MS);
-    if (!waiting.has(id)) waiting.set(id, new Set());
-    waiting.get(id).add(done);
-  });
-  const locks = new Map();   // match id -> the promise of its last action, so actions on one match go one at a time
-  const inTurn = (id, fn) => {
-    const run = (locks.get(id) ?? Promise.resolve()).then(fn, fn);
-    locks.set(id, run.catch(() => {}));
-    return run;
-  };
+export function createTables({ store, people, httpError, owns, settings }) {
+  const host = settings.matches, archive = settings.archive;
   const need = (from) => { if (!from.person) throw httpError(401, 'sign in first (your pass may have expired)'); return from; };
   const read = async (kind, id) => {
     if (!/^[a-z0-9-]{4,80}$/.test(String(id))) throw httpError(400, 'bad id');
     const doc = await store.get(kind, id);
-    if (!doc) throw httpError(404, `no ${kind.replace(/s$/, '')} ${id}`);
+    if (!doc) throw httpError(404, `no ${kind === 'match-index' ? 'match' : kind.replace(/s$/, '')} ${id}`);
     return doc;
   };
   const source = (s) => { s = String(s ?? ''); if (s.length > MAX_SOURCE) throw httpError(413, `a rulebook is up to ${MAX_SOURCE} characters`); return s; };
-  const missing = (s) => { try { return rules.check(s); } catch (err) { return [`(it doesn't run: ${err.message})`]; } };
-  /** The rules, and what they said: a refusal is the rules' answer, anything else is the rulebook broken. */
-  const call = (src, fn, args) => {
-    try { return { value: rules.call(src, fn, args) }; } catch (err) {
-      if (err instanceof RuleError) return { error: err.message, broken: err.kind === 'broken' };
-      throw err;
-    }
+  const missing = async (person, s) => { try { return await host.check(person, s); } catch (err) { return [`(it doesn't run: ${err.message})`]; } };
+  /** A match's answer, passed on: its code and words, or the error as it was. */
+  const fromMatch = async (p) => { try { return await p; } catch (err) { throw err.code ? httpError(err.code, err.message, err.extra) : err; } };
+
+  // ---------- budgets: per person per day, and the whole install ----------
+
+  const used = new Map();   // `${day} ${what} ${who}` -> count
+  const day = () => now().slice(0, 10);
+  const minute = () => now().slice(0, 16);
+  const tally = (what, who, at = day()) => used.get(`${at} ${what} ${who}`) ?? 0;
+  const add = (what, who, n = 1, at = day()) => {
+    const k = `${at} ${what} ${who}`;
+    if (!used.has(k) && used.size > 5000) for (const old of used.keys()) if (!old.startsWith(day())) used.delete(old);
+    used.set(k, (used.get(k) ?? 0) + n);
   };
-  const playerOf = (from) => ({ id: from.person, name: from.name });
-  const actionId = (match, n) => `${match}-${String(n).padStart(6, '0')}`;
+  const within = (what, who, max, saying, at) => { if (tally(what, who, at) >= max) throw httpError(429, saying, { budget: budget(who) }); };
+  function budget(person) {
+    return {
+      steps: { used: tally('steps', person), allowed: STEPS_A_DAY },
+      actions: { used: tally('actions', person), allowed: ACTIONS_A_DAY, perMinute: ACTIONS_A_MINUTE },
+      matches: { opened: tally('matches', person), allowed: MATCHES_A_DAY, openAtOnce: OPEN_AT_ONCE },
+      practice: { used: tally('practice', person), allowed: PRACTICE_A_DAY },
+      locks: { used: tally('locks', person), allowed: LOCKS_A_DAY },
+      ...matchLimits(), rulebookSize: MAX_SOURCE, actionSize: MAX_ACTION,
+    };
+  }
+  const steps = (person, n) => { add('steps', person, n || 0); settings.count?.('table steps', n || 0); };
+  const enoughSteps = (person) => within('steps', person, STEPS_A_DAY, `that's the ${STEPS_A_DAY} steps of rules you may run in a day; more tomorrow`);
 
   async function myDraft(id, from) {
     const d = await read('drafts', id);
@@ -109,25 +127,39 @@ export function createTables({ store, loadRules, people, httpError, limit, owns 
     return d;
   }
 
-  /** Who's in a match, by what its view says to an onlooker; the summary a list shows. */
-  function summary(match, rulebook) {
-    const v = call(rulebook.source, 'view', [match.state, null]);
-    return { id: match.id, at: match.at, n: match.n, over: Boolean(match.result), view: v.error ? null : v.value };
+  // ---------- the index: what the World knows of each match ----------
+
+  const indexed = (idx, sum) => Object.assign(idx, {
+    n: sum.n, head: sum.head, updated: sum.updated ?? idx.updated, result: sum.result ?? null,
+    members: sum.members ?? idx.members, onlooker: 'onlooker' in sum ? sum.onlooker : idx.onlooker ?? null,
+  });
+  const listed = (idx) => ({ id: idx.id, at: idx.at, updated: idx.updated, n: idx.n, over: Boolean(idx.result), players: Object.values(idx.members ?? {}), view: idx.onlooker ?? null, ...(idx.archived ? { archived: true } : {}) });
+  async function openAtOnce(person) {
+    return (await store.list('match-index')).filter((m) => m.members?.[person] !== undefined && !m.result && !m.archived).length;
   }
 
-  async function act(match, body, from) {
+  async function act(id, body, from) {
     need(from);
+    const idx = await read('match-index', id);
+    if (idx.archived) throw httpError(410, 'this match is over and archived; its log is still there to read', { archived: true });
     const kind = body.kind;
     if (kind !== 'join' && kind !== 'move') throw httpError(400, 'an action is a join or a move');
     const n = Number(body.n), prev = String(body.prev ?? '');
     const data = body.data ?? null;
-    if (JSON.stringify(data).length > 4000) throw httpError(413, 'an action is small');
-    // Checked before taking the match's turn: the signature, by the device the pass names.
-    const text = signedText({ match: match.id, n, prev, kind, data });
-    const key = await people.deviceKey(from.person, from.device);
+    if (JSON.stringify(data).length > MAX_ACTION) throw httpError(413, `an action is up to ${MAX_ACTION} characters of JSON`);
+    const person = from.person;
+    within('actions', person, ACTIONS_A_DAY, `that's the ${ACTIONS_A_DAY} actions you may take in a day; more tomorrow`);
+    within('actions-minute', person, ACTIONS_A_MINUTE, `that's ${ACTIONS_A_MINUTE} actions in a minute; slow down a little`, minute());
+    within('actions', 'world', WORLD_ACTIONS_A_DAY, 'tables are resting for today: the whole site has played as much as it can; tomorrow');
+    enoughSteps(person);
+    if (kind === 'join' && idx.members?.[person] === undefined && await openAtOnce(person) >= OPEN_AT_ONCE) {
+      throw httpError(429, `you're in ${OPEN_AT_ONCE} matches that aren't over; finish or leave one first`, { budget: budget(person) });
+    }
+    // The signature, by the device the pass names, before the match hears of it.
+    const key = await people.deviceKey(person, from.device);
     if (key) {
       let ok = false;
-      try { ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, unb64u(body.signature ?? ''), enc.encode(text)); } catch {}
+      try { ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, unb64u(body.signature ?? ''), enc.encode(signedText({ match: id, n, prev, kind, data }))); } catch {}
       if (!ok) throw httpError(401, 'that action isn\'t signed by this device');
     }
     let through = null;
@@ -136,36 +168,27 @@ export function createTables({ store, loadRules, people, httpError, limit, owns 
       if (!l || !owns(l, from)) throw httpError(403, 'you play through a ludant of your own');
       through = { id: l.id, name: `${l.soma?.given ?? ''}${l.soma?.sections?.title ? `-${l.soma.sections.title}` : ''}` };
     }
-    return inTurn(match.id, async () => {
-      const m = await read('matches', match.id);
-      const rulebook = await read('rulebooks', m.rulebook);
-      if (n !== m.n || prev !== m.head) throw httpError(409, 'the match moved on: act on its latest', { n: m.n, head: m.head });
-      if (m.n >= MAX_ACTIONS) throw httpError(413, 'this match is as long as a match gets');
-      if (m.result && kind === 'move') throw httpError(422, 'the match is over', { refused: 'the match is over' });
-      const player = playerOf(from);
-      const out = call(rulebook.source, kind, [m.state, player, data]);
-      if (out.error) throw httpError(422, `${out.broken ? 'the rules broke: ' : ''}${out.error}`, { refused: out.error, broken: out.broken });
-      if (JSON.stringify(out.value ?? null).length > MAX_STATE) throw httpError(413, 'the rules made a state too big to keep');
-      const r = call(rulebook.source, 'result', [out.value]);
-      const signature = key ? String(body.signature) : null;
-      const entry = { n, kind, data, player, through, device: from.device, at: now(), prev, signature, hash: await sha(`${text}\n${signature ?? 'unsigned'}`) };
-      await store.put('actions', actionId(m.id, n), entry);
-      m.n = n + 1;
-      m.head = entry.hash;
-      if (!m.members.includes(player.id)) m.members.push(player.id);
-      m.state = out.value;
-      m.result = r.error ? null : r.value ?? null;
-      m.updated = now();
-      await store.put('matches', m.id, m);
-      wake(m.id);
-      const v = call(rulebook.source, 'view', [m.state, player]);
-      return { n: m.n, head: m.head, view: v.error ? null : v.value, result: m.result };
-    });
+    let out;
+    try {
+      out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, player: { id: person, name: from.name }, through }));
+    } catch (err) { if (err.extra?.steps) steps(person, err.extra.steps); throw err; }
+    steps(person, out.steps);
+    add('actions', person); add('actions-minute', person, 1, minute()); add('actions', 'world');
+    settings.count?.('table actions');
+    await store.put('match-index', id, indexed(await read('match-index', id), out));
+    return { n: out.n, head: out.head, view: out.view, result: out.result, ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
+  }
+
+  /** A match moved to the archive: its log whole, its object gone, its summary kept. */
+  async function archived(idx, ref = idx.id) {
+    const sum = await host.archive(ref);
+    if (sum) indexed(idx, sum);
+    idx.archived = now();
+    await store.put('match-index', idx.id, idx);
+    settings.count?.('table matches archived');
   }
 
   async function route(method, [a, b, c], body, query, from) {
-    if (!['drafts', 'rulebooks', 'matches'].includes(a)) return undefined;
-    rules ??= await (loading ??= loadRules());
     if (a === 'drafts') {
       need(from);
       if (!b && method === 'GET') {
@@ -181,41 +204,38 @@ export function createTables({ store, loadRules, people, httpError, limit, owns 
         return { id };
       }
       const d = await myDraft(b, from);
-      if (!c && method === 'GET') return { ...d, owner: undefined, missing: missing(d.source) };
+      if (!c && method === 'GET') return { ...d, owner: undefined, missing: await missing(from.person, d.source) };
       if (!c && method === 'PUT') {
         d.source = source(body.source ?? d.source);
         if (body.name != null) d.name = name40(body.name, d.name);
         d.updated = now();
         await store.put('drafts', d.id, d);
-        return { missing: missing(d.source) };
+        return { missing: await missing(from.person, d.source) };
       }
       if (c === 'try' && method === 'POST') {
-        const steps = Array.isArray(body.steps) ? body.steps.slice(0, MAX_STEPS) : [];
-        const init = call(d.source, 'init', [Number(body.seed) || 1, body.options ?? {}]);
-        if (init.error) return { error: `init: ${init.error}`, steps: [] };
-        let state = init.value;
-        const out = [];
-        for (const s of steps) {
-          const player = { id: String(s.as ?? 'someone'), name: String(s.as ?? 'someone') };
-          const r = call(d.source, s.do === 'join' ? 'join' : 'move', [state, player, s.data ?? null]);
-          if (!r.error) state = r.value;
-          const v = call(d.source, 'view', [state, player]);
-          out.push({ ok: !r.error, ...(r.error ? { error: r.error } : {}), view: v.error ? `view: ${v.error}` : v.value });
-        }
-        const r = call(d.source, 'result', [state]);
-        return { steps: out, state, result: r.error ? `result: ${r.error}` : r.value ?? null };
+        within('practice', from.person, PRACTICE_A_DAY, `that's ${PRACTICE_A_DAY} practice runs today; more tomorrow`);
+        enoughSteps(from.person);
+        const run = await fromMatch(host.practice(from.person, { source: d.source, seed: body.seed, options: body.options ?? {}, steps: Array.isArray(body.steps) ? body.steps : [] }));
+        const spent = (run.init?.steps ?? 0) + run.steps.reduce((n, s) => n + (s.steps ?? 0), 0);
+        steps(from.person, spent);
+        add('practice', from.person);
+        // What it weighed, kept with the draft while its source stays the same, for locking.
+        if (run.weight) { d.lastTry = { weight: run.weight, of: await sha(d.source), at: now() }; await store.put('drafts', d.id, d); }
+        return { ...run, budget: budget(from.person) };
       }
       if (c === 'lock' && method === 'POST') {
-        const gaps = missing(d.source);
+        const gaps = await missing(from.person, d.source);
         if (gaps.length) throw httpError(422, `it needs ${gaps.join(', ')} first`, { missing: gaps });
-        const init = call(d.source, 'init', [1, {}]);
-        if (init.error) throw httpError(422, `init fails: ${init.error}`);
+        const run = await fromMatch(host.practice(from.person, { source: d.source, steps: [] }));
+        if (!run.ok) throw httpError(422, `init fails: ${run.init?.error}`);
         const id = await sha(d.source);
+        const weight = d.lastTry?.of === id ? d.lastTry.weight : null;
         if (!(await store.get('rulebooks', id))) {
-          limit('lock', from.person, LOCKS_A_DAY, `that's ${LOCKS_A_DAY} rulebooks locked today; more tomorrow`)();
-          await store.put('rulebooks', id, { id, name: d.name, source: d.source, by: from.name ?? null, owner: from.person, from: d.from ?? null, at: now() });
+          within('locks', from.person, LOCKS_A_DAY, `that's ${LOCKS_A_DAY} rulebooks locked today; more tomorrow`);
+          add('locks', from.person);
+          await store.put('rulebooks', id, { id, name: d.name, source: d.source, by: from.name ?? null, owner: from.person, from: d.from ?? null, weight, at: now() });
         }
-        return { rulebook: id };
+        return { rulebook: id, weight };
       }
       if (c === 'remove' && method === 'POST') { await store.remove('drafts', d.id); return {}; }
     }
@@ -224,51 +244,89 @@ export function createTables({ store, loadRules, people, httpError, limit, owns 
       const rb = await read('rulebooks', b);
       if (!c) { const { owner, ...shown } = rb; return shown; }
       if (c === 'matches') {
-        const ms = (await store.list('matches')).filter((m) => m.rulebook === rb.id).sort((x, y) => (y.updated ?? y.at).localeCompare(x.updated ?? x.at)).slice(0, LISTED);
-        return ms.map((m) => summary(m, rb));
+        return (await store.list('match-index')).filter((m) => m.rulebook === rb.id)
+          .sort((x, y) => (y.updated ?? y.at).localeCompare(x.updated ?? x.at)).slice(0, LISTED).map(listed);
       }
+    }
+
+    if (a === 'tables' && b === 'budget' && method === 'GET') return budget(need(from).person);
+
+    if (a === 'admin' && b === 'sweep' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      return sweep(body.objects);
     }
 
     if (a === 'matches') {
       if (!b && method === 'POST') {
         need(from);
         const rb = await read('rulebooks', String(body.rulebook ?? ''));
-        const counted = limit('match', from.ip, MATCHES_A_DAY, `that's ${MATCHES_A_DAY} matches from here today; more tomorrow`);
+        within('matches', from.person, MATCHES_A_DAY, `that's ${MATCHES_A_DAY} matches opened today; more tomorrow`);
+        within('matches', 'world', WORLD_MATCHES_A_DAY, 'tables are resting for today: the whole site has opened as many matches as it can; tomorrow');
         const options = body.options && typeof body.options === 'object' ? body.options : {};
-        if (JSON.stringify(options).length > 4000) throw httpError(413, 'options are small');
+        if (JSON.stringify(options).length > MAX_ACTION) throw httpError(413, `options are up to ${MAX_ACTION} characters of JSON`);
+        enoughSteps(from.person);
         const id = `m-${hex(6)}`, seed = crypto.getRandomValues(new Uint32Array(1))[0];
-        const init = call(rb.source, 'init', [seed, options]);
-        if (init.error) throw httpError(422, `the rules couldn't start a match: ${init.error}`);
-        const genesis = await sha(genesisText({ id, rulebook: rb.id, seed, options }));
-        await store.put('matches', id, { id, rulebook: rb.id, seed, options, genesis, by: from.person, at: now(), updated: now(), n: 0, head: genesis, members: [], state: init.value, result: null });
-        counted();
-        return { id, n: 0, head: genesis };
+        const made = await fromMatch(host.op(id, 'create', { id, rulebook: rb.id, name: rb.name, source: rb.source, seed, options }));
+        steps(from.person, made.steps);
+        add('matches', from.person); add('matches', 'world');
+        settings.count?.('table matches opened');
+        await store.put('match-index', id, indexed({ id, rulebook: rb.id, name: rb.name, by: from.person, at: now(), genesis: made.genesis }, made));
+        return { id, n: 0, head: made.head };
       }
-      let m = await read('matches', b);
+      const idx = await read('match-index', b);
       if (!c && method === 'GET') {
-        const after = query.get('after');
-        if (after != null && m.n <= Number(after)) { await changed(m.id); m = await read('matches', b); }
-        const rb = await read('rulebooks', m.rulebook);
-        const latest = m.n ? await store.get('actions', actionId(m.id, m.n - 1)) : null;
-        const player = from.person ? playerOf(from) : null;
-        const v = call(rb.source, 'view', [m.state, player]);
-        return { id: m.id, rulebook: m.rulebook, name: rb.name, at: m.at, n: m.n, head: m.head, view: v.error ? null : v.value, result: m.result, you: Boolean(player && m.members.includes(player.id)), last: latest && { kind: latest.kind, by: latest.player.name, through: latest.through?.name ?? null, data: latest.data } };
+        if (idx.archived) return { ...listed(idx), rulebook: idx.rulebook, name: idx.name, head: idx.head, result: idx.result, you: Boolean(from.person && idx.members?.[from.person] !== undefined), last: null };
+        return fromMatch(host.op(b, 'look', { person: from.person ?? null, after: query.get('after') }));
       }
       if (c === 'log' && method === 'GET') {
-        const from_ = Math.max(0, Number(query.get('from')) || 0), upto = Math.min(m.n, from_ + 1000);
-        const log = [];
-        for (let i = from_; i < upto; i++) log.push(await store.get('actions', actionId(m.id, i)));
+        let m;
+        if (idx.archived) {
+          const doc = await archive.get(idx.id);
+          if (!doc) throw httpError(404, 'this match\'s archive is missing');
+          const start = Math.max(0, Number(query.get('from')) || 0);
+          const { source, ...kept } = doc;
+          m = { ...kept, log: doc.log.slice(start, start + 1000), more: start + 1000 < doc.log.length };
+        } else m = await fromMatch(host.op(b, 'log', { from: query.get('from') }));
         // The public key of each device that signed, so anyone can check the signatures. (A
         // device its person has since removed is gone, and so is its key.)
         const keys = {};
-        for (const e of log) if (e?.signature && !(e.device in keys)) keys[e.device] = await people.publicKey(e.player.id, e.device);
-        const { state, by, members, ...kept } = m;
-        return { ...kept, log, keys, more: upto < m.n };
+        for (const e of m.log) if (e?.signature && !(e.device in keys)) keys[e.device] = await people.publicKey(e.player.id, e.device);
+        return { ...m, keys };
       }
-      if (c === 'act' && method === 'POST') return act(m, body, from);
+      if (c === 'act' && method === 'POST') return act(b, body, from);
     }
     return undefined;
   }
 
-  return { route, RULE_FUNCTIONS };
+  /** Archive what's due: over for an hour, or idle for ARCHIVE_IDLE_DAYS. With objects (the
+   *  account's list of match objects, hosted) or the host's own list, anything the index has
+   *  never heard of is archived too, so nothing lingers unknown. Hourly, and tools/sweep-matches.mjs. */
+  async function sweep(objects) {
+    let done = 0, kept = 0;
+    const index = await store.list('match-index');
+    for (const idx of index) {
+      if (idx.archived) continue;
+      const idle = Date.now() - Date.parse(idx.updated ?? idx.at);
+      if ((idx.result && idle > (settings.archiveOverMs ?? ARCHIVE_OVER_MS)) || idle > ARCHIVE_IDLE_DAYS * 86400_000) {
+        try { await archived(idx); done++; } catch (err) { settings.opsLog?.({ trouble: 'archiving a match', match: idx.id, message: err.message }); }
+      } else kept++;
+    }
+    const known = new Set(index.map((m) => m.id));
+    const strays = objects ? objects.map((object) => ({ object })) : host.ids ? (await host.ids()).filter((id) => !known.has(id)) : [];
+    for (const ref of strays) {
+      try {
+        // The account's list has every match object: ask which match it is, and leave the
+        // ones the index knows (they were handled above). An empty object is just emptied.
+        const seen = await host.op(ref, 'look', {}).catch((err) => { if (err.code === 404) return null; throw err; });
+        if (seen && known.has(seen.id)) continue;
+        const sum = await host.archive(ref);
+        if (!sum?.id) { done++; continue; }
+        await store.put('match-index', sum.id, indexed({ id: sum.id, rulebook: sum.rulebook, name: sum.name, at: sum.at, genesis: sum.genesis, archived: now(), stray: true }, sum));
+        done++;
+      } catch (err) { settings.opsLog?.({ trouble: 'sweeping a match', ref, message: err.message }); }
+    }
+    return { archived: done, kept };
+  }
+
+  return { route, sweep };
 }
