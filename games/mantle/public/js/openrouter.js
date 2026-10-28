@@ -5,7 +5,7 @@
 // never touches our server.
 //
 // Connecting happens in a popup, so the design on the bench isn't lost: the popup lands on
-// /connected.html, trades the code for a key, stores it and closes. The page hears about it
+// /connected, trades the code for a key, stores it and closes. The page hears about it
 // through the storage event.
 //
 // Without a key of their own, thinking falls back to the server's relay, if the server has
@@ -37,7 +37,7 @@ export async function connect() {
     method = 'S256';
   }
   try { localStorage.setItem(VERIFIER, JSON.stringify({ verifier, method })); } catch {}
-  const callback = `${location.origin}/connected.html`;
+  const callback = `${location.origin}/connected`;
   const url = `${AUTH}?callback_url=${encodeURIComponent(callback)}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=${method}`;
   const popup = open(url, 'mantle-openrouter', 'width=520,height=720');
   if (!popup) { location.href = url; return new Promise(() => {}); }   // popups blocked: go there instead
@@ -49,7 +49,7 @@ export async function connect() {
   });
 }
 
-/** On /connected.html: trade the code OpenRouter sent back for a key. */
+/** On /connected: trade the code OpenRouter sent back for a key. */
 export async function finishConnect(code) {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(VERIFIER) || '{}'); } catch {}

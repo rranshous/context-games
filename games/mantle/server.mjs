@@ -47,7 +47,7 @@ const store = {
   async list(kind) { return readdirSync(dir(kind)).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(dir(kind), f), 'utf8'))); },
   async remove(kind, id) { rmSync(file(kind, id), { force: true }); },
 };
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.json': 'application/json', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml', '.webmanifest': 'application/manifest+json' };
 const art = {
   async put(name, bytes) { writeFileSync(join(ART, name), bytes); },
   async get(name) { const f = join(ART, name); return existsSync(f) ? { body: readFileSync(f), type: TYPES[extname(f)] ?? 'application/octet-stream' } : null; },
@@ -78,7 +78,8 @@ createServer(async (req, res) => {
     }
   }
   const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-  const path = normalize(join(PUBLIC, rel));
-  if (!path.startsWith(PUBLIC) || !existsSync(path)) return res.writeHead(404).end('not here');
+  let path = normalize(join(PUBLIC, rel));
+  if (!extname(path) && existsSync(`${path}.html`)) path += '.html';   // /faq, as Cloudflare serves it
+  if (!path.startsWith(PUBLIC) || !existsSync(path)) return res.writeHead(404, { 'content-type': TYPES['.html'] }).end(readFileSync(join(PUBLIC, '404.html')));
   res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream', 'cache-control': 'no-cache' }).end(readFileSync(path));
 }).listen(PORT, () => console.log(`Mantle: http://localhost:${PORT}/${process.env.OPENROUTER_API_KEY && !process.env.MANTLE_PUBLIC ? '' : '  (no relay: commanders connect their own OpenRouter)'}`));

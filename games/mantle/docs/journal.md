@@ -538,3 +538,26 @@ Robby registered **mantle.rip** and said to publish.
   https handshakes failed because Cloudflare can't issue the certificate until the
   delegation shows up. Waiting it out.
 - **Left for Robby:** turning on the CSAM Scanning Tool (dashboard, with a contact email).
+
+### Making it look like a real website
+
+Robby asked for a robots.txt, an FAQ and "the types of things that make it look like a real
+website".
+
+- **Pages:** `/faq` and `/privacy`, plus a 404 page. Links sit at the foot of the opening
+  screen and in the lab's header.
+- **Meta and icons:** every page has a description, a canonical address and share tags. The
+  share picture (`og.jpg`) is Hollis and Brackett side by side under the name. There are
+  home-screen icons and a web manifest.
+- **Crawlers:** `robots.txt` lets them see the game, the FAQ and the privacy page, and keeps
+  them out of `/api/` and the OpenRouter callback. `sitemap.xml` lists the same three.
+- **Drama:** Cloudflare's assets redirect `/faq.html` to `/faq` (307). So every link and the
+  sitemap use the bare names, and the OpenRouter callback is `/connected` (the redirect
+  kept the query string, but skipping the hop is cleaner). `server.mjs` now serves the bare
+  names and the 404 page too.
+- **Also:** custom-domain routes made `wrangler dev` treat requests as mantle.rip, so they
+  were all redirected to https. `--local-upstream localhost:8790` fixes it.
+- **The privacy page is honest about two things:** designs are public and tied to their
+  commander, and a picture stays stored after its design is deleted.
+- **Not yet:** `security.txt` and a contact address both need the email Robby hasn't
+  picked.

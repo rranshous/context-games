@@ -113,6 +113,12 @@ document (where multiplayer will meet later), and R2 keeps every picture. Try it
 **Live at https://mantle.rip.** `www.mantle.rip` and plain http both go on to it. Ship a
 change with `npx wrangler deploy`.
 
+The site around the game: `/faq` and `/privacy` (Cloudflare serves `faq.html` at `/faq`,
+and `server.mjs` does the same), a `404.html`, `robots.txt` and `sitemap.xml`, a share
+picture (`og.jpg`, drawn from the two aids' portraits), icons and a web manifest so it can
+sit on a phone's home screen. The privacy page describes what `core.mjs` keeps; change
+them together.
+
 **Every picture people make is scanned.** Cloudflare's CSAM Scanning Tool looks at what's
 served through its cache. A Worker's own responses don't pass through it, so the pictures
 are served from the R2 bucket's own custom domain, **https://art.mantle.rip** (`ART_BASE`),

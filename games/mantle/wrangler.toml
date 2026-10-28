@@ -22,6 +22,7 @@ routes = [
 [assets]
 directory = "./public"
 binding = "ASSETS"
+not_found_handling = "404-page"   # public/404.html
 run_worker_first = true   # so /api/* and /art/* reach the Worker
 
 [[durable_objects.bindings]]

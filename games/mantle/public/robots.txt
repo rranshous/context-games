@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /$
+Allow: /faq$
+Allow: /privacy$
+Disallow: /api/
+Disallow: /connected
+
+Sitemap: https://mantle.rip/sitemap.xml
