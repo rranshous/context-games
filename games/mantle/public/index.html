@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mantle</title>
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.svg">
 </head>
 <body>
 <main id="pick" hidden>
@@ -17,6 +18,7 @@
   <header>
     <h1>Mantle</h1>
     <span id="where"></span>
+    <span id="thinking"></span>
     <button id="switch" class="quiet">work with someone else</button>
     <button id="front">To the front →</button>
   </header>
@@ -62,6 +64,7 @@
   <canvas id="field"></canvas>
   <div id="hud-top">
     <span id="matter"></span><span id="supply"></span><span id="clock"></span>
+    <button id="mute" class="quiet">sound on</button>
     <button id="speed" class="quiet">×1</button>
     <button id="pause">❚❚</button>
   </div>
@@ -70,9 +73,10 @@
     <button id="box-mode">Box</button>
     <button id="order-mode">Fight</button>
     <button id="rally-mode">Rally</button>
-    <span id="picked"></span>
   </div>
+  <div id="picked"></div>
   <canvas id="minimap"></canvas>
+  <div id="toasts"></div>
   <div id="hud-make"><div id="bays"></div><div id="makes"></div></div>
   <div id="overlay" hidden></div>
 </main>

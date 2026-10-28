@@ -7,6 +7,8 @@
 
 import { AIDS } from './aids.js';
 import { SIZES, STATS, check, price, specLanguage } from './spec.js';
+import { NotConnected, draw, think } from './brain.js';
+import { GAITS } from './anim.js';
 
 const MAX_TURNS = 6;
 
@@ -27,6 +29,7 @@ const PROPOSE = {
         name: { type: 'string', description: 'what the unit is called: short, a name a commander would shout' },
         description: { type: 'string', description: 'one or two sentences for the card: what it is and what it does in a fight' },
         look: { type: 'string', description: 'what it looks like, for the picture: body, shape, colors, texture, how it carries its weapons. Two to four sentences. Its size is added for you.' },
+        gait: { type: 'string', enum: GAITS, description: 'how it moves on the battlefield, for its animation: walks (legs), rolls (wheels or treads), slithers, hops, flies (wings or rotors: give it the ability too), or hovers' },
         size: { type: 'integer', minimum: 1, maximum: 5 },
         stats: {
           type: 'object',
@@ -73,7 +76,7 @@ How a unit looks: ${a.look} The picture is drawn from your look, so describe it 
     if (!this.bench) return 'On the bench: nothing yet.';
     const { name, description, look, spec, priced } = this.bench;
     return `On the bench now: ${name}. ${description}
-Looks: ${look}
+Looks: ${look}${this.bench.gait ? ` (it ${this.bench.gait})` : ''}
 Spec: ${JSON.stringify(spec)}
 Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', ')}), takes ${priced.supply} room, and ${this.aid.lab} need ${priced.seconds} seconds to make it.`;
   }
@@ -96,15 +99,10 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
     this.onBusy('thinking', true);
     try {
       for (let turn = 0; turn < MAX_TURNS; turn++) {
-        const res = await fetch('/api/think', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            messages: [{ role: 'system', content: this.systemText() }, ...this.messages, { role: 'system', content: this.benchText() }],
-            tools: [PROPOSE],
-          }),
-        }).then((r) => r.json());
-        if (res.error) throw new Error(res.error);
+        const res = await think({
+          messages: [{ role: 'system', content: this.systemText() }, ...this.messages, { role: 'system', content: this.benchText() }],
+          tools: [PROPOSE],
+        });
         const msg = res.choices?.[0]?.message ?? {};
         this.messages.push({ role: 'assistant', content: msg.content ?? '', ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
         if (msg.content?.trim()) this.onSay(msg.content.trim());
@@ -112,6 +110,7 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
         for (const call of msg.tool_calls) this.messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(this.propose(call)) });
       }
     } catch (err) {
+      if (err instanceof NotConnected) { this.messages.pop(); this.onSay('(Connect OpenRouter, at the top, and I can get to work.)', 'fault'); return; }
       this.onSay(`(Something went wrong in ${this.aid.lab}: ${err.message})`, 'fault');
     } finally {
       this.onBusy('thinking', false);
@@ -131,7 +130,8 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
     // Same name, same design (a revision, kept over the old one). A new name is a new unit,
     // even if the bench wasn't cleared first.
     const id = this.bench?.name === input.name ? this.bench.id : undefined;
-    this.bench = { id, name: input.name, description: input.description, look, spec, priced, art: redraw ? null : this.bench.art };
+    const gait = GAITS.includes(input.gait) ? input.gait : this.bench?.gait;
+    this.bench = { id, gait, name: input.name, description: input.description, look, spec, priced, art: redraw ? null : this.bench.art };
     if (redraw) this.draw(this.bench);
     this.onChange(this.bench);
     return { ok: true, cost: priced.cost, where_the_cost_comes_from: priced.lines, room: priced.supply, seconds: priced.seconds, redrawn: !!redraw };
@@ -141,8 +141,7 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
     this.onBusy('drawing', true);
     try {
       const prompt = artPrompt(design.look, design.spec.size, this.id);
-      const { url, error } = await fetch('/api/art', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt }) }).then((r) => r.json());
-      if (error) throw new Error(error);
+      const url = await draw(prompt);
       if (this.bench === design) { design.art = url; this.onChange(design); }
     } catch (err) {
       this.onSay(`(The picture didn't come out: ${err.message})`, 'fault');

@@ -7,6 +7,7 @@
 //   OPENROUTER_API_KEY=...
 //   MANTLE_MODEL=anthropic/claude-sonnet-5.5            the aids' thinking
 //   MANTLE_ART_MODEL=google/gemini-3.1-flash-lite-image  the units' pictures
+//   MANTLE_PUBLIC=1                                     lend no thinking: everyone connects their own OpenRouter
 //
 // Data: data/designs/<id>.json, one per kept design; data/art/<id>.<ext>, every picture
 // drawn; data/log.jsonl, every call, with what it cost.
@@ -26,7 +27,9 @@ loadEnv(join(HERE, '.env'));
 const KEY = process.env.OPENROUTER_API_KEY;
 const MODEL = process.env.MANTLE_MODEL || 'anthropic/claude-sonnet-5.5';
 const ART_MODEL = process.env.MANTLE_ART_MODEL || 'google/gemini-3.1-flash-lite-image';
-if (!KEY) console.warn('no OPENROUTER_API_KEY in .env: the aids can\'t think');
+// Public: open to anyone, so the server lends no thinking; everyone connects their own OpenRouter.
+const RELAY = Boolean(KEY) && !process.env.MANTLE_PUBLIC;
+if (!RELAY) console.warn('no relay: commanders connect their own OpenRouter to think');
 
 for (const d of ['designs', 'art']) mkdirSync(join(DATA, d), { recursive: true });
 
@@ -53,25 +56,34 @@ async function openrouter(body) {
   return json;
 }
 
+const keep = (b64, ext) => { const name = `${randomUUID()}.${ext}`; writeFileSync(join(DATA, 'art', name), Buffer.from(b64, 'base64')); return name; };
+const relayOnly = (f) => async (body) => { if (!RELAY) throw new Error('this server lends no thinking: connect your own OpenRouter'); return f(body); };
+
 const routes = {
+  'GET /api/relay': async () => ({ thinking: RELAY }),
+  // A picture drawn on the commander's own key, kept here so their design can point at it.
+  'POST /api/keep-art': async ({ image }) => {
+    const m = String(image).match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m || m[2].length > 8e6) throw new Error('not a picture');
+    return { url: `/art/${keep(m[2], m[1] === 'jpeg' ? 'jpg' : m[1])}` };
+  },
   // An aid thinks: the page holds the conversation and the tools, the model is ours.
-  'POST /api/think': async ({ messages, tools }) => {
+  'POST /api/think': relayOnly(async ({ messages, tools }) => {
     const json = await openrouter({ model: MODEL, messages, tools, max_tokens: 4000 });
     log({ kind: 'think', model: MODEL, usage: json.usage, last: messages.findLast((m) => m.role !== 'system'), reply: json.choices?.[0]?.message });
     return json;
-  },
+  }),
   // A unit's picture, kept on disk.
-  'POST /api/art': async ({ prompt }) => {
+  'POST /api/art': relayOnly(async ({ prompt }) => {
     const t = Date.now();
     const json = await openrouter({ model: ART_MODEL, modalities: ['image', 'text'], messages: [{ role: 'user', content: prompt }] });
     const url = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     if (!url) throw new Error('no picture came back');
     const [, mime, b64] = url.match(/^data:image\/(\w+);base64,(.*)$/s);
-    const name = `${randomUUID()}.${mime === 'jpeg' ? 'jpg' : mime}`;
-    writeFileSync(join(DATA, 'art', name), Buffer.from(b64, 'base64'));
+    const name = keep(b64, mime === 'jpeg' ? 'jpg' : mime);
     log({ kind: 'art', model: ART_MODEL, prompt, seconds: (Date.now() - t) / 1000, cost: json.usage?.cost, art: name });
     return { url: `/art/${name}` };
-  },
+  }),
   'GET /api/designs': async () => readdirSync(join(DATA, 'designs')).filter((f) => f.endsWith('.json'))
     .map((f) => JSON.parse(readFileSync(join(DATA, 'designs', f), 'utf8'))).sort((a, b) => b.kept.localeCompare(a.kept)),
   'POST /api/designs': async (design) => {

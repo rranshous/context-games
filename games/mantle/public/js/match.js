@@ -14,6 +14,7 @@ import { RIVAL_UNITS } from './levels.js';
 import { Rival } from './rival.js';
 import { SUPPLY_CAP, Sim, rng } from './sim.js';
 import { $, el, priced } from './ui.js';
+import { isMuted, play, setMuted, wake } from './sound.js';
 
 const RIVAL = '#d0503c';
 const DT = 1 / 30;
@@ -53,8 +54,15 @@ class Match {
     this.cam = { x: 0, y: 0, z: Math.max(0.6, Math.min(1.6, Math.min(this.vw, this.vh) / 520)) };
     this.look(home.x + Math.min(200, this.vw / 4 / this.cam.z), home.y - Math.min(150, this.vh / 5 / this.cam.z) + 40);
 
+    // New units gather a little way out from the base, toward the middle of the map.
+    const mid = { x: sim.w / 2, y: sim.h / 2 }, d = Math.hypot(mid.x - home.x, mid.y - home.y);
+    sim.setRally(0, home.x + (mid.x - home.x) / d * 150, home.y + (mid.y - home.y) / d * 150);
+    this.told = { made: 0, owners: sim.deposits.map((x) => x.owner), alarm: -99 };
+    this.pings = [];
+
     this.wire();
     this.buildMakes();
+    $('mute').textContent = isMuted() ? 'sound off' : 'sound on';
     $('overlay').hidden = true;
     window.explorer = this.explorer();
     this.last = performance.now();
@@ -147,6 +155,9 @@ class Match {
     $('rally-mode').onclick = () => { this.mode.rally = !this.mode.rally; };
     $('pause').onclick = () => this.pause(!this.paused);
     $('speed').onclick = () => { this.speed = this.speed === 1 ? 2 : 1; };
+    $('mute').onclick = () => { setMuted(!isMuted()); wake(); $('mute').textContent = isMuted() ? 'sound off' : 'sound on'; };
+    on(window, 'pointerdown', wake);
+    on(window, 'keydown', wake);
   }
 
   down(e) {
@@ -285,6 +296,9 @@ class Match {
       this.acc += dt * this.speed;
       while (this.acc >= DT) { this.rival.tick(DT); this.sim.step(DT); this.acc -= DT; this.fx.take(this.sim.effects, (x, y) => this.visibleAt(x, y)); }
       this.fx.update(dt * this.speed);
+      for (const snd of this.fx.sounds) play(snd.kind, this.screenAt(snd), snd.big);
+      this.fx.sounds = [];
+      this.notice();
       if (this.sim.winner != null) return this.finish();
     }
     const pan = 520 * dt / this.cam.z, k = this.keys;
@@ -301,9 +315,45 @@ class Match {
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  screenAt(p) { return { x: (p.x - this.cam.x) * this.cam.z, y: (p.y - this.cam.y) * this.cam.z, w: this.vw, h: this.vh }; }
+
+  onScreen(p) { const s = this.screenAt(p); return s.x > 0 && s.y > 0 && s.x < this.vw && s.y < this.vh; }
+
+  /** Tell the commander what they'd want to know: a unit ready, a deposit taken or lost, an attack somewhere they aren't looking. */
+  notice() {
+    const sim = this.sim, t = sim.t;
+    if (sim.stats[0].made > this.told.made) { this.told.made = sim.stats[0].made; play('ready'); }
+    sim.deposits.forEach((d, i) => {
+      if (d.owner === this.told.owners[i]) return;
+      if (d.owner === 0) { this.toast('Deposit taken'); play('taken'); }
+      else if (this.told.owners[i] === 0) { this.toast('Deposit lost', true); play('lost'); this.ping(d); }
+      this.told.owners[i] = d.owner;
+    });
+    if (t - this.told.alarm > 12) {
+      const struck = sim.entities.find((e) => e.side === 0 && t - (e.hit ?? -9) < 0.2 && !this.onScreen(e));
+      if (struck) {
+        this.told.alarm = t;
+        this.toast(struck.kind === 'hq' ? 'Your base is under attack' : 'Your units are under attack', true);
+        play('alarm'); this.ping(struck);
+      }
+    }
+    for (const p of this.pings) p.age += 1 / 60;
+    this.pings = this.pings.filter((p) => p.age < 3);
+  }
+
+  ping(p) { this.pings.push({ x: p.x, y: p.y, age: 0 }); }
+
+  toast(text, bad = false) {
+    const t = el('div', { className: `toast${bad ? ' bad' : ''}`, textContent: text });
+    $('toasts').append(t);
+    setTimeout(() => t.remove(), 3200);
+    while ($('toasts').children.length > 3) $('toasts').firstChild.remove();
+  }
+
   finish() {
     const won = this.sim.winner === 0, s = this.sim.stats, t = Math.round(this.sim.t);
     this.draw(); this.hud();
+    play(won ? 'won' : 'beaten');
     this.overlay(won ? 'Victory' : 'Defeat', [
       won ? 'Their base is down.' : 'Your base is down.',
       `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · you made ${s[0].made}, lost ${s[0].lost}, and destroyed ${s[0].killed} of theirs.`,
@@ -465,6 +515,10 @@ class Match {
       const s = e.kind === 'hq' ? 70 : Math.max(22, e.r * 2);
       g.fillRect(e.x - s / 2, e.y - s / 2, s, s);
     }
+    for (const p of this.pings) {
+      g.strokeStyle = `rgba(255, 90, 60, ${1 - p.age / 3})`; g.lineWidth = 6 / k;
+      g.beginPath(); g.arc(p.x, p.y, 60 + (p.age % 1) * 220, 0, Math.PI * 2); g.stroke();
+    }
     const c = this.cam;
     g.strokeStyle = '#fff'; g.lineWidth = 3 / k;
     g.strokeRect(c.x, c.y, this.vw / c.z, this.vh / c.z);
@@ -498,10 +552,22 @@ class Match {
     const making = side.bays.map((b) => el('span', { className: 'bay' }, b.design.name, el('i', { style: `width:${100 * (1 - b.left / b.design.priced.seconds)}%` })));
     const waiting = side.queue.map((d, i) => el('button', { className: 'bay waiting', textContent: d.name, title: 'tap to cancel', onclick: () => this.sim.cancel(0, i) }));
     $('bays').replaceChildren(...making, ...waiting);
+    // What's picked, grouped by design: tap a group to keep just that group.
     const picked = [...this.selected].map((id) => sim.entities.find((e) => e.id === id)).filter(Boolean);
-    const counts = {};
-    for (const u of picked) counts[u.name] = (counts[u.name] ?? 0) + 1;
-    $('picked').textContent = picked.length ? Object.entries(counts).map(([n, c]) => (c > 1 ? `${c} ${n}` : n)).join(', ') : (this.mode.rally ? 'tap where new units should gather' : this.mode.armed ? 'click where to fight' : '');
+    const groups = new Map();
+    for (const u of picked) { const g = groups.get(u.name) ?? { units: [], art: u.design.art }; g.units.push(u); groups.set(u.name, g); }
+    const key = [...groups].map(([n, g]) => `${n}:${g.units.length}:${g.units.reduce((h, u) => h + Math.round(10 * u.hp / u.maxHp), 0)}`).join('|') + this.mode.rally + this.mode.armed;
+    if (key !== this.pickedKey) {
+      this.pickedKey = key;
+      const hint = this.mode.rally ? 'tap where new units should gather' : this.mode.armed ? 'click where to fight' : '';
+      $('picked').replaceChildren(...[...groups].map(([name, g]) => {
+        const pic = el('span', { className: 'pic' });
+        cutout(g.art).then((src) => pic.append(el('img', { src, alt: '' }))).catch(() => {});
+        const health = g.units.reduce((h, u) => h + u.hp / u.maxHp, 0) / g.units.length;
+        return el('button', { className: 'group', title: name, onclick: () => { this.selected = new Set(g.units.map((u) => u.id)); } },
+          pic, el('span', { textContent: g.units.length > 1 ? `${g.units.length} ${name}` : name }), el('i', { style: `width:${Math.round(health * 100)}%` }));
+      }), ...(hint ? [el('span', { className: 'hint', textContent: hint })] : []));
+    }
   }
 
   // ---------- for Claude, playing it ----------

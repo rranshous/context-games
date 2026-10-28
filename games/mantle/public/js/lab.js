@@ -8,6 +8,8 @@ import { cutout } from './cutout.js';
 import { SIZES } from './spec.js';
 import { $, ability, el, priced, recall, remember, sheet } from './ui.js';
 import { showWar } from './war.js';
+import { source } from './brain.js';
+import { connect, disconnect } from './openrouter.js';
 
 let aid = null;
 const busy = new Set();
@@ -117,6 +119,18 @@ async function showRoster() {
     return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, pic, el('strong', { textContent: d.name }), el('span', { textContent: `${priced(d).cost} · ${SIZES[d.spec.size - 1]}` }));
   }) : [el('p', { className: 'hint', textContent: 'Keep a design and it shows up here.' })]));
 }
+
+// ---------- whose thinking ----------
+
+async function showThinking() {
+  const from = await source();
+  $('thinking').replaceChildren(...(from === 'yours'
+    ? [el('span', { className: 'quiet', textContent: 'thinking on your OpenRouter' }), el('button', { className: 'quiet', textContent: 'disconnect', onclick: () => { disconnect(); showThinking(); } })]
+    : [from === 'server' && el('span', { className: 'quiet', textContent: 'thinking on this server\'s key' }),
+      el('button', { className: from ? 'quiet' : 'connect', textContent: from ? 'connect your own OpenRouter' : 'Connect OpenRouter to design', onclick: () => connect().then(showThinking) })]));
+}
+addEventListener('storage', (e) => { if (e.key === 'mantle-openrouter-key') showThinking(); });
+showThinking();
 
 $('front').onclick = () => { screen('war'); showWar(aid.id, { back: showLab, screen }); };
 

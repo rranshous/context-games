@@ -38,6 +38,8 @@ h1 { font-weight: normal; letter-spacing: 0.3em; text-transform: uppercase; marg
 #lab header h1 { font-size: 18px; }
 #where { color: var(--aid); }
 #switch { margin-left: auto; }
+#thinking { display: flex; gap: 6px; align-items: baseline; font-size: 13px; color: var(--dim); }
+#thinking .connect { border-color: var(--aid); color: var(--aid); }
 
 #talk { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 #who { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
@@ -97,7 +99,7 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 #kept { display: flex; gap: 10px; overflow-x: auto; }
 .unit { flex: 0 0 120px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; }
 .unit .pic { width: 100px; height: 70px; display: grid; place-items: center; }
-.unit .pic img { max-width: 100%; max-height: 100%; }
+.unit .pic img { max-width: 100px; max-height: 70px; }
 .unit strong { font-weight: normal; font-size: 13px; }
 .unit span { font-size: 11px; color: var(--dim); }
 
@@ -178,7 +180,7 @@ body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
 .scouted, .yours { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
 .card { display: grid; grid-template-columns: 84px 1fr; gap: 4px 10px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); align-content: start; }
 .card .pic { width: 84px; height: 70px; display: grid; place-items: center; }
-.card .pic img { max-width: 100%; max-height: 100%; }
+.card .pic img { max-width: 84px; max-height: 70px; }
 .card .about { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .card .line { font-size: 12px; color: var(--dim); }
 .card .craft { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -205,7 +207,16 @@ body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
 #hud-orders { position: absolute; top: 56px; left: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; max-width: calc(100% - 190px); }
 #hud-orders button { font-size: 13px; padding: 5px 10px; }
 #hud-orders button.on { border-color: var(--aid); color: var(--aid); }
-#picked { font-size: 13px; color: var(--ink); text-shadow: 0 1px 3px #000; }
+#picked { position: absolute; left: 8px; top: 96px; display: flex; flex-direction: column; gap: 4px; max-height: 50%; overflow-y: auto; }
+#picked .group { position: relative; display: flex; align-items: center; gap: 6px; padding: 3px 10px 5px 4px; font-size: 12px; text-align: left; overflow: hidden; }
+#picked .group .pic { width: 30px; height: 24px; display: grid; place-items: center; }
+#picked .group .pic img { max-width: 30px; max-height: 24px; }
+#picked .group i { position: absolute; left: 0; bottom: 0; height: 2px; background: #7fc35a; }
+#picked .hint { font-size: 13px; text-shadow: 0 1px 3px #000; }
+#toasts { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+.toast { padding: 5px 14px; border-radius: var(--radius); background: #15171ae6; border: 1px solid var(--aid); font-size: 14px; animation: toast 3.2s forwards; }
+.toast.bad { border-color: #d0503c; color: #f0a090; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 #minimap { position: absolute; top: 56px; right: 8px; width: 170px; height: 105px; border: 1px solid var(--line); border-radius: var(--radius); background: #000; touch-action: none; }
 #hud-make { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
 #hud-make > * { pointer-events: auto; }
@@ -217,7 +228,7 @@ body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
 #makes { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; scrollbar-width: thin; }
 .make { position: relative; flex: 0 0 auto; display: grid; grid-template-columns: 46px auto; grid-template-rows: auto auto; gap: 0 8px; align-items: center; text-align: left; padding: 5px 12px 5px 6px; }
 .make .pic { grid-row: span 2; width: 46px; height: 38px; display: grid; place-items: center; }
-.make .pic img { max-width: 100%; max-height: 100%; }
+.make .pic img { max-width: 46px; max-height: 38px; }
 .make strong { font-weight: normal; font-size: 13px; }
 .make .line { font-size: 12px; color: var(--aid); }
 .make kbd { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--dim); font-family: inherit; }
@@ -245,6 +256,8 @@ body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
   #minimap { width: 120px; height: 75px; }
   #hud-orders { max-width: calc(100% - 140px); }
   #hud-orders button { padding: 8px 12px; }
+  #picked { top: 104px; max-height: 35%; }
+  #toasts { top: 100px; }
   .make { padding: 6px 10px 6px 6px; }
   .make kbd { display: none; }
 }
