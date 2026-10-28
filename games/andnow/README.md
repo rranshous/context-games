@@ -73,7 +73,7 @@ Pictures from the two breakout runs, with glyphs on. Each picked body is outline
 
 *Bites are rare on the long arms: an auto-bite (`B` with an empty stack) never targets your own lineage, and the colonies at the top are all one lineage. But a bite aimed by stray numbers on the stack can land, and a bite near the core cuts off everything beyond it. Here a 304-cell body loses its lower 139 cells in one bite. Arms are fat and cheap, and grow back.*
 
-*The same thing ended seed 2's biggest body ever. Climber·27349073 grew for 100,000 ticks without moving to 1,447 cells and a 12,800-glyph genome, at a pace of 0.019 (one action every ~50 ticks: mass slows a body). At tick 1,124,521 one bite cut it at a narrow point and it lost 1,141 cells at once. It lived on at 308 cells and regrew for a while. The biggest bodies since are half its size, with genomes a twentieth as long.*
+*The same thing ended seed 2's biggest body ever. Climber·27349073 grew for 100,000 ticks without moving to 1,447 cells, a thread 998 columns wide and 20 rows tall, at a pace of 0.019 (one action every ~50 ticks: mass slows a body). At tick 1,124,521 one bite cut it at a narrow point and it lost 1,141 cells at once. It lived on at 308 cells and regrew for a while. The biggest bodies since are half its size.*
 
 The viewer hops between runs, scrubs a timeline of each one (alive count and biggest body), and can follow the biggest body. With **live** ticked (the default when a run opens at its newest checkpoint) it loads each new checkpoint as the bake writes it, keeping the camera and whoever it follows; jumping back in time unticks it.
 

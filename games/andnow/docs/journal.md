@@ -2481,7 +2481,7 @@ paused (4.9M, 5.9M, 6.7M, 14.4M ticks).
 
 s2's timeline: ~2,400 bodies and a biggest of 191 from 300k to 700k, then the breakout boom
 (2k → 100k by 1M), then one body. Climber·27349073 held the biggest from ~1.03M to 1.124M,
-growing 7 cells every 2,000 ticks to 1,447, genome 10k → 12.8k glyphs, its IP's y fixed at
+growing 7 cells every 2,000 ticks to 1,447, spread 998 columns wide over 20 rows, its IP's y fixed at
 ~10,310: it barely moved. Mass 2,880 gives it a pace of 0.019, an action every ~50 ticks.
 Nobody had bitten it since tick 976,783.
 
@@ -2489,7 +2489,7 @@ A replay from the t1,120,000 checkpoint, watching it tick by tick (scratch scrip
 `watch.ts`, `cut.ts`): it didn't die when it dropped off the timeline. At t1,124,521 one
 bite (`destroy` → `unreached`) cut it at a narrow point: 1,141 cells cut off at once, 388
 to debris, 752 gone, 308 kept. It regrew to 360 by 1.128M; by 1.235M it's dead (a
-tombstone keeps no cause or tick). The biggest since: ~600–700 cells, genomes ~650 glyphs.
+tombstone keeps no cause or tick). The biggest since: ~600–700 cells.
 A sprawling giant carries its own weak points: the one bite that cost it 80% of itself.
 
 Loose thread: that tick also had 6,894 births (the ticks around it ~280), then 4,331,
@@ -2499,3 +2499,9 @@ something worldwide or the counting; not run down yet.
 Noted, not fixed: a tombstone's `home` is the founder's `home` object, and the y-shift
 walks every record (`shift(wr.home)`), so a founder's start room may shift twice whenever
 its lineage has a tombstone. Only the start-room stats read it.
+
+A correction: I'd been reading the `genome` string in index.json's `biggest` as a genome
+length. It's a picture of the body (`genomeOf`): its bounding box, one character per square,
+a space where the box isn't the body, `/` between rows. Its length measures sprawl, not
+code: the giant's 12,818 characters are 1,447 cells across a 998 × 20 box; s3's 912-cell
+biggest at 6.02M had 17,371 for a box 614 × 187. Every cell is exactly one glyph.
