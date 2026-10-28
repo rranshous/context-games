@@ -612,3 +612,48 @@ finished:
 - **Missing pictures:** one helper (`picture()` in `ui.js`) cuts every unit picture out,
   and shows a mark for a design whose picture is gone instead of a blank. The bench says
   "Its likeness is lost. Ask for a new one."
+
+## A game, not a web page (2026-10-28)
+
+Robby: "too much HTML/css and not enough sprites. lets make this feel like a non-web game.
+generate assets to frame the screen, for buttons, etc.; the screen realestate is not being
+used well, revisit the layout and button placement. we want the next action's button to be
+where we expect it to be. we don't need to show the big connected and disconnect buttons
+for openrouter all the time".
+
+- **Drawn pieces.** `tools/frames.mjs` draws five pieces for each aid: a panel frame, a
+  button plate, a main-button plate, a round knob and a room. `tools/frames.py` cuts them
+  out. Hollis's set is bone and dark-green chitin bound with sinew, with glowing nodules;
+  her main button is a veined green membrane. Brackett's is riveted gunmetal with brass
+  corner brackets and amber lamps; his main button is polished brass with dark lettering.
+  Ten pieces at about 7¢ each.
+- **Choosing the model.** I tried one panel on three models. gemini-3.1-flash-image drew an
+  even, square, symmetrical frame, which is what stretching by the rims needs.
+  gemini-3-pro-image (14¢) drew a wider, less even one, and gpt-5-image-mini was lopsided.
+- **Drama:** Hollis's first test panel came back with a transparency checkerboard *painted
+  into* the picture. Asking for a white background and flood-filling it away from the edges
+  fixed that.
+- **Every element is a drawn piece.** Every panel, the action bars, the menu, the match's
+  cards and toasts use `border-image` with the piece's rims measured. Every button is a plate
+  unless it's the main one, a knob or quiet words. Hover brightens and glows, press dips,
+  and disabled greys out. Keyboard focus glows around the shape instead of drawing a box.
+  Headings and the main buttons use Cinzel.
+- **One layout for every screen.** Each fills the window, with no page scroll; panels
+  scroll inside. Back is at the top left, the menu at the top right, and the next step is
+  the main button at the bottom right: *Continue*, *Work with Hollis*, *To the front*,
+  *Begin*. The lab's *To the front* stays a plain plate until there's a design to take, so
+  only one main button shows at a time. Each aid's room shows dimly behind their screens.
+- **OpenRouter only when needed.** The connect and disconnect controls moved into the
+  menu. When there's nothing to think on, the chat ends in "Brackett thinks and draws with
+  AI models, on your own OpenRouter account. Connect it to start designing." with the
+  Connect button where the words would go. Once connected, it's gone.
+- **Choosing an aid:** each card wears its own aid's frame and ends in its own main button.
+- **Match:** resources sit in a framed panel at the top left, knobs (sound, speed, pause)
+  at the top right, and the minimap in a frame below them. Orders, build buttons and toasts
+  are plates; the start, pause and end cards are panels.
+- **Phones:** the lab stacks the chat (a third of the height), the bench (scrolling) and the
+  shelf with *To the front*. On the front, the muster gives its five slots a full row with
+  Begin under them.
+- **Also:** visiting the local Cloudflare copy on another port overwrote the local server's
+  cookie (cookies are per host, not per port), so the browser became a new commander. Only
+  a testing hazard.

@@ -68,6 +68,11 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
 - `public/js/lab.js`: the page: the title screen (continue with your aid, or choose another; the name atop every screen leads back to it), choosing an aid, and the lab. Hovering an ability or a stat says what it is. The lab is styled after the aid you chose (`body[data-aid]` in `style.css`): the vats for Hollis, the shop for Brackett.
 - `public/js/ui.js`: shared page pieces: a unit's sheet, ability tiles, a unit's picture (with a mark for one whose likeness is gone), and the tips.
 - `public/js/icons.js`: the icons: line drawings that take the color of the text around them.
+- `public/img/ui/<aid>/`: each aid's drawn interface: a panel frame, a button plate, the main
+  button's plate, a round knob and their room (the backdrop). Panels and plates stretch by
+  their rims (`border-image` in `style.css`). Every screen keeps the same places: back at the
+  top left, the menu at the top right (sound, OpenRouter, switching aid, the title, FAQ and
+  privacy), and the next step as the main button at the bottom right.
 - `public/js/levels.js`: the campaign. The rivals' units are specs from the same two
   labs, checked by `check()` at load. Each map says why it's harder: the rival's head
   start, their supply line, deposits, first push, ambushes.

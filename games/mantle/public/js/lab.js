@@ -12,6 +12,7 @@ import { icon } from './icons.js';
 import { LEVELS } from './levels.js';
 import { source } from './brain.js';
 import { connect, disconnect } from './openrouter.js';
+import { isMuted, setMuted, wake } from './sound.js';
 
 let aid = null;
 const busy = new Set();
@@ -25,53 +26,81 @@ function showLab() { screen('lab'); showRoster(); }
 // ---------- the title ----------
 
 function showTitle() {
-  delete document.body.dataset.aid;
-  document.documentElement.style.removeProperty('--aid');
-  screen('title');
   const chosen = AIDS[recall('mantle-aid')];
-  const button = (text, onclick, className = '') => el('button', { className, onclick }, ...text);
+  dressAs(chosen?.id);
+  screen('title');
+  const button = (text, onclick, className) => el('button', { className, onclick }, ...text);
   $('title-go').replaceChildren(...(chosen
-    ? [button([`Continue with ${chosen.name}`, icon('forward')], () => start(chosen.id), 'main'), button(['Work with someone else'], showPick, 'quiet')]
+    ? [button([`Continue with ${chosen.name}`, icon('forward')], () => start(chosen.id), 'main'), button(['Work with someone else'], showPick, 'plate')]
     : [button(['Begin', icon('forward')], showPick, 'main')]));
-  if (chosen) $('title-go').firstChild.style.setProperty('--aid', chosen.color);
   let won = [];
   try { won = JSON.parse(recall('mantle-won') ?? '[]'); } catch {}
   $('title-progress').textContent = won.length ? `${won.length} of ${LEVELS.length} maps taken` : '';
 }
-$('pick-back').onclick = showTitle;
-// The name at the top of every screen leads back to the title.
-for (const h of document.querySelectorAll('#lab header h1, #war header h1')) {
-  Object.assign(h, { tabIndex: 0, title: 'To the title screen', onclick: showTitle, onkeydown: (e) => { if (e.key === 'Enter') showTitle(); } });
-  h.classList.add('home');
+
+/** The screens wear the aid's look: their color, their frames and buttons, their room. */
+function dressAs(aidId) {
+  if (aidId) { document.body.dataset.aid = aidId; document.documentElement.style.setProperty('--aid', AIDS[aidId].color); }
+  else { delete document.body.dataset.aid; document.documentElement.style.removeProperty('--aid'); }
 }
 
+// The knobs every screen has: back (top left) and the menu (top right).
+for (const k of document.querySelectorAll('.knob.back')) k.append(icon('back'));
+for (const k of document.querySelectorAll('.knob.menu')) { k.append(icon('menu')); k.onclick = showMenu; }
+$('pick-back').onclick = showTitle;
+$('lab-back').onclick = showTitle;
+
+// ---------- the menu: everything that isn't the next step ----------
+
+async function showMenu() {
+  const from = await source(), chosen = AIDS[recall('mantle-aid')];
+  const close = () => { $('menu').hidden = true; };
+  const item = (label, onclick, className = 'plate') => el('button', { className, onclick: () => { close(); onclick(); } }, ...[label].flat());
+  $('menu').replaceChildren(el('div', { className: 'panel box' },
+    el('h2', { textContent: 'Mantle' }),
+    el('div', { className: 'thinking' },
+      el('p', { textContent: from === 'yours' ? 'Your aid thinks on your OpenRouter account.' : from === 'server' ? 'Your aid thinks on this server\'s key.' : 'Your aid needs OpenRouter to think.' }),
+      from === 'yours' ? item('Disconnect OpenRouter', () => { disconnect(); refreshThinking(); }) : item(from ? 'Connect your own OpenRouter' : 'Connect OpenRouter', () => connect().then(refreshThinking), from ? 'plate' : 'main')),
+    item([icon(isMuted() ? 'muted' : 'sound'), isMuted() ? ' Sound is off' : ' Sound is on'], () => { setMuted(!isMuted()); wake(); }),
+    chosen && item('Work with someone else', showPick),
+    item('Title screen', showTitle),
+    el('p', { className: 'links' }, el('a', { href: '/faq', target: '_blank', textContent: 'FAQ' }), ' · ', el('a', { href: '/privacy', target: '_blank', textContent: 'Privacy' })),
+    item('Close', () => {}, 'quiet'),
+  ));
+  $('menu').hidden = false;
+  $('menu').onclick = (e) => { if (e.target === $('menu')) close(); };
+}
+addEventListener('keydown', (e) => { if (e.key === 'Escape') $('menu').hidden = true; });
+
 function showPick() {
-  delete document.body.dataset.aid;
+  dressAs(null);
   screen('pick');
-  $('aids').replaceChildren(...Object.values(AIDS).map((a) => el('button', { className: 'aid', onclick: () => start(a.id) },
+  // Each card wears its own aid's look, and ends in its own way in.
+  $('aids').replaceChildren(...Object.values(AIDS).map((a) => el('div', { className: 'aid panel', dataset: { aid: a.id }, style: `--aid: ${a.color}` },
     el('img', { src: `img/${a.id}.jpg`, alt: '' }),
-    el('strong', { textContent: a.name }),
-    el('span', { className: 'title', textContent: `${a.title}, ${a.makes} in ${a.lab}` }),
-    el('span', { className: 'craft' }, ...Object.values(a.abilities).map((x) => ability(x))),
-    el('span', { className: 'lean', textContent: a.leanText.replace(/^In (your|their) \w+, /, '').replace(/^./, (c) => c.toUpperCase()) }),
+    el('div', { className: 'about' },
+      el('strong', { textContent: a.name }),
+      el('span', { className: 'title', textContent: `${a.title}, ${a.makes} in ${a.lab}` }),
+      el('span', { className: 'craft' }, ...Object.values(a.abilities).map((x) => ability(x))),
+      el('span', { className: 'lean', textContent: a.leanText.replace(/^In (your|their) \w+, /, '').replace(/^./, (c) => c.toUpperCase()) })),
+    el('button', { className: 'main', onclick: () => start(a.id) }, `Work with ${a.name.split(' ').at(-1)}`, icon('forward')),
   )));
 }
 
 function start(aidId) {
   remember('mantle-aid', aidId);
   const a = AIDS[aidId];
-  document.documentElement.style.setProperty('--aid', a.color);
-  document.body.dataset.aid = aidId;   // the lab is dressed as theirs: the vats or the shop
+  dressAs(aidId);   // the lab is dressed as theirs: the vats or the shop
   aid = new Aid(aidId, { onChange: showBench, onSay: say, onBusy: setBusy });
   showLab();
-  $('where').textContent = `${a.lab}, with ${a.name}`;
-  $('who').replaceChildren(el('img', { src: `img/${a.id}.jpg`, alt: '' }), el('div', {}, el('strong', { textContent: a.name }), el('span', { textContent: a.title })));
+  $('who').replaceChildren(el('img', { src: `img/${a.id}.jpg`, alt: '' }), el('div', {}, el('strong', { textContent: a.name }), el('span', { textContent: `${a.title}, ${a.lab}` })));
   $('log').replaceChildren();
   say(a.id === 'hollis'
     ? 'The vats are warm. Tell me what you need out there, and I\'ll grow you something for it.'
     : 'Shop\'s open. Tell me the job and I\'ll build you something that does it.');
   showBench(null);
   showRoster();
+  refreshThinking();
 }
 
 // ---------- talking ----------
@@ -112,7 +141,8 @@ function showBench(d) {
   $('bench').classList.toggle('empty', !d);
   if (!d) {
     $('art').replaceChildren(el('p', { className: 'hint', textContent: 'Nothing on the bench yet.' }));
-    $('name').textContent = ''; $('description').textContent = ''; $('sheet').replaceChildren();
+    $('name').textContent = ''; $('description').textContent = '';
+    $('sheet').replaceChildren(el('p', { className: 'hint', textContent: 'When there\'s a unit on the bench, its sheet is here: what it costs, how long it takes, its stats and its abilities.' }));
     return;
   }
   $('name').textContent = d.name;
@@ -133,12 +163,13 @@ $('keep').onclick = async () => {
   showRoster();
 };
 $('fresh').onclick = () => aid.clear();
-$('switch').onclick = showPick;
 
 // ---------- the roster ----------
 
 async function showRoster() {
   const designs = (await fetch('/api/designs?by=me').then((r) => r.json())).filter((d) => d.aid === aid.id);
+  // The front is the next step once there's something to take to it.
+  $('front').className = designs.length ? 'main' : 'plate';
   $('kept').replaceChildren(...(designs.length ? designs.map((d) => {
     return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, picture(d.art), el('strong', { textContent: d.name }), el('span', { textContent: `${priced(d).cost} · ${SIZES[d.spec.size - 1]}` }));
   }) : [el('p', { className: 'hint', textContent: 'Keep a design and it shows up here.' })]));
@@ -146,15 +177,19 @@ async function showRoster() {
 
 // ---------- whose thinking ----------
 
-async function showThinking() {
-  const from = await source();
-  $('thinking').replaceChildren(...(from === 'yours'
-    ? [el('span', { className: 'quiet', textContent: 'thinking on your OpenRouter' }), el('button', { className: 'quiet', textContent: 'disconnect', onclick: () => { disconnect(); showThinking(); } })]
-    : [from === 'server' && el('span', { className: 'quiet', textContent: 'thinking on this server\'s key' }),
-      el('button', { className: from ? 'quiet' : 'connect', textContent: from ? 'connect your own OpenRouter' : 'Connect OpenRouter to design', onclick: () => connect().then(showThinking) })].filter(Boolean)));
+/** With nothing to think on, the talk ends in the way to connect; otherwise in the words. */
+async function refreshThinking() {
+  const none = !(await source());
+  $('say').hidden = none;
+  $('need-thinking').hidden = !none;
+  if (none) $('need-thinking').replaceChildren(
+    el('p', { textContent: `${aid ? aid.aid.name.split(' ').at(-1) : 'Your aid'} thinks and draws with AI models, on your own OpenRouter account. Connect it to start designing.` }),
+    el('button', { className: 'main', onclick: () => connect().then(refreshThinking) }, 'Connect OpenRouter'));
 }
-addEventListener('storage', (e) => { if (e.key === 'mantle-openrouter-key') showThinking(); });
-showThinking();
+addEventListener('storage', (e) => { if (e.key === 'mantle-openrouter-key') refreshThinking(); });
+refreshThinking();
+$('say').querySelector('button').append(icon('forward'));
+$('front').append(icon('forward'));
 
 $('front').onclick = () => { screen('war'); showWar(aid.id, { back: showLab, screen }); };
 

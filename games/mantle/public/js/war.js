@@ -18,6 +18,7 @@ const picked = () => { try { return JSON.parse(recall(`mantle-roster-${ctx.aidId
 export async function showWar(aidId, { back, screen }) {
   ctx = { aidId, back, screen, designs: (await fetch('/api/designs?by=me').then((r) => r.json())).filter((d) => d.aid === aidId) };
   $('to-lab').onclick = back;
+  $('war-where').textContent = `${won().length} of ${LEVELS.length} maps taken`;
   const first = LEVELS.findIndex((l, i) => open(i) && !won().includes(l.id));
   showMaps(LEVELS[first < 0 ? 0 : first]);
 }
@@ -25,7 +26,7 @@ export async function showWar(aidId, { back, screen }) {
 function showMaps(level) {
   ctx.level = level;
   $('maps').replaceChildren(el('h3', { textContent: 'The campaign' }), ...LEVELS.map((l, i) => el('button', {
-    className: `map${l === level ? ' on' : ''}${won().includes(l.id) ? ' won' : ''}`, disabled: !open(i),
+    className: `map plate${l === level ? ' on' : ''}${won().includes(l.id) ? ' won' : ''}`, disabled: !open(i),
     onclick: () => showMaps(l),
   }, el('span', { className: 'n', textContent: i + 1 }), el('strong', { textContent: l.name }),
   el('span', { textContent: won().includes(l.id) ? 'taken' : open(i) ? `held by ${l.holder}` : 'win the one before to open it' }))));
@@ -70,7 +71,6 @@ function showBrief(level) {
     ctx.designs.length
       ? el('div', { className: 'yours' }, ...ctx.designs.map((d) => { const c = unitCard(d, { onclick: () => toggle(d.id) }); cards.set(d.id, c); return c; }))
       : el('p', { className: 'hint', textContent: 'You have no designs yet. Go back to the lab and make some.' }),
-    el('div', { id: 'muster' }),
   );
   update();
 }
@@ -81,15 +81,12 @@ function showMuster(level, mine, toggle) {
   const slots = Array.from({ length: ROSTER_SIZE }, (_, i) => {
     const d = roster[i];
     return d
-      ? el('button', { className: 'slot', title: `${d.name}: tap to leave it behind`, onclick: () => toggle(d.id) }, picture(d.art), el('span', { textContent: d.name }))
+      ? el('button', { className: 'slot plate', title: `${d.name}: tap to leave it behind`, onclick: () => toggle(d.id) }, picture(d.art), el('span', { textContent: d.name }))
       : el('span', { className: 'slot empty' }, el('span', { textContent: i + 1 }));
   });
   $('muster').replaceChildren(
-    el('div', { className: 'slots' }, ...slots),
-    el('div', { className: 'go' },
-      el('button', { className: 'quiet', onclick: ctx.back }, icon('back'), ' design an answer'),
-      el('button', { id: 'begin', disabled: !roster.length, onclick: () => begin(level, roster) }, roster.length ? 'Begin' : 'Take a unit first', icon('forward')),
-    ),
+    el('div', { className: 'shelf' }, el('h3', { textContent: `Taking in: ${roster.length} of ${ROSTER_SIZE}` }), el('div', { className: 'slots' }, ...slots)),
+    el('button', { id: 'begin', className: 'main', disabled: !roster.length, onclick: () => begin(level, roster) }, roster.length ? 'Begin' : 'Take a unit first', icon('forward')),
   );
 }
 
@@ -116,7 +113,7 @@ function unitCard(d, { rival = false, onclick } = {}) {
     ),
     el('details', { className: 'more' }, el('summary', { textContent: 'stats' }), el('div', { className: 'sheet' }, ...sheet(d, { compact: true }))),
   );
-  if (onclick) card.append(el('button', { className: 'pick', textContent: 'Take it', onclick }));
+  if (onclick) card.append(el('button', { className: 'pick plate', textContent: 'Take it', onclick }));
   return card;
 }
 

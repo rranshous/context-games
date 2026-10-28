@@ -16,88 +16,96 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&display=swap">
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 </head>
 <body>
-<main id="title" hidden>
+<main id="title" class="screen" hidden>
   <div class="faces" aria-hidden="true"><img src="img/hollis.jpg" alt=""><img src="img/brackett.jpg" alt=""></div>
+  <button class="knob menu" title="Menu"></button>
   <div class="mark">
     <h1>Mantle</h1>
     <p class="tagline">Design every unit in your army. Then take them to war.</p>
     <div id="title-go"></div>
     <p id="title-progress"></p>
   </div>
-  <footer class="site"><a href="/faq">FAQ</a> · <a href="/privacy">Privacy</a></footer>
 </main>
 
-<main id="pick" hidden>
-  <button id="pick-back" class="quiet">← Mantle</button>
-  <h1>Mantle</h1>
-  <p class="lede">Your army starts with nothing. Every unit in it is one you design, with the one person you work with. Who will it be?</p>
+<main id="pick" class="screen" hidden>
+  <header class="topbar">
+    <button class="knob back" id="pick-back" title="Title screen"></button>
+    <div class="where"><strong>Who will you work with?</strong><span>Every unit in your army is one you design together.</span></div>
+    <button class="knob menu" title="Menu"></button>
+  </header>
   <div id="aids"></div>
-  <footer class="site"><a href="/faq">FAQ</a> · <a href="/privacy">Privacy</a></footer>
 </main>
 
-<main id="lab" hidden>
-  <header>
-    <h1>Mantle</h1>
-    <span id="where"></span>
-    <span id="thinking"></span>
-    <a class="quiet" href="/faq" target="_blank">FAQ</a>
-    <button id="switch" class="quiet">work with someone else</button>
-    <button id="front">To the front →</button>
+<main id="lab" class="screen" hidden>
+  <header class="topbar">
+    <button class="knob back" id="lab-back" title="Title screen"></button>
+    <div class="where" id="who"></div>
+    <button class="knob menu" title="Menu"></button>
   </header>
 
-  <section id="talk">
-    <div id="who"></div>
+  <section id="talk" class="panel">
     <div id="log"></div>
     <form id="say">
       <textarea id="words" rows="2" placeholder="Describe a unit you want…"></textarea>
-      <button>Say</button>
+      <button class="plate" title="Say it (Enter)"></button>
     </form>
+    <div id="need-thinking" hidden></div>
   </section>
 
   <section id="bench">
-    <div id="card">
+    <div id="specimen" class="panel">
       <div id="art"></div>
       <h2 id="name"></h2>
       <p id="description"></p>
     </div>
-    <div id="sheet"></div>
-    <div id="bench-actions">
-      <button id="keep" disabled>Keep this design</button>
-      <button id="fresh" class="quiet">Start a new one</button>
+    <div id="sheet-panel" class="panel">
+      <div id="sheet"></div>
+      <div id="bench-actions">
+        <button id="keep" class="plate" disabled>Keep this design</button>
+        <button id="fresh" class="quiet">Start a new one</button>
+      </div>
     </div>
   </section>
 
-  <section id="roster">
-    <h3>Your designs</h3>
-    <div id="kept"></div>
-  </section>
+  <footer class="actionbar">
+    <div class="shelf"><h3>Your designs</h3><div id="kept"></div></div>
+    <button id="front" class="main">To the front</button>
+  </footer>
 </main>
-<main id="war" hidden>
-  <header>
-    <h1>Mantle</h1>
-    <span class="where">the front</span>
-    <button id="to-lab" class="quiet">← back to the lab</button>
+
+<main id="war" class="screen" hidden>
+  <header class="topbar">
+    <button class="knob back" id="to-lab" title="Back to the lab"></button>
+    <div class="where"><strong>The front</strong><span id="war-where"></span></div>
+    <button class="knob menu" title="Menu"></button>
   </header>
-  <section id="maps"></section>
-  <section id="brief"></section>
+  <section id="maps" class="panel"></section>
+  <section id="brief" class="panel"></section>
+  <footer class="actionbar" id="muster"></footer>
 </main>
+
+<div id="menu" hidden></div>
 
 <main id="match" hidden>
   <canvas id="field"></canvas>
-  <div id="hud-top">
+  <div id="hud-top" class="panel">
     <span id="matter" class="stat" data-tip="Matter" data-about="What you make units with. Your base brings it in, and so does every deposit you hold and every gatherer at one."></span>
     <span id="supply" class="stat" data-tip="Room in the army" data-about="How much army you can field at once. Bigger units take more room."></span>
-    <span class="spacer"></span>
     <span id="clock" class="stat"></span>
-    <button id="mute" class="quiet" title="Sound"></button>
-    <button id="speed" class="quiet" title="Game speed"></button>
-    <button id="pause" title="Pause (P)"></button>
+  </div>
+  <div id="hud-knobs">
+    <button id="mute" class="knob" title="Sound"></button>
+    <button id="speed" class="knob" title="Game speed"></button>
+    <button id="pause" class="knob" title="Pause (P)"></button>
   </div>
   <div id="hud-orders">
     <button id="all-army" title="Pick your whole army (Q)"></button>
@@ -106,7 +114,7 @@
     <button id="rally-mode" title="Where new units gather: tap the ground"></button>
   </div>
   <div id="picked"></div>
-  <canvas id="minimap"></canvas>
+  <div id="mini-frame" class="panel"><canvas id="minimap"></canvas></div>
   <div id="toasts"></div>
   <div id="hud-make"><div id="makes"></div></div>
   <div id="overlay" hidden></div>
