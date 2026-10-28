@@ -44,6 +44,7 @@ Headless matches, to tune the maps (a plain scripted commander against each riva
 ```
 node tools/bout.mjs [--aid brackett|hollis] [--level ford] [--runs 5] [--roster mine]
 node tools/duel.mjs        # is the price fair? every unit against every other, at equal cost
+node tools/redteam.mjs [--aid hollis] [--reach]   # hunt for underpriced designs in a lab's whole design space
 node tools/draw.mjs        # draws any missing rival-unit and base pictures into public/img
 ```
 
