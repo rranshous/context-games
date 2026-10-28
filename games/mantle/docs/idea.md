@@ -27,24 +27,32 @@ looks, description, capabilities. It's kept fair by budget and limits.
   On the battlefield, what you see (its size, team color, health) comes from the spec, so a
   picture can't mislead anyone.
 
-## The match (next)
+## The match
 
-- **Real time.** A minute at the start to give first orders and commission the first
-  designs, then real time.
-- **Designing is a move you make in the match.** It costs resources and time, like
-  research. The AI's wait is part of this: the lab is "growing" or "building" it. More
-  complex designs take longer (`price().seconds`), so whatever you build is answered inside
-  the match: you scout their acid beetles and design something that beats beetles.
+**For now, designing happens before the match** (Robby's call, 2026-10-27). You design in
+the lab, read a map's scouting report, take up to five designs in, and fight in real
+time. The answer to what you face is designed between matches, not during them.
+
+- **The campaign:** five maps that get harder, against scripted rivals whose units are
+  specs from the same two labs, priced the same way. What makes a map harder is said in
+  its briefing: a head start, a richer supply line, more deposits, an earlier push,
+  ambushes. The rival's supply line is the one place it plays by different rules, and the
+  briefing says so.
+- **The economy:** matter comes from your base and from deposits you hold. Hold a deposit
+  by having units near it and none of theirs; units that can gather add more. Two bays make
+  units at once, each taking the time on its card. The army has room for 30.
+- **Later, maybe:** designing during the match, with the lab's wait as part of the game
+  (the earlier idea), and a minute at the start for first orders.
 - **Order of work:**
   1. the lab (done)
-  2. fights against an ordinary computer opponent
+  2. fights against scripted computer opponents (done)
   3. then AI players, multiplayer (likely deterministic lockstep), or both
 
 ## Open questions
 
 - What resources are there, and do gatherers come pre-made, or are they your first design?
-- Balancing the two aids. On even builds Brackett comes out about 7% cheaper. Fine for now,
-  but balance is really tested in fights.
+- Balancing the two aids. On even builds Brackett comes out about 7% cheaper. With fights
+  now in, `tools/bout.mjs` is the place to test it.
 - Does the aid remember your designs across matches, so it becomes yours over time?
 - Abilities are a menu for now. Do they stay a menu, or does the aid get to invent new
   ones from a smaller set of primitives?

@@ -27,6 +27,7 @@ const SUPPLY = [1, 1, 2, 3, 5];   // what a unit takes of your army's room, by s
 const SIZE_LEAN = { health: -0.12, armor: -0.08, speed: 0.15, sight: -0.05 };
 
 export const MAX_ABILITIES = 3;
+const ALL_ROUND = ['health', 'armor', 'damage', 'rate', 'range'];
 
 /** A spec, checked against the contract and the aid's own limits. Returns the problems, if any. */
 export function check(spec, aidId) {
@@ -65,9 +66,17 @@ export function price(spec, aidId) {
     lines.push({ what: aid.abilities[a].word, cost });
     total += cost;
   }
+  // Strength in a fight multiplies (tough, and hard-hitting, and long-reaching) where the
+  // price above only adds, so a unit strong all round pays again for being so.
+  const allRound = ALL_ROUND.reduce((n, s) => n + spec.stats[s], 0) / ALL_ROUND.length;
+  if (allRound > 5) {
+    const cost = total * ((allRound / 5) ** 1.5 - 1);
+    lines.push({ what: 'strong all round', cost });
+    total += cost;
+  }
   const round5 = (n) => Math.max(5, Math.round(n / 5) * 5);
   // The more there is to it, the longer it takes to grow or build.
-  const seconds = round5(15 + total * 0.12 + (spec.abilities?.length ?? 0) * 10);
+  const seconds = round5(8 + total * 0.06 + (spec.abilities?.length ?? 0) * 5);
   return { cost: round5(total), supply: SUPPLY[spec.size - 1], seconds, lines: lines.map((l) => ({ ...l, cost: Math.round(l.cost) })) };
 }
 
@@ -81,5 +90,5 @@ ${Object.entries(STATS).map(([s, { about }]) => `  - ${s}: ${about}`).join('\n')
 - abilities: up to ${MAX_ABILITIES}, from what your lab can make:
 ${Object.entries(aid.abilities).map(([a, { about }]) => `  - ${a}: ${about}`).join('\n')}
 ${aid.rules?.length ? `- your lab's limits: ${aid.ruleText}\n` : ''}
-Price: every rating costs more than the one before it, so a unit that is great at everything is very dear, and one great at one thing and plain at the rest is a bargain. ${aid.leanText} The price, the room it takes and the time to make it are worked out from the spec, the same for everyone: you can't set them, only see them.`;
+Price: every rating costs more than the one before it, so a unit that is great at everything is very dear, and one great at one thing and plain at the rest is a bargain. On top of that, a unit whose health, armor, damage, attack rate and range average above 5 pays extra for being strong all round, and more the higher they go: specialists don't. ${aid.leanText} The price, the room it takes and the time to make it are worked out from the spec, the same for everyone: you can't set them, only see them.`;
 }

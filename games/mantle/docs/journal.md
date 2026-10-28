@@ -129,3 +129,121 @@ Robby: "my roster seems to be resetting every time i add another unit."
   - The server makes an id unless the design really has one.
   - A design keeps its id only while its name stays the same. The same name means a revision, kept over the old one. A new name means a new unit.
 - **Recovering what was lost:** the log has every `propose_unit` call and every picture, matched by its look. Pathfinder, Dart, Patchwork and Acid Bulwark were rebuilt from it, and Anvil was renamed from `undefined.json`.
+
+## Session 1, later: a game
+
+Robby: "i'm kinda leaning toward having the studio step be before the game... make me a
+little RTS where i can design the units and fight against a 'computer controlled'
+(scripted) opponent... progressively harder maps against the pre-programmed enemies where
+i have time to design and pick my roster before the match." Then: "also, i'd like to be
+able to play it on mobile."
+
+### What got built
+
+- **The front** (`war.js`): five maps: the Outskirts, Bramble Ford, the Gunline, the
+  Warren, and Iron Crown.
+  - Each map's briefing says what makes it harder, then gives a scouting report of the
+    rival's units, priced like yours and with hover tips. You take up to five of your
+    designs in, with a button back to the lab to design an answer.
+  - Winning a map opens the next one.
+- **The match** (`sim.js` and `match.js`): in real time. Each side has a base with two
+  bays, matter from the base and the deposits it holds, an army capped at 30, fog, and
+  rocks to walk around.
+  - Every ability does its one thing:
+    - **regenerate** heals.
+    - **venom** keeps hurting after the hit.
+    - **burrow** and **cloak** hide a unit that's standing still. Burrow also makes the
+      first strike from hiding do double damage.
+    - **leap** jumps a unit onto its target.
+    - **brood** bursts into two young on death.
+    - **mend** and **repair** heal units nearby.
+    - **wings** and **rotors** can't be hit up close.
+    - **shield** soaks harm and recharges once the unit is out of the fight.
+    - **siege** locks down for 1.8× reach.
+    - **blast** splashes onto units next to the target.
+    - **forage** and **harvest** add income at a held deposit.
+- **The rivals** (`levels.js` and `rival.js`): ten units, five from each lab. Each is a
+  spec checked by `check()` at load, so a rival can't cheat the contract. The script builds
+  down its list, holds its half of the deposits, defends, sets ambushes, and sends bigger
+  waves. The one place it plays by different rules is its supply line (×0.7 to ×1.55), and
+  the briefing says so in words ("richer than yours").
+- **Art:** 10 rival units and 3 bases from `tools/draw.mjs`, using the lab's own picture
+  prompt (now `artPrompt()` in `aid.js`), shrunk to 640px: about 440 KB in all, for $0.44.
+- **Phones:** tap to select, tap to order (Fight or Move by a button), drag to pan, pinch
+  to zoom, **Box** and **Rally** as modes, and **All army**. The lab and briefings stack
+  in one column.
+- **Explorer:** the match sets `window.explorer`: `state()`, `make()`, `order()`,
+  `speed()`, `look()`, and the sim itself. `tools/bout.mjs` plays whole matches headless
+  in Node, because the sim has no page.
+
+### The drama: tuning with bouts
+
+`tools/bout.mjs` pits a plain scripted commander against each rival. Each column below is
+a roster:
+
+| round | what changed | plain machines | plain beasts | Robby's designs |
+|---|---|---|---|---|
+| 1 | — | won 1 of 15 | — | — |
+| 2 | economy fixed | — | — | — |
+| 3 | rocks fixed | 14 of 20 | — | 20 of 20, all in about 5 min |
+| 4 | price fixed, shipped numbers | 14 of 20 | 12 of 20 | — |
+
+Each round in more detail:
+
+1. **First run: stalemates.** Almost every match hit the 20-minute cap with both bases
+   whole. Two causes:
+   - **Production was the bottleneck.** Build times of 50–105 seconds against about 10
+     matter a second meant about two units a minute per side, too few to take a base.
+
+     Build time is on the card, so the card changed too: it's now `8 + 0.06 × cost + 5
+     per ability` seconds (Picket 25s, Matron 55s). Income went up to match: base 8/s,
+     deposit 4/s, gatherer 3/s. Bases went from 2400 to 1600 health.
+2. **Still stalemates.** A trace of one match showed the rival maxing its army at 29 and
+   never arriving. Units that walked into a rock got pushed out sideways by less than their
+   forward step, so they stayed stuck against it.
+
+   Now `around()` steers for a point just past the edge of the first rock in the way, on a
+   side chosen once per rock so it doesn't dither.
+3. **Robby's roster won everything in 5 minutes.** The Warbringer, a huge unit with every
+   stat at 10, cost 1135, but the price added stat by stat while strength in a fight
+   multiplies: tough × hard-hitting × long-reaching.
+
+   The contract now charges **"strong all round"**: if health, armor, damage, attack rate
+   and range average above 5, the price is multiplied by (average/5)^1.5. Specialists pay
+   nothing extra. The Warbringer now costs 3215 and takes 215s, and Anvil 635. The aids are
+   told about it in the spec language.
+4. **The shipped numbers.** By map:
+
+   | map | plain machines | plain beasts |
+   |---|---|---|
+   | the Outskirts | 4 of 4, about 5 min | 4 of 4, about 4 min |
+   | Bramble Ford | 4 of 4, 7–12 min | 4 of 4, 9–15 min |
+   | the Gunline | 2 of 4 | 1 of 4 |
+   | the Warren | 4 of 4 | 3 of 4, 11–19 min |
+   | Iron Crown | 0 of 4 (timed out) | 0 of 4 (timed out) |
+
+   The Gunline is harder for the bot than the Warren, although it comes before it. I left
+   that as it is, since a person plays far better than this bot, and Robby's play will say
+   more than the bot's.
+
+### The drama: the page
+
+- **Each map's `rival` key was defined twice,** once as the holder's name and once as the
+  plan, so the name showed as "held by [object Object]." The name is now `holder`.
+- **The lab overflowed sideways on a phone:** a one-column `1fr` grid stretches to its
+  widest content. It needs `minmax(0, 1fr)`.
+- **Long conversations ran off the bottom of the screen** (Robby saw this): the lab's
+  middle row was `1fr` too. Now it's `minmax(0, 1fr)`, with `100dvh` for phones.
+- **Units read too small** at the default zoom. They're drawn at about 3.8× their radius
+  now, and the camera starts closer.
+- **WASD panning fought with A (attack-move) and S (stop),** so panning is on the arrows
+  only.
+
+### Explorer level
+
+Robby asked which explorer level this is, as practice. Between Claude and Mantle it's
+**level 2, Instrumented**: Claude handles the game from outside, through the bout runner,
+Playwright, and `window.explorer`. The bout commander is code that runs inside the sim's
+loop, which looks like level 3, but it's a developer's test bot, not a player writing its
+own orders. The aids are level 2 too: they handle the bench through one tool, and units are
+data, not code. Units that carry behavior their aid wrote would be the step up.

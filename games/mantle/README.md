@@ -5,9 +5,17 @@ every unit in it is one you design with the one person you work with: a biologis
 living war-beasts in vats, or an engineer who builds war machines in a shop. You describe
 what you want in your own words; they design it, draw it, and tell you what they think.
 
-What's built so far is **the lab**: picking who you work with, and designing units with them.
-Fights against the computer come next. See [docs/idea.md](docs/idea.md) for where it's going
-and [docs/journal.md](docs/journal.md) for how it got here.
+What's built:
+- **The lab:** pick who you work with, and design units with them.
+- **The front:** a campaign of five maps that get harder, each held by a scripted rival.
+  A map's briefing is a scouting report of the rival's units, priced like yours. You take
+  up to five of your designs in, so seeing the report and going back to the lab to design
+  an answer is the loop.
+- **The match:** real time. Your base makes units from your roster, two at a time.
+  Matter comes from the base and from deposits you hold. Destroy their base to win.
+
+It plays on phones as well as with a mouse. See [docs/idea.md](docs/idea.md) for where it's
+going and [docs/journal.md](docs/journal.md) for how it got here.
 
 ## Run it
 
@@ -21,6 +29,13 @@ No dependencies. It needs a `.env` next to `server.mjs`:
 OPENROUTER_API_KEY=...
 MANTLE_MODEL=anthropic/claude-sonnet-5.5            # optional: the aids' thinking
 MANTLE_ART_MODEL=google/gemini-3.1-flash-lite-image  # optional: the units' pictures
+```
+
+Headless matches, to tune the maps (a plain scripted commander against each rival):
+
+```
+node tools/bout.mjs [--aid brackett|hollis] [--level ford] [--runs 5] [--roster mine]
+node tools/draw.mjs        # draws any missing rival-unit and base pictures into public/img
 ```
 
 Kept designs go in `data/designs/`, every picture in `data/art/`, and every call, with its
@@ -41,4 +56,29 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
   new picture.
 - `public/js/cutout.js`: the pictures come on white, and this lifts the unit off it.
 - `public/js/lab.js`: the page. Hovering an ability or a stat says what it is. The lab is styled after the aid you chose (`body[data-aid]` in `style.css`): the vats for Hollis, the shop for Brackett.
+- `public/js/ui.js`: shared page pieces: a unit's sheet, ability tiles, and the tips.
+- `public/js/levels.js`: the campaign. The rivals' units are specs from the same two
+  labs, checked by `check()` at load. Each map says why it's harder: the rival's head
+  start, their supply line, deposits, first push, ambushes.
+- `public/js/sim.js`: **the match, as numbers.** No page and no drawing, so it runs the
+  same in a browser and in Node. `body()` turns ratings into the match's own numbers,
+  which never show. Abilities each do one thing here (venom poisons, burrow hides and
+  doubles the first strike, siege locks down for more reach, and so on).
+- `public/js/rival.js`: the scripted rival. It builds down its list, holds its half of the
+  deposits, defends, sets ambushes, and sends bigger waves.
+- `public/js/war.js`: the front: maps, briefings, rosters, progress.
+- `public/js/match.js`: a match on screen: drawing, mouse, keys and touch, the HUD. It
+  also sets `window.explorer` (`state()`, `make(i)`, `order(ids, kind, x, y)`,
+  `speed(n)`, `look(x, y)`, and `sim`) for playing it from outside.
 - `server.mjs`: serves the page, holds the key, and keeps designs and pictures.
+
+## Playing a match
+
+| | mouse and keys | touch |
+|---|---|---|
+| select | click, or drag a box; double-click selects that design on screen; Q selects all | tap; double-tap; **All army**; **Box**, then drag |
+| order | right-click: move, or attack what's under it; A then click: move, fighting on the way; S: stop | tap the ground or an enemy (**Fight** or **Move**, by the button) |
+| new units gather | right-click with nothing selected | **Rally**, then tap |
+| make | the cards at the bottom, or 1–5 | the cards |
+| look around | arrows, wheel to zoom, space for home, the minimap | drag, pinch, the minimap |
+| pause | P, or ❚❚ | ❚❚ |

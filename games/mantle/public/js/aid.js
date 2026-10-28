@@ -13,6 +13,9 @@ const MAX_TURNS = 6;
 // What each size is, for the picture, in the world's own terms.
 const SCALE = ['about the size of a dog', 'about the size of a person', 'about the size of a horse', 'about the size of an elephant', 'as big as a house'];
 
+/** How a unit's picture is asked for: the same for the commander's units and the rivals'. */
+export const artPrompt = (look, size, aidId) => `Unit art for a real-time strategy game, shown on the unit's card. ${look} It is ${SIZES[size - 1]}, ${SCALE[size - 1]}. ${AIDS[aidId].look} One unit only, its whole body in view, a three-quarter view from slightly above, centered, on a plain flat pure white background, with no shadow, no ground, no text and no frame. Painterly, with a strong, readable silhouette.`;
+
 const PROPOSE = {
   type: 'function',
   function: {
@@ -77,7 +80,7 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
 
   /** Put a design on the bench: a kept one, brought back to work on. */
   load(design) {
-    this.bench = design;
+    this.bench = { ...design, priced: price(design.spec, this.id) };   // priced now: the contract may have changed since it was kept
     this.messages.push({ role: 'user', content: `(The commander brought ${design.name} back to the bench to work on.)` });
     this.onChange(this.bench);
   }
@@ -137,7 +140,7 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
   async draw(design) {
     this.onBusy('drawing', true);
     try {
-      const prompt = `Unit art for a real-time strategy game, shown on the unit's card. ${design.look} It is ${SIZES[design.spec.size - 1]}, ${SCALE[design.spec.size - 1]}. ${this.aid.look} One unit only, its whole body in view, a three-quarter view from slightly above, centered, on a plain flat pure white background, with no shadow, no ground, no text and no frame. Painterly, with a strong, readable silhouette.`;
+      const prompt = artPrompt(design.look, design.spec.size, this.id);
       const { url, error } = await fetch('/api/art', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt }) }).then((r) => r.json());
       if (error) throw new Error(error);
       if (this.bench === design) { design.art = url; this.onChange(design); }

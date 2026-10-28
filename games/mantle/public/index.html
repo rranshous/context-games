@@ -18,6 +18,7 @@
     <h1>Mantle</h1>
     <span id="where"></span>
     <button id="switch" class="quiet">work with someone else</button>
+    <button id="front">To the front →</button>
   </header>
 
   <section id="talk">
@@ -46,6 +47,34 @@
     <h3>Your designs</h3>
     <div id="kept"></div>
   </section>
+</main>
+<main id="war" hidden>
+  <header>
+    <h1>Mantle</h1>
+    <span class="where">the front</span>
+    <button id="to-lab" class="quiet">← back to the lab</button>
+  </header>
+  <section id="maps"></section>
+  <section id="brief"></section>
+</main>
+
+<main id="match" hidden>
+  <canvas id="field"></canvas>
+  <div id="hud-top">
+    <span id="matter"></span><span id="supply"></span><span id="clock"></span>
+    <button id="speed" class="quiet">×1</button>
+    <button id="pause">❚❚</button>
+  </div>
+  <div id="hud-orders">
+    <button id="all-army">All army</button>
+    <button id="box-mode">Box</button>
+    <button id="order-mode">Fight</button>
+    <button id="rally-mode">Rally</button>
+    <span id="picked"></span>
+  </div>
+  <canvas id="minimap"></canvas>
+  <div id="hud-make"><div id="bays"></div><div id="makes"></div></div>
+  <div id="overlay" hidden></div>
 </main>
 <script type="module" src="js/lab.js"></script>
 </body>

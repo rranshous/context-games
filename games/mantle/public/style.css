@@ -32,14 +32,14 @@ h1 { font-weight: normal; letter-spacing: 0.3em; text-transform: uppercase; marg
 .aid .lean { font-size: 13px; color: var(--dim); }
 
 /* ---------- the lab ---------- */
-#lab { display: grid; height: 100vh; grid-template: auto 1fr auto / minmax(300px, 1fr) minmax(420px, 1.4fr); gap: 1px; background: var(--line); }
+#lab { display: grid; height: 100vh; height: 100dvh; grid-template: auto minmax(0, 1fr) auto / minmax(300px, 1fr) minmax(420px, 1.4fr); gap: 1px; background: var(--line); }
 #lab > * { background: var(--bg); }
 #lab header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 18px; padding: 10px 16px; }
 #lab header h1 { font-size: 18px; }
 #where { color: var(--aid); }
 #switch { margin-left: auto; }
 
-#talk { display: flex; flex-direction: column; min-height: 0; }
+#talk { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 #who { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 #who img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--aid); }
 #who div { display: flex; flex-direction: column; }
@@ -157,8 +157,94 @@ body[data-aid="brackett"] .ability { clip-path: polygon(7px 0, 100% 0, 100% calc
 body[data-aid="brackett"] .ability .mark { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }   /* a nut */
 body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
 
+/* ---------- the front ---------- */
+#war { display: grid; min-height: 100dvh; grid-template: auto 1fr / minmax(220px, 280px) 1fr; }
+#war header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 18px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+#war header h1 { font-size: 18px; }
+#war .where { color: var(--aid); }
+#to-lab { margin-left: auto; }
+#maps { padding: 16px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--line); }
+#maps h3, #brief h3 { margin: 8px 0 4px; font-weight: normal; font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.2em; }
+.map { display: grid; grid-template-columns: 28px 1fr; gap: 0 8px; text-align: left; padding: 10px; border-radius: var(--radius); }
+.map .n { grid-row: span 2; font-size: 22px; color: var(--dim); }
+.map span:last-child { font-size: 12px; color: var(--dim); }
+.map.on { border-color: var(--aid); background: color-mix(in srgb, var(--aid) 12%, var(--panel)); }
+.map.won .n { color: var(--aid); }
+.map.won .n::after { content: ' ✓'; font-size: 13px; }
+#brief { padding: 16px 20px 40px; max-width: 1100px; }
+#brief h2 { margin: 0; font-weight: normal; font-size: 28px; }
+#brief .lede { color: var(--dim); margin: 6px 0 10px; }
+.harder { margin: 0 0 10px; padding-left: 18px; font-size: 14px; }
+.scouted, .yours { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.card { display: grid; grid-template-columns: 84px 1fr; gap: 4px 10px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); align-content: start; }
+.card .pic { width: 84px; height: 70px; display: grid; place-items: center; }
+.card .pic img { max-width: 100%; max-height: 100%; }
+.card .about { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.card .line { font-size: 12px; color: var(--dim); }
+.card .craft { display: flex; flex-wrap: wrap; gap: 4px; }
+.card .craft .ability { padding: 1px 7px 1px 5px; font-size: 11px; }
+.card .desc { margin: 0; font-size: 12px; color: var(--dim); }
+.card .more { grid-column: 1 / -1; }
+.card .sheet { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.card .pick { grid-column: 1 / -1; }
+.card.on { border-color: var(--aid); background: color-mix(in srgb, var(--aid) 14%, var(--panel)); }
+.card.on .pick { border-color: var(--aid); color: var(--aid); }
+.card.rival { border-color: #d0503c55; }
+.card.full { opacity: 0.6; }
+#brief .go { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+#begin { font-size: 17px; padding: 8px 22px; border-color: var(--aid); }
+
+/* ---------- a match ---------- */
+#match { position: fixed; inset: 0; overflow: hidden; background: #0c0d0e; touch-action: none; user-select: none; -webkit-user-select: none; }
+#field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#match button { background: #1e2126e6; }
+#hud-top { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; gap: 14px; align-items: center; padding: 6px 12px; background: #15171acc; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; pointer-events: none; }
+#hud-top > * { pointer-events: auto; }
+#matter { color: var(--aid); }
+#clock { margin-left: auto; color: var(--dim); }
+#hud-orders { position: absolute; top: 56px; left: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; max-width: calc(100% - 190px); }
+#hud-orders button { font-size: 13px; padding: 5px 10px; }
+#hud-orders button.on { border-color: var(--aid); color: var(--aid); }
+#picked { font-size: 13px; color: var(--ink); text-shadow: 0 1px 3px #000; }
+#minimap { position: absolute; top: 56px; right: 8px; width: 170px; height: 105px; border: 1px solid var(--line); border-radius: var(--radius); background: #000; touch-action: none; }
+#hud-make { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+#hud-make > * { pointer-events: auto; }
+#bays { display: flex; gap: 6px; flex-wrap: wrap; }
+#bays:empty { display: none; }
+.bay { position: relative; overflow: hidden; font-size: 12px; padding: 3px 10px; background: #15171ad9; border: 1px solid var(--line); border-radius: var(--radius); }
+.bay i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--aid); }
+.bay.waiting { color: var(--dim); }
+#makes { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; scrollbar-width: thin; }
+.make { position: relative; flex: 0 0 auto; display: grid; grid-template-columns: 46px auto; grid-template-rows: auto auto; gap: 0 8px; align-items: center; text-align: left; padding: 5px 12px 5px 6px; }
+.make .pic { grid-row: span 2; width: 46px; height: 38px; display: grid; place-items: center; }
+.make .pic img { max-width: 100%; max-height: 100%; }
+.make strong { font-weight: normal; font-size: 13px; }
+.make .line { font-size: 12px; color: var(--aid); }
+.make kbd { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--dim); font-family: inherit; }
+.make.poor { opacity: 0.45; }
+#overlay { position: absolute; inset: 0; display: grid; place-items: center; background: #000a; }
+#overlay .box { background: var(--panel); border: 1px solid var(--aid); border-radius: var(--radius); padding: 22px 28px; text-align: center; max-width: 90vw; }
+#overlay h2 { margin: 0 0 8px; font-weight: normal; font-size: 32px; letter-spacing: 0.1em; }
+#overlay .go { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+
 @media (max-width: 800px) {
-  #lab { height: auto; grid-template: auto auto auto auto / 1fr; }
-  #talk { height: 60vh; }
-  #bench { grid-template-columns: 1fr; }
+  #lab { height: auto; min-height: 100dvh; grid-template: auto auto auto auto / minmax(0, 1fr); }
+  #lab header #front { margin-left: auto; }
+  #switch { margin-left: 0; order: 3; }
+  #lab header { flex-wrap: wrap; gap: 8px 14px; }
+  #talk { height: 55dvh; }
+  #bench { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  #art img { max-height: 40vh; }
+  #war { grid-template: auto auto 1fr / minmax(0, 1fr); }
+  #maps { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 16px; }
+  #maps h3 { display: none; }
+  .map { flex: 0 0 200px; }
+  #brief { padding: 14px 16px 40px; }
+  #brief .go { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; flex-wrap: wrap; }
+  #hud-top { gap: 10px; font-size: 13px; padding: 5px 10px; }
+  #minimap { width: 120px; height: 75px; }
+  #hud-orders { max-width: calc(100% - 140px); }
+  #hud-orders button { padding: 8px 12px; }
+  .make { padding: 6px 10px 6px 6px; }
+  .make kbd { display: none; }
 }

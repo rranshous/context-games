@@ -1,24 +1,26 @@
 // The studio: pick who you work with, then design units with them. One design on the
 // bench at a time; kept designs go to your roster, and come back to the bench to revise.
+// From here you go to the front (war.js): pick a map, pick your roster, fight.
 
 import { AIDS } from './aids.js';
 import { Aid } from './aid.js';
 import { cutout } from './cutout.js';
-import { SIZES, STATS } from './spec.js';
-
-const $ = (id) => document.getElementById(id);
-const el = (tag, { dataset, ...props } = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); Object.assign(e.dataset, dataset); e.append(...kids); return e; };
-const remember = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
-const recall = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+import { SIZES } from './spec.js';
+import { $, ability, el, priced, recall, remember, sheet } from './ui.js';
+import { showWar } from './war.js';
 
 let aid = null;
 const busy = new Set();
 
 // ---------- who you work with ----------
 
+const SCREENS = ['pick', 'lab', 'war', 'match'];
+const screen = (name) => { for (const s of SCREENS) $(s).hidden = s !== name; };
+function showLab() { screen('lab'); showRoster(); }
+
 function showPick() {
   delete document.body.dataset.aid;
-  $('lab').hidden = true; $('pick').hidden = false;
+  screen('pick');
   $('aids').replaceChildren(...Object.values(AIDS).map((a) => el('button', { className: 'aid', onclick: () => start(a.id) },
     el('img', { src: `img/${a.id}.jpg`, alt: '' }),
     el('strong', { textContent: a.name }),
@@ -34,7 +36,7 @@ function start(aidId) {
   document.documentElement.style.setProperty('--aid', a.color);
   document.body.dataset.aid = aidId;   // the lab is dressed as theirs: the vats or the shop
   aid = new Aid(aidId, { onChange: showBench, onSay: say, onBusy: setBusy });
-  $('pick').hidden = true; $('lab').hidden = false;
+  showLab();
   $('where').textContent = `${a.lab}, with ${a.name}`;
   $('who').replaceChildren(el('img', { src: `img/${a.id}.jpg`, alt: '' }), el('div', {}, el('strong', { textContent: a.name }), el('span', { textContent: a.title })));
   $('log').replaceChildren();
@@ -78,12 +80,6 @@ $('words').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preven
 
 // ---------- the bench ----------
 
-/** An ability, marked as one: hover it to hear what it does (and, on a unit, what it adds to the cost). */
-const ability = (x, cost) => el('span', { className: 'ability', tabIndex: 0, dataset: { tip: x.word, about: `${x.about[0].toUpperCase()}${x.about.slice(1)}.`, ...(cost != null ? { cost: `Adds ${cost} to this unit's cost.` } : {}) } },
-  el('i', { className: 'mark', ariaHidden: 'true' }), x.word);
-
-const rating = (r) => el('span', { className: 'bar' }, ...Array.from({ length: 10 }, (_, i) => el('i', { className: i < r ? 'on' : '' })));
-
 function showBench(d) {
   $('keep').disabled = !d;
   $('bench').classList.toggle('empty', !d);
@@ -97,20 +93,7 @@ function showBench(d) {
   if (d.art) cutout(d.art).then((src) => { if (aid.bench === d) $('art').replaceChildren(el('img', { src, alt: d.name })); });
   else $('art').replaceChildren(el('p', { className: 'hint', textContent: 'Making a likeness…' }));
 
-  const { spec, priced } = d, a = aid.aid;
-  $('sheet').replaceChildren(
-    el('div', { className: 'facts' },
-      el('div', {}, el('b', { textContent: priced.cost }), el('span', { textContent: 'cost' })),
-      el('div', {}, el('b', { textContent: priced.supply }), el('span', { textContent: 'room in the army' })),
-      el('div', {}, el('b', { textContent: `${priced.seconds}s` }), el('span', { textContent: `to ${a.makes === 'grows' ? 'grow' : 'build'}` })),
-    ),
-    el('p', { className: 'size', textContent: `${SIZES[spec.size - 1]}` }),
-    el('table', {}, ...Object.entries(STATS).map(([s, { word }]) => el('tr', {}, el('th', { textContent: word, dataset: { tip: word, about: `${STATS[s].about[0].toUpperCase()}${STATS[s].about.slice(1)}.` } }), el('td', {}, rating(spec.stats[s])), el('td', { className: 'n', textContent: spec.stats[s] })))),
-    el('div', { className: 'abilities' }, el('h4', { textContent: 'Abilities' }),
-      ...(spec.abilities.length ? spec.abilities.map((x) => ability(a.abilities[x], priced.lines.find((l) => l.what === a.abilities[x].word)?.cost)) : [el('em', { textContent: 'none' })])),
-    el('details', {}, el('summary', { textContent: 'where the cost comes from' }),
-      el('table', { className: 'price' }, ...priced.lines.map((l) => el('tr', {}, el('th', { textContent: l.what }), el('td', { className: 'n', textContent: l.cost }))))),
-  );
+  $('sheet').replaceChildren(...sheet({ ...d, aid: aid.id }));
 }
 
 $('keep').onclick = async () => {
@@ -131,25 +114,11 @@ async function showRoster() {
   $('kept').replaceChildren(...(designs.length ? designs.map((d) => {
     const pic = el('div', { className: 'pic' });
     if (d.art) cutout(d.art).then((src) => pic.append(el('img', { src, alt: '' })));
-    return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, pic, el('strong', { textContent: d.name }), el('span', { textContent: `${d.priced.cost} · ${SIZES[d.spec.size - 1]}` }));
+    return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, pic, el('strong', { textContent: d.name }), el('span', { textContent: `${priced(d).cost} · ${SIZES[d.spec.size - 1]}` }));
   }) : [el('p', { className: 'hint', textContent: 'Keep a design and it shows up here.' })]));
 }
 
-// ---------- what things are, on hover ----------
-
-const tip = el('div', { id: 'tip', hidden: true });
-document.body.append(tip);
-function showTip(target) {
-  const { tip: title, about, cost } = target.dataset;
-  tip.replaceChildren(el('strong', { textContent: title }), el('p', { textContent: about }), ...(cost ? [el('p', { className: 'cost', textContent: cost })] : []));
-  tip.hidden = false;
-  const r = target.getBoundingClientRect(), t = tip.getBoundingClientRect();
-  const left = Math.min(window.innerWidth - t.width - 8, Math.max(8, r.left + r.width / 2 - t.width / 2));
-  const top = r.top - t.height - 8 > 8 ? r.top - t.height - 8 : r.bottom + 8;
-  Object.assign(tip.style, { left: `${left}px`, top: `${top}px` });
-}
-for (const kind of ['mouseover', 'focusin']) document.addEventListener(kind, (e) => { const t = e.target.closest?.('[data-tip]'); if (t) showTip(t); });
-for (const kind of ['mouseout', 'focusout']) document.addEventListener(kind, (e) => { if (e.target.closest?.('[data-tip]')) tip.hidden = true; });
+$('front').onclick = () => { screen('war'); showWar(aid.id, { back: showLab, screen }); };
 
 const chosen = recall('mantle-aid');
 AIDS[chosen] ? start(chosen) : showPick();
