@@ -12,7 +12,7 @@ import { AIDS } from './aids.js';
 export const STATS = {
   health: { word: 'health', weight: 6, about: 'how much harm it can take' },
   armor: { word: 'armor', weight: 7, about: 'how much of each hit it shrugs off' },
-  speed: { word: 'speed', weight: 7, about: 'how fast it moves' },
+  speed: { word: 'speed', weight: 5, about: 'how fast it moves' },
   damage: { word: 'damage', weight: 8, about: 'how hard each attack hits' },
   rate: { word: 'attack rate', weight: 6, about: 'how often it attacks' },
   range: { word: 'range', weight: 6, about: 'how far away it can hit from (1 is up close)' },
@@ -28,6 +28,17 @@ const SIZE_LEAN = { health: -0.12, armor: -0.08, speed: 0.15, sight: -0.05 };
 
 export const MAX_ABILITIES = 3;
 const ALL_ROUND = ['health', 'armor', 'damage', 'rate', 'range'];
+const FIGHT = ['health', 'armor', 'damage', 'rate', 'range'];
+const SCALES = {
+  shield: { of: ['health', 'armor'], k: 0.45 },
+  regenerate: { of: ['health'], k: 0.35 },
+  blast: { of: ['damage', 'rate'], k: 0.45 },
+  venom: { of: ['damage', 'rate'], k: 0.3 },
+  siege: { of: ['damage', 'range'], k: 0.25 },
+  wings: { of: FIGHT, k: 0.25 },
+  rotors: { of: FIGHT, k: 0.25 },
+  brood: { of: ['health'], k: 0.2 },
+};
 
 /** A spec, checked against the contract and the aid's own limits. Returns the problems, if any. */
 export function check(spec, aidId) {
@@ -58,11 +69,15 @@ export function price(spec, aidId) {
   for (const [s, { weight }] of Object.entries(STATS)) {
     // Rises faster than the rating: piling everything into one stat gets expensive.
     const cost = weight * spec.stats[s] ** 1.4 * (1 + (SIZE_LEAN[s] ?? 0) * lean) * (aid.lean[s] ?? 1);
-    lines.push({ what: STATS[s].word, cost });
+    lines.push({ what: STATS[s].word, cost, stat: s });
     total += cost;
   }
+  const statCost = Object.fromEntries(lines.filter((l) => l.stat).map((l) => [l.stat, l.cost]));
   for (const a of spec.abilities ?? []) {
-    const cost = aid.abilities[a].cost * (0.7 + 0.15 * spec.size);
+    // An ability that multiplies what a unit is (a shield on a tough one, a blast on a hard
+    // hitter) costs a share of what it multiplies, as well as its own price.
+    const scale = SCALES[a];
+    const cost = aid.abilities[a].cost * (0.7 + 0.15 * spec.size) + (scale ? scale.k * scale.of.reduce((n, st) => n + statCost[st], 0) : 0);
     lines.push({ what: aid.abilities[a].word, cost });
     total += cost;
   }
@@ -77,7 +92,7 @@ export function price(spec, aidId) {
   const round5 = (n) => Math.max(5, Math.round(n / 5) * 5);
   // The more there is to it, the longer it takes to grow or build.
   const seconds = round5(8 + total * 0.06 + (spec.abilities?.length ?? 0) * 5);
-  return { cost: round5(total), supply: SUPPLY[spec.size - 1], seconds, lines: lines.map((l) => ({ ...l, cost: Math.round(l.cost) })) };
+  return { cost: round5(total), supply: SUPPLY[spec.size - 1], seconds, lines: lines.map(({ stat, ...l }) => ({ ...l, cost: Math.round(l.cost) })) };
 }
 
 /** The spec language, as the aid is taught it. */
@@ -90,5 +105,5 @@ ${Object.entries(STATS).map(([s, { about }]) => `  - ${s}: ${about}`).join('\n')
 - abilities: up to ${MAX_ABILITIES}, from what your lab can make:
 ${Object.entries(aid.abilities).map(([a, { about }]) => `  - ${a}: ${about}`).join('\n')}
 ${aid.rules?.length ? `- your lab's limits: ${aid.ruleText}\n` : ''}
-Price: every rating costs more than the one before it, so a unit that is great at everything is very dear, and one great at one thing and plain at the rest is a bargain. On top of that, a unit whose health, armor, damage, attack rate and range average above 5 pays extra for being strong all round, and more the higher they go: specialists don't. ${aid.leanText} The price, the room it takes and the time to make it are worked out from the spec, the same for everyone: you can't set them, only see them.`;
+Price: every rating costs more than the one before it, so a unit that is great at everything is very dear, and one great at one thing and plain at the rest is a bargain. An ability that multiplies what a unit already is costs a share of what it multiplies too: a shield or regeneration more on a tough unit, a blast or venom more on a hard hitter, wings or rotors more on a strong fighter. On top of that, a unit whose health, armor, damage, attack rate and range average above 5 pays extra for being strong all round, and more the higher they go: specialists don't. ${aid.leanText} The price, the room it takes and the time to make it are worked out from the spec, the same for everyone: you can't set them, only see them.`;
 }

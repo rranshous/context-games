@@ -23,18 +23,27 @@ going and [docs/journal.md](docs/journal.md) for how it got here.
 node server.mjs            # http://localhost:7790/
 ```
 
-No dependencies. It needs a `.env` next to `server.mjs`:
+No dependencies. **Thinking comes from the commander's own OpenRouter,** as in gactant. "Connect OpenRouter"
+in the lab runs OpenRouter's approval page (OAuth, PKCE) in a popup. The key comes back to
+`connected.html` and is kept in this browser, and the lab calls OpenRouter straight from
+the page (`public/js/openrouter.js`, `public/js/brain.js`). The key never reaches the
+server.
+
+As a fallback, a local install can lend thinking from its own key, in a `.env` next to
+`server.mjs`:
 
 ```
-OPENROUTER_API_KEY=...
-MANTLE_MODEL=anthropic/claude-sonnet-5.5            # optional: the aids' thinking
-MANTLE_ART_MODEL=google/gemini-3.1-flash-lite-image  # optional: the units' pictures
+OPENROUTER_API_KEY=...                              # lend this key to anyone who hasn't connected
+MANTLE_MODEL=anthropic/claude-sonnet-5.5            # optional: the aids' thinking (relay)
+MANTLE_ART_MODEL=google/gemini-3.1-flash-lite-image  # optional: the units' pictures (relay)
+MANTLE_PUBLIC=1                                     # lend nothing: everyone connects their own
 ```
 
 Headless matches, to tune the maps (a plain scripted commander against each rival):
 
 ```
 node tools/bout.mjs [--aid brackett|hollis] [--level ford] [--runs 5] [--roster mine]
+node tools/duel.mjs        # is the price fair? every unit against every other, at equal cost
 node tools/draw.mjs        # draws any missing rival-unit and base pictures into public/img
 ```
 
@@ -66,6 +75,11 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
   doubles the first strike, siege locks down for more reach, and so on).
 - `public/js/rival.js`: the scripted rival. It builds down its list, holds its half of the
   deposits, defends, sets ambushes, and sends bigger waves.
+- `public/js/anim.js`: how things move on screen. Each unit has one picture, animated by
+  its gait (walks, rolls, slithers, hops, flies, hovers; the aid picks one, or it's guessed
+  from the look). It also draws shots in flight, flashes, dust, falling bodies, and the
+  marks they leave on the ground.
+- `public/js/sound.js`: sound made in the browser from noise and oscillators, with no files.
 - `public/js/war.js`: the front: maps, briefings, rosters, progress.
 - `public/js/match.js`: a match on screen: drawing, mouse, keys and touch, the HUD. It
   also sets `window.explorer` (`state()`, `make(i)`, `order(ids, kind, x, y)`,

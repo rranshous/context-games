@@ -247,3 +247,134 @@ Playwright, and `window.explorer`. The bout commander is code that runs inside t
 loop, which looks like level 3, but it's a developer's test bot, not a player writing its
 own orders. The aids are level 2 too: they handle the bench through one tool, and units are
 data, not code. Units that carry behavior their aid wrote would be the step up.
+
+## Session 1, later still: making it a game to enjoy
+
+Robby: "This is a great poc. Spend a while making it a more enjoyable game to play. flush it
+out, make sprites move better, maybe sprite reels or something. Play test it even it out."
+Partway through: "let's make this like gactant where I pair w open router to inference. I
+want to be ready to publish this (later) as well."
+
+### Movement, without frames
+
+- **No sprite reels.** An image model redraws a creature differently every time, so frames
+  wouldn't line up. Instead each unit's one picture moves by its **gait** (`anim.js`):
+  - **walks:** a bob in time with distance walked; the lower half sways in strips, which
+    reads as shuffling legs; big walkers kick dust at each footfall
+  - **rolls:** a rumble, a slight lean forward, and dust behind
+  - **slithers:** a ripple through the strips
+  - **hops:** a squash, a hop, and a land
+  - **flies:** hovering high, with a wingbeat and a bank into turns
+  - **hovers:** a low float
+- **Attacks and death.** Everything lunges (up close) or recoils (at range) when it attacks,
+  flashes white when hit, and on death topples, darkens and fades, leaving a mark painted
+  into the ground canvas for good: scorch and scrap for machines, a stain for flesh. The
+  field builds up a history as the match goes on.
+- **Choosing a gait.** The aid picks one in `propose_unit`. Older designs and the rivals
+  get one guessed from their look ("tracked" rolls, "frog-like" hops, "grub-like"
+  slithers).
+- **Shots travel.** Machines fire tracers with a muzzle flash. The vats lob spit in an arc,
+  green if it's venom. Blast weapons lob a shell that bursts, shakes the screen a little
+  and scorches the ground. Shots you can't see stay hidden in the fog.
+- **The sim's part** is a little bookkeeping: when a unit was hit, when it last attacked
+  and at what, and how far it has walked. It still has no page.
+
+### Sound, alerts, a start card
+
+- **Sound** (`sound.js`) is made from noise and oscillators, with no files. Machines click
+  and boom; flesh spits and squelches. There are chimes for a unit ready and a deposit
+  taken, and a horn for an attack you aren't looking at. Sound is panned and gets quieter
+  away from the middle of the screen, and a crowd of guns is capped so it rattles rather
+  than roars. A mute button sits in the top bar.
+- **Alerts:** "your base is under attack," "your units are under attack" (only when
+  they're off screen), "deposit taken" and "deposit lost," and "their army is on the move"
+  when the rival launches a wave. Each comes with a ping on the minimap.
+- **A selection panel,** grouped by design, with health. Tap a group to keep only it.
+- **A default rally point** a little way out from the base, so new units don't crowd it.
+- **A start card** for each match: the map, the goal, and the controls for touch or
+  mouse, whichever you're on.
+
+### Pairing with OpenRouter
+
+This works as it does in gactant, and the module is ported from there (`openrouter.js`).
+The OAuth PKCE popup lands on `connected.html`, and the key is kept in the browser.
+`brain.js` routes thinking and pictures:
+1. the commander's own key, straight from the page
+2. otherwise the server's relay, if it lends one
+3. otherwise a "Connect OpenRouter to design" button in the lab
+
+`MANTLE_PUBLIC=1` turns the relay off for hosting. A picture drawn on the commander's key
+is still kept by the server (`/api/keep-art`) for now. Getting fully ready to publish means
+deciding where designs live (see below).
+
+### Playtesting: the duel table, and evening it out
+
+`tools/duel.mjs` puts every unit against every other in open ground, with the same
+matter's worth of each, and scores how much of each side's worth is left. It's the
+fastest test of the contract: a fair price means no unit wins everything. The first table:
+
+- **The Bastion averaged +50.** Its shield adds about 40% to its toughness for a flat ~39
+  matter.
+- **Fast melee averaged −76 (the Skitter) and −59 (my test Biter).** Ranged units shoot
+  first, and melee can't reach flyers at all.
+- **My test Rifle beat the rival's Picket by +51,** so the units weren't the reason my
+  Outskirts bot kept losing.
+
+Changes to the contract:
+- **Abilities that multiply a unit cost a share of what they multiply,** on top of their
+  own price:
+  - shield: 45% of the health and armor cost
+  - regenerate: 35% of the health cost
+  - blast: 45% of the damage and rate cost
+  - venom: 30% of the damage and rate cost
+  - siege: 25% of the damage and range cost
+  - wings and rotors: 25% of the fighting stats' cost
+  - brood: 20% of the health cost
+
+  The aids are told this in the spec language.
+- **Up close hits harder:** melee damage ×1.8, because it has to get there.
+- **Speed costs less** (weight 7 → 5). It's worth more on the map than in a fight.
+
+After this, most units are within ±25. Flyers stay a little ahead because half the table
+is melee that can't touch them, and ranged units answer them, which is the design. The
+Skitter and Picket stay weak, but they're the rival's units, so that just softens those
+rivals.
+
+### The drama: a "smart" bot that wasn't
+
+I wrote a smarter commander. It held each deposit with one unit, bought a mix by need,
+gathered, and attacked when it outnumbered what it had seen. It lost nearly everything,
+the first map included. It had three bugs:
+- It saved for a deposit-holder it never sent, because the deposit was guarded, and bought
+  nothing else meanwhile. It never had more than two units.
+- It fed holders, one at a time, into the middle deposit the rival sits on.
+- It waited too long to group.
+
+After fixes it still lost about 2:1 in trades. Meanwhile the plain bot, which builds down
+the list and attacks at a growing size, with the same player-like roster, gives the curve
+the maps were meant to have:
+
+| map | won by the plain bot |
+|---|---|
+| the Outskirts | 3 of 3, 6–9 min |
+| Bramble Ford | 3 of 3, 12–15 min |
+| the Gunline | 2 of 3 |
+| the Warren | 1 of 3 (the others timed out) |
+| Iron Crown | 0 of 3 |
+
+The smart bot is deleted rather than left as a misleading tool. Lesson: when the
+measuring stick is a bot I wrote, its mistakes look like the game's.
+
+Robby asked whether tuning would work better at a higher explorer level. Yes. Level 3
+would be a commander that Claude writes into the loop and rewrites from replays, and it
+would play more like a person than my scripts do. A red-team designer, a Claude trying to
+break the price through the real aid with the duel table as its judge, would find the next
+Warbringer on purpose instead of by accident. I offered the red team first.
+
+### Open: where designs live, for publishing
+
+Designs and pictures are kept on the server (`data/`), one shared pile. To publish, they
+should belong to the commander. They could go in the browser (IndexedDB holds the
+pictures fine), which makes the game a static site plus the commander's own OpenRouter.
+Or they could go to an account on a hosted store, as in gactant. Moving them would leave
+behind the designs kept so far (Anvil, the Warbringer and the rest). That's Robby's call.

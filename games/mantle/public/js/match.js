@@ -57,14 +57,21 @@ class Match {
     // New units gather a little way out from the base, toward the middle of the map.
     const mid = { x: sim.w / 2, y: sim.h / 2 }, d = Math.hypot(mid.x - home.x, mid.y - home.y);
     sim.setRally(0, home.x + (mid.x - home.x) / d * 150, home.y + (mid.y - home.y) / d * 150);
-    this.told = { made: 0, owners: sim.deposits.map((x) => x.owner), alarm: -99 };
+    this.told = { made: 0, owners: sim.deposits.map((x) => x.owner), alarm: -99, wave: null };
     this.pings = [];
 
     this.wire();
     this.buildMakes();
     $('mute').textContent = isMuted() ? 'sound off' : 'sound on';
-    $('overlay').hidden = true;
     window.explorer = this.explorer();
+    this.paused = true;
+    const touch = matchMedia('(pointer: coarse)').matches, lv = sim.level;
+    this.overlay(lv.name, [
+      lv.blurb,
+      'Hold the crystal deposits for matter, make units from your roster, and destroy their base.',
+      touch ? 'Tap a unit to pick it, tap the ground or an enemy to send it. Drag to look around, pinch to zoom. All army, Box and Rally are at the top left.'
+        : 'Click or drag to pick units; right-click to move or attack; A then click to fight your way there. 1–5 make units, arrows and the wheel look around, P pauses.',
+    ], [['Begin', () => { wake(); this.paused = false; $('overlay').hidden = true; }]]);
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -274,7 +281,8 @@ class Match {
   make(i) { this.sim.produce(0, i); }
 
   pause(on) {
-    if (this.sim.winner != null) return;
+    if (this.sim.winner != null || (!on && !$('overlay').hidden && !this.pausedByMe)) return;
+    this.pausedByMe = on;
     this.paused = on;
     if (!on) return void ($('overlay').hidden = true);
     this.overlay('Paused', [], [['Resume', () => this.pause(false)], ['Give up', () => this.end('lost')]]);
@@ -336,6 +344,10 @@ class Match {
         this.toast(struck.kind === 'hq' ? 'Your base is under attack' : 'Your units are under attack', true);
         play('alarm'); this.ping(struck);
       }
+    }
+    if (this.rival.launched && this.rival.launched !== this.told.wave) {
+      this.told.wave = this.rival.launched;
+      this.toast('Their army is on the move', true); play('alarm'); this.ping(this.rival.launched);
     }
     for (const p of this.pings) p.age += 1 / 60;
     this.pings = this.pings.filter((p) => p.age < 3);

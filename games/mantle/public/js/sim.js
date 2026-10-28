@@ -15,7 +15,7 @@ export function body(spec) {
     hp: 20 + s.health * 22,
     armor: s.armor * 0.065,
     speed: 10 + s.speed * 8,
-    dmg: 2 + s.damage * 4,
+    dmg: (2 + s.damage * 4) * (s.range === 1 ? 1.8 : 1),   // up close hits harder: it has to get there
     cooldown: 1 / (0.25 + s.rate * 0.12),
     melee: s.range === 1,
     range: s.range === 1 ? 6 : 20 + s.range * 20,

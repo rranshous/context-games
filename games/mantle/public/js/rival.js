@@ -65,6 +65,7 @@ export class Rival {
     const strength = home.reduce((n, u) => n + (u.young ? 0 : u.design.priced.supply), 0);
     if (sim.t >= this.nextWave && strength >= this.wave) {
       for (const u of home) this.jobs.set(u.id, 'wave');
+      this.launched = { t: sim.t, x: hq.x, y: hq.y };   // for the commander's scouts to hear of
       sim.command(me, home.map((u) => u.id), { kind: 'fight', x: foe.x, y: foe.y });
       this.nextWave = sim.t + this.plan.every;
       this.wave += this.plan.grow;
