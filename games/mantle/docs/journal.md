@@ -657,3 +657,74 @@ for openrouter all the time".
 - **Also:** visiting the local Cloudflare copy on another port overwrote the local server's
   cookie (cookies are per host, not per port), so the browser became a new commander. Only
   a testing hazard.
+
+## Desktop playtest fixes (2026-10-28)
+
+Robby, testing on desktop: "some text overlaps w/ borders too much, dbl check the screens;
+during gameplay i need to be able to right click to drag the map, i don't want to use the
+keyboard to play; the pace of play is very slow; units can get stuck on things, a new unit
+got stuck trying to walk around the base; the bio base looks like it's floating, the
+ground looks like a lame flat surface, the rocks don't look good; the buttons to make units
+change shape depending on their content". Then: "all buttons should be styled like
+buttons, give up on the pause screen is just text".
+
+- **Mouse only.** Right-drag pans the map. A right-click that doesn't drag is an order, and
+  follows the Fight/Move button (it used to always move). The start card now teaches the
+  mouse first; keys are shortcuts.
+- **Stuck units.** A headless check (on every map, five units of each size from the base to
+  random points, 24 times) found 18 of 600 that never arrived. All were big units against
+  big boulders.
+  - **The cause:** a unit pressed against a rock aimed for a point past it, but the
+    straight line there cut into the rock. Its step went in and the push-out came straight
+    back, so it never moved.
+  - **The fix:** close to a rock, a unit walks along its edge.
+  - **Also:**
+    - The way past switches sides if one side is off the map or into another rock.
+    - A unit that has barely moved in 1.5 s tries the other side.
+    - New units come out of the base on the side facing their rally, which was the case
+      Robby saw.
+  - **Result:** 0 of 1,800 over three runs.
+  - **Drama:** my first unstick rule watched for "hasn't come closer" and flipped big
+    units back and forth while they rounded big rocks. Then an edit to replace that rule
+    sliced out every function between it and `separate()` (finding enemies, fighting,
+    hurting, burying). The sim threw at once, and the block came back from git.
+- **Pace**, all together so no side gains:
+  - **Economy:** income ×1.6 (13 / 6.5 / 5), starting matter 600.
+  - **Build times:** `round5(5 + 0.036·cost + 3·abilities)`, about 40% shorter.
+  - **Units:** they walk about 25% faster (`14 + 10·speed`) and attack about 25% faster.
+  - **Deposits:** capture takes 3 s.
+  - **Rivals:** their first wave and the time between waves are ×0.65.
+  - **Effect** (plain bot with the test rosters):
+
+    | map | before | after |
+    |---|---|---|
+    | the Outskirts | 4–6 min | 2½–4 min |
+    | Bramble Ford, the Gunline | 8–17 min | 3–17 min |
+
+    The curve held: Hollis's test roster takes every map, while Brackett's still breaks on
+    the Gunline and the Iron Crown.
+- **The field:**
+  - **Ground:** each map has its own painted ground (`img/ground/<map>.jpg`): dusty plain,
+    damp thicket, scorched earth, burrowed soil, iron-grey gravel. It's laid as a mirrored
+    tile so there are no seams.
+  - **Boulders:** three drawn ones, cut out like units: lichen granite, cracked basalt, a
+    sandstone cluster. Each map gets the ones that suit it, with a contact shadow.
+  - **Hollis's base** was redrawn rooted on a mound (the old one had tendrils hanging under
+    it). Every base sits in a broad soft shadow, lowered into it.
+  - **Camera:** it stops just past the bottom edge instead of 160 px past it.
+- **Build buttons** are one width (186 px, 140 on a phone), and their names are cut short
+  when they're long.
+- **Every button is a button.** The quiet text buttons are gone (Give up, Close, Start a
+  new one), and each is a plate.
+- **Text clear of the rims.** A panel's content now starts `--inset` inside the drawn rim:
+  8 px for Brackett's plating, 14 px for Hollis's bulkier bones, less on phones. Buttons
+  get 2 px more. I screenshotted every screen in both looks, at desktop and phone sizes, in
+  a private headless browser (another session had the shared one), and fixed the rest:
+  - the campaign column is wider
+  - the lab's picture gives up height to the description
+  - on a phone, the shelf and the muster get a full row
+  - pause and end buttons wrap
+  - alerts sit at the left
+- **Drama, testing:** each headless tour posted every design on disk as a new commander's,
+  including the copies the last tour made. 1,600 test designs later I cleaned them out;
+  the 16 real ones were kept.

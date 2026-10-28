@@ -57,7 +57,7 @@ export const LEVELS = [
     w: 1500, h: 950, ground: '#2b2a22', seed: 3,
     deposits: [[420, 330], [1080, 620], [760, 470]],
     units: ['picket'],
-    rival: { start: [], build: ['picket'], income: 0.7, firstWave: 170, every: 90, wave: 4, grow: 1 },
+    rival: { start: [], build: ['picket'], income: 0.7, firstWave: 110, every: 60, wave: 4, grow: 1 },
   },
   {
     id: 'ford', name: 'Bramble Ford', holder: 'a brood of the river thickets',
@@ -65,7 +65,7 @@ export const LEVELS = [
     w: 1700, h: 1050, ground: '#222a20', seed: 7,
     deposits: [[450, 380], [1250, 670], [850, 300], [850, 760]],
     units: ['skitter', 'spitter'],
-    rival: { start: ['skitter', 'skitter'], build: ['skitter', 'skitter', 'spitter'], income: 0.9, firstWave: 120, every: 75, wave: 6, grow: 2 },
+    rival: { start: ['skitter', 'skitter'], build: ['skitter', 'skitter', 'spitter'], income: 0.9, firstWave: 80, every: 50, wave: 6, grow: 2 },
   },
   {
     id: 'gunline', name: 'The Gunline', holder: 'an entrenched battery',
@@ -73,7 +73,7 @@ export const LEVELS = [
     w: 1900, h: 1150, ground: '#2a2724', seed: 11,
     deposits: [[480, 420], [1420, 730], [950, 330], [950, 820], [1500, 300]],
     units: ['picket', 'bastion', 'mortar', 'rook'],
-    rival: { start: ['bastion', 'mortar'], build: ['picket', 'rook', 'mortar', 'picket', 'bastion'], income: 1.0, firstWave: 150, every: 80, wave: 8, grow: 2 },
+    rival: { start: ['bastion', 'mortar'], build: ['picket', 'rook', 'mortar', 'picket', 'bastion'], income: 1.0, firstWave: 100, every: 50, wave: 8, grow: 2 },
   },
   {
     id: 'warren', name: 'The Warren', holder: 'the burrow-mothers',
@@ -81,7 +81,7 @@ export const LEVELS = [
     w: 2000, h: 1250, ground: '#26221c', seed: 19,
     deposits: [[500, 460], [1500, 790], [1000, 380], [1000, 880], [1650, 330], [380, 950]],
     units: ['skitter', 'spitter', 'delver', 'moth', 'matron'],
-    rival: { start: ['delver', 'delver', 'moth'], build: ['skitter', 'delver', 'moth', 'spitter', 'skitter', 'matron'], income: 1.45, firstWave: 130, every: 70, wave: 10, grow: 3, ambush: true },
+    rival: { start: ['delver', 'delver', 'moth'], build: ['skitter', 'delver', 'moth', 'spitter', 'skitter', 'matron'], income: 1.45, firstWave: 85, every: 45, wave: 10, grow: 3, ambush: true },
   },
   {
     id: 'crown', name: 'Iron Crown', holder: 'the Crown, with both labs behind it',
@@ -89,7 +89,7 @@ export const LEVELS = [
     w: 2300, h: 1400, ground: '#24211f', seed: 23,
     deposits: [[560, 500], [1740, 900], [1150, 420], [1150, 980], [1900, 380], [400, 1050], [1150, 700]],
     units: ['picket', 'bastion', 'mortar', 'hornet', 'skitter', 'delver', 'moth', 'matron'],
-    rival: { start: ['bastion', 'picket', 'picket', 'hornet', 'delver'], build: ['picket', 'hornet', 'skitter', 'mortar', 'delver', 'moth', 'bastion', 'matron'], income: 1.8, firstWave: 100, every: 60, wave: 10, grow: 3, ambush: true },
+    rival: { start: ['bastion', 'picket', 'picket', 'hornet', 'delver'], build: ['picket', 'hornet', 'skitter', 'mortar', 'delver', 'moth', 'bastion', 'matron'], income: 1.8, firstWave: 65, every: 40, wave: 10, grow: 3, ambush: true },
   },
 ];
 

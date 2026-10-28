@@ -101,14 +101,26 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
 
 ## Playing a match
 
-| | mouse and keys | touch |
+The mouse alone is enough to play; keys are shortcuts.
+
+| | mouse (keys) | touch |
 |---|---|---|
-| select | click, or drag a box; double-click selects that design on screen; Q selects all | tap; double-tap; **All army**; **Box**, then drag |
-| order | right-click: move, or attack what's under it; A then click: move, fighting on the way; S: stop | tap the ground or an enemy (**Fight** or **Move**, by the button) |
-| new units gather | right-click with nothing selected | **Rally**, then tap |
-| make | the cards at the bottom, or 1–5 | the cards |
-| look around | arrows, wheel to zoom, space for home, the minimap | drag, pinch, the minimap |
-| pause | P, or ❚❚ | ❚❚ |
+| select | click, or drag a box; double-click selects that design on screen; **All army** (Q) | tap; double-tap; **All army**; **Box**, then drag |
+| order | right-click the ground or an enemy (**Fight** or **Move**, by the button; A then click fights, S stops) | tap the ground or an enemy (**Fight** or **Move**, by the button) |
+| new units gather | right-click with nothing selected, or **Rally** | **Rally**, then tap |
+| make | the cards at the bottom (1–5) | the cards |
+| look around | right-drag, the wheel to zoom, the minimap (arrows, space for home) | drag, pinch, the minimap |
+| pause | the pause knob (P) | the pause knob |
+
+**Pace.** Bases bring in 13 matter a second, each held deposit 6.5 and each gatherer 5, and
+a commander starts with 600. Build time is `round5(5 + 0.036 × cost + 3 × abilities)`
+seconds. With the scripted rivals, a map takes about 3 to 10 minutes (the Iron Crown
+longer).
+
+**Getting around.** Units step around rocks and bases on the side that's open. Up against
+one, they walk along its edge, and a unit that has barely moved in a second and a half
+tries the other way round. New units come out of the base on the side facing their rally
+point.
 
 ## Hosting
 

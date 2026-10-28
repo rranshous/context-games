@@ -103,7 +103,7 @@ export function price(spec, aidId) {
   }
   const round5 = (n) => Math.max(5, Math.round(n / 5) * 5);
   // The more there is to it, the longer it takes to grow or build.
-  const seconds = round5(8 + total * 0.06 + (spec.abilities?.length ?? 0) * 5);
+  const seconds = round5(5 + total * 0.036 + (spec.abilities?.length ?? 0) * 3);
   return { cost: round5(total), supply: SUPPLY[spec.size - 1], seconds, lines: lines.map(({ stat, ...l }) => ({ ...l, cost: Math.round(l.cost) })) };
 }
 

@@ -1,9 +1,10 @@
 // A match on screen: draws the sim, takes orders by mouse, keys or touch, and shows what
 // you can make. The sim (sim.js) is the match; this only shows it and passes orders in.
 //
-// Mouse: click or drag a box to select; right-click to move (or attack what's under it);
-// A then click to move fighting, S to stop; right-click with nothing selected sets where
-// new units gather. 1–5 make units. Arrows pan, the wheel zooms, space goes home, P pauses.
+// Mouse, enough to play with nothing else: click or drag a box to select; right-click to
+// send them (Fight or Move, by the button; attack what's under it); right-drag pans; the
+// wheel zooms; right-click with nothing selected sets where new units gather. Keys are
+// shortcuts: A then click fights, S stops, 1–5 make units, arrows pan, space goes home, P pauses.
 // Touch: tap to select, tap ground or an enemy to order (Fight or Move, by the button),
 // drag to pan, pinch to zoom; Box makes the next drag select, Rally the next tap.
 
@@ -28,6 +29,9 @@ export function startMatch({ level, aidId, roster, onEnd }) {
   return new Match(sim, new Rival(sim, 1, level.rival, level.units), aidId, onEnd);
 }
 
+// Which boulders stand on which ground (img/rocks/<n>.jpg).
+const ROCKS_ON = { outskirts: [1, 3], ford: [1, 2], gunline: [2, 1], warren: [2, 3], crown: [2, 1] };
+
 class Match {
   constructor(sim, rival, aidId, onEnd) {
     Object.assign(this, { sim, rival, aidId, onEnd });
@@ -46,6 +50,7 @@ class Match {
     for (const d of sim.sides.flatMap((s) => s.roster)) this.image(d.art);
     this.image(`img/bases/${aidId}.jpg`); this.image('img/bases/rival.jpg');
     this.ground = this.paintGround();
+    this.dressGround();
     this.fx = new Fx(this.ground, this.images);
     this.gaits = new Map();
     this.fog = document.createElement('canvas');
@@ -69,7 +74,7 @@ class Match {
     const touch = matchMedia('(pointer: coarse)').matches, lv = sim.level;
     const keys = touch
       ? [['tap', 'pick a unit, or send it'], ['drag', 'look around'], ['pinch', 'zoom'], [icon('all'), 'your whole army'], [icon('box'), 'pick with a box'], [icon('rally'), 'where new units gather']]
-      : [['click', 'pick, or drag a box'], ['right-click', 'move or attack'], ['A', 'then click: fight your way there'], ['1–5', 'make units'], ['Q', 'your whole army'], ['space', 'back to base'], ['arrows · wheel', 'look around'], ['P', 'pause']];
+      : [['click', 'pick, or drag a box'], ['right-click', 'send them: fight or move, by the button'], ['right-drag', 'look around'], ['wheel', 'zoom'], ['minimap', 'jump there'], ['1–5', 'make units (or click them)'], [icon('all'), 'your whole army'], [icon('rally'), 'where new units gather']];
     this.overlay(lv.name, [
       el('p', { className: 'lede', textContent: lv.blurb }),
       el('div', { className: 'facing' }, el('span', { className: 'label', textContent: 'You face' }),
@@ -89,17 +94,37 @@ class Match {
 
   // ---------- the ground ----------
 
-  paintGround() {
-    const { w, h, ground, seed } = this.sim.level, c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d');
+  /** The ground, painted once: the map's own ground, laid as a mirrored tile so it has no
+   *  seams, broad light and shade over it, and its boulders. Painted plain at first, then
+   *  again in place when the pictures arrive (before anything's been marked on it). */
+  paintGround(c = Object.assign(document.createElement('canvas'), { width: this.sim.level.w, height: this.sim.level.h }), art = null) {
+    const { w, h, ground, seed, id } = this.sim.level, g = c.getContext('2d');
     const rand = rng(seed + 1);
     g.fillStyle = ground; g.fillRect(0, 0, w, h);
+    if (art?.ground) {
+      const t = art.ground, tw = t.width, th = t.height;
+      for (let y = 0, j = 0; y < h; y += th, j++) for (let x = 0, i = 0; x < w; x += tw, i++) {
+        g.save(); g.translate(x + (i % 2 ? tw : 0), y + (j % 2 ? th : 0)); g.scale(i % 2 ? -1 : 1, j % 2 ? -1 : 1); g.drawImage(t, 0, 0); g.restore();
+      }
+    } else for (let i = 0; i < w * h / 160; i++) { g.fillStyle = rand() < 0.5 ? '#ffffff10' : '#00000022'; g.fillRect(rand() * w, rand() * h, 1 + rand() * 2, 1 + rand() * 2); }
     for (let i = 0; i < 40; i++) {   // broad patches of lighter and darker ground
       const x = rand() * w, y = rand() * h, r = 80 + rand() * 220, grad = g.createRadialGradient(x, y, 0, x, y, r);
-      grad.addColorStop(0, rand() < 0.5 ? '#ffffff0c' : '#0000001a'); grad.addColorStop(1, '#00000000');
+      grad.addColorStop(0, rand() < 0.5 ? '#ffffff0a' : '#00000024'); grad.addColorStop(1, '#00000000');
       g.fillStyle = grad; g.fillRect(x - r, y - r, r * 2, r * 2);
     }
-    for (let i = 0; i < w * h / 160; i++) { g.fillStyle = rand() < 0.5 ? '#ffffff10' : '#00000022'; g.fillRect(rand() * w, rand() * h, 1 + rand() * 2, 1 + rand() * 2); }
+    const kinds = ROCKS_ON[id] ?? [1, 2];
     for (const rock of this.sim.rocks) {
+      const im = art?.rocks?.[kinds[Math.floor(rand() * kinds.length)]];
+      // Its shadow on the ground, then the boulder standing on it.
+      const fy = rock.y + rock.r * 0.45, sh = g.createRadialGradient(rock.x, fy, rock.r * 0.2, rock.x, fy, rock.r * 1.35);
+      sh.addColorStop(0, '#000000a0'); sh.addColorStop(1, '#00000000');
+      g.fillStyle = sh; g.beginPath(); g.ellipse(rock.x, fy, rock.r * 1.35, rock.r * 0.5, 0, 0, Math.PI * 2); g.fill();
+      if (im) {
+        const bw = rock.r * 2.5, bh = bw * im.height / im.width, flip = rand() < 0.5;
+        g.save(); g.translate(rock.x, rock.y + rock.r * 0.75); if (flip) g.scale(-1, 1);
+        g.drawImage(im, -bw / 2, -bh, bw, bh); g.restore();
+        continue;
+      }
       g.beginPath();
       const n = 9 + Math.floor(rand() * 5);
       for (let i = 0; i <= n; i++) {
@@ -108,10 +133,19 @@ class Match {
       }
       const grad = g.createRadialGradient(rock.x - rock.r * 0.3, rock.y - rock.r * 0.4, rock.r * 0.1, rock.x, rock.y, rock.r);
       grad.addColorStop(0, '#77716a'); grad.addColorStop(1, '#3a3733');
-      g.fillStyle = grad; g.shadowColor = '#0008'; g.shadowBlur = 14; g.shadowOffsetY = 6; g.fill();
-      g.shadowColor = 'transparent';
+      g.fillStyle = grad; g.fill();
     }
     return c;
+  }
+
+  /** Fetch the map's ground and boulders, and paint the ground again with them. */
+  async dressGround() {
+    const load = (src) => new Promise((ok) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(null); im.src = src; });
+    const kinds = ROCKS_ON[this.sim.level.id] ?? [1, 2];
+    const [ground, ...rocks] = await Promise.all([load(`img/ground/${this.sim.level.id}.jpg`),
+      ...kinds.map((k) => cutout(`img/rocks/${k}.jpg`).then(load).catch(() => null))]);
+    if (!this.running) return;
+    this.paintGround(this.ground, { ground, rocks: Object.fromEntries(kinds.map((k, i) => [k, rocks[i]])) });
   }
 
   /** The map's edge, darkening into the shadow beyond it. */
@@ -142,7 +176,7 @@ class Match {
   clampCam() {
     const { w, h } = this.sim, c = this.cam, vw = this.vw / c.z, vh = this.vh / c.z;
     c.x = vw >= w ? (w - vw) / 2 : Math.max(-60, Math.min(w - vw + 60, c.x));
-    c.y = vh >= h ? (h - vh) / 2 : Math.max(-60, Math.min(h - vh + 160, c.y));
+    c.y = vh >= h ? (h - vh) / 2 : Math.max(-60, Math.min(h - vh + 90 / c.z, c.y));
   }
 
   zoomAt(sx, sy, k) {
@@ -209,13 +243,14 @@ class Match {
     if (!p.moved) return;
     const boxing = p.touch ? this.mode.box : p.button === 0;
     if (boxing) this.box = { x0: p.x0, y0: p.y0, x1: p.x, y1: p.y };
-    else if (p.touch || p.button === 1) { this.cam.x -= dx / this.cam.z; this.cam.y -= dy / this.cam.z; this.clampCam(); }
+    else if (p.touch || p.button === 1 || p.button === 2) { this.cam.x -= dx / this.cam.z; this.cam.y -= dy / this.cam.z; this.clampCam(); this.canvas.style.cursor = 'grabbing'; }
   }
 
   up(e) {
     const p = this.pointers.get(e.pointerId);
     this.pointers.delete(e.pointerId);
     if (!p) return;
+    this.canvas.style.cursor = '';
     if (this.pinch) { if (!this.pointers.size) this.pinch = null; return; }
     if (this.box) {
       const b = this.box, a = this.world(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1)), z = this.world(Math.max(b.x0, b.x1), Math.max(b.y0, b.y1));
@@ -226,7 +261,8 @@ class Match {
     }
     if (p.moved) return;
     const at = this.world(p.x0, p.y0);
-    if (!p.touch && p.button === 2) return this.order(at, 'move');
+    // A right-click that didn't drag the map is an order: to fight, or to move, as the order button says.
+    if (!p.touch && p.button === 2) return this.order(at, this.mode.order);
     this.tap(at, p.touch, e.shiftKey);
   }
 
@@ -308,7 +344,7 @@ class Match {
   /** A card over the field: the start, a pause, the end. Lines are words or elements. */
   overlay(title, lines, buttons, kind = '') {
     $('overlay').replaceChildren(el('div', { className: `box ${kind}` }, el('h2', { textContent: title }), ...lines.map((l) => typeof l === 'string' ? el('p', { textContent: l }) : l),
-      el('div', { className: 'go' }, ...buttons.map(([t, f], i) => el('button', { className: i ? 'quiet' : 'main', textContent: t, onclick: f })))));
+      el('div', { className: 'go' }, ...buttons.map(([t, f], i) => el('button', { className: i ? 'plate' : 'main', textContent: t, onclick: f })))));
     $('overlay').hidden = false;
     $('overlay').querySelector('.go button')?.focus();
   }
@@ -465,6 +501,13 @@ class Match {
 
   drawShadow(e) {
     const g = this.g;
+    if (e.kind === 'hq') {
+      // A base stands on the ground: a broad, soft, dark patch under it.
+      const y = e.y + e.r * 0.65, sh = g.createRadialGradient(e.x, y, e.r * 0.3, e.x, y, e.r * 1.9);
+      sh.addColorStop(0, '#000000b0'); sh.addColorStop(0.6, '#00000060'); sh.addColorStop(1, '#00000000');
+      g.fillStyle = sh; g.beginPath(); g.ellipse(e.x, y, e.r * 1.9, e.r * 0.7, 0, 0, Math.PI * 2); g.fill();
+      return;
+    }
     g.fillStyle = '#0000004d';
     g.beginPath(); g.ellipse(e.x, e.y + e.r * 0.35, e.r * 1.15, e.r * 0.5, 0, 0, Math.PI * 2); g.fill();
   }
@@ -485,7 +528,7 @@ class Match {
     let h = boxH;
     g.globalAlpha = this.sim.hidden(e) ? 0.4 : 1;
     g.save();
-    g.translate(e.x + p.dx, e.y + e.r * 0.45 - p.lift + p.dy);
+    g.translate(e.x + p.dx, e.y + e.r * (unit ? 0.45 : 0.8) - p.lift + p.dy);
     g.rotate(p.tilt * (e.face || 1));
     if (im) {
       const k = Math.min(boxH / im.height, boxW / im.width), w = im.width * k;
@@ -501,7 +544,7 @@ class Match {
     if (unit && p.dust && this.sim.t - (e.moved ?? -1) < 0.12) this.fx.dust(e.x - (e.face || 1) * e.r * 0.8, e.y, e.r);
     if (unit && p.footfall && e.r >= 14 && Math.random() < 0.3) this.fx.dust(e.x, e.y, e.r);
 
-    const top = e.y + e.r * 0.45 - p.lift - h * p.sy;
+    const top = e.y + e.r * (unit ? 0.45 : 0.8) - p.lift - h * p.sy;
     if (e.poison) { g.fillStyle = '#9fe060'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(e.x + Math.sin(t * 4 + i * 2) * e.r, top + h * 0.4 + i * 4, 2 / z + 1, 0, Math.PI * 2); g.fill(); } }
     if (e.sieged) {
       g.strokeStyle = col; g.lineWidth = 2 / z;

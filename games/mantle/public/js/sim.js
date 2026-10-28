@@ -14,11 +14,11 @@ export function body(spec) {
     r: [7, 10, 14, 19, 26][spec.size - 1],
     hp: 20 + s.health * 22,
     armor: s.armor * 0.065,
-    speed: 10 + s.speed * 8,
+    speed: 14 + s.speed * 10,
     // Up close hits harder: it has to get there. Not from the air, where nothing on the
     // ground can hit back up close anyway.
     dmg: (2 + s.damage * 4) * (s.range === 1 && !(has.has('wings') || has.has('rotors')) ? 1.8 : 1),
-    cooldown: 1 / (0.25 + s.rate * 0.12),
+    cooldown: 1 / (0.31 + s.rate * 0.15),
     melee: s.range === 1,
     range: s.range === 1 ? 6 : 20 + s.range * 20,
     sight: 70 + s.sight * 20,
@@ -30,9 +30,9 @@ export function body(spec) {
 const HQ = { r: 38, hp: 1600, armor: 0.15, dmg: 10, cooldown: 1.25, range: 140, sight: 260, speed: 0, melee: false, flying: false, has: new Set() };
 const SUPPLY_CAP = 30;
 const BAYS = 2;              // units a base can make at once
-const INCOME = { base: 8, deposit: 4, gatherer: 3 };
-const START_MATTER = 500;
-const CAPTURE = { reach: 70, seconds: 4 };
+const INCOME = { base: 13, deposit: 6.5, gatherer: 5 };
+const START_MATTER = 600;
+const CAPTURE = { reach: 70, seconds: 3 };
 const YOUNG = { size: 1, stats: { health: 2, armor: 1, speed: 7, damage: 2, rate: 5, range: 1, sight: 3 }, abilities: [] };
 
 /** A seeded random, so a map's rocks are the same every time. */
@@ -81,8 +81,11 @@ export class Sim {
 
   spawn(side, design, near, young = false) {
     const b = young ? body(YOUNG) : design.body;
-    const a = Math.random() * Math.PI * 2;
     const at = near ?? this.hqs[side];
+    // From the base, a new unit comes out on the side facing where it's headed, so it never
+    // has to find its way around the base first.
+    const toward = near ? null : this.sides[side].rally ?? { x: this.w / 2, y: this.h / 2 };
+    const a = toward ? Math.atan2(toward.y - at.y, toward.x - at.x) + (Math.random() - 0.5) * 1.2 : Math.random() * Math.PI * 2;
     return this.add({ kind: 'unit', side, design, young, name: young ? `${design.name} young` : design.name, ...b, has: new Set(b.has),
       x: at.x + Math.cos(a) * ((at.r ?? 0) + b.r + 6), y: at.y + Math.sin(a) * ((at.r ?? 0) + b.r + 6) });
   }
@@ -225,7 +228,7 @@ export class Sim {
 
   walk(e, to, dt) {
     if (e.sieged) { e.siegeT += dt; if (e.siegeT < 1) return; e.sieged = false; e.siegeT = 0; }
-    if (!e.flying) to = this.around(e, to);
+    if (!e.flying) { this.unstick(e); to = this.around(e, to); }
     const dx = to.x - e.x, dy = to.y - e.y, d = Math.hypot(dx, dy);
     if (d < 0.5) return;
     const step = Math.min(d, e.speed * dt);
@@ -253,9 +256,34 @@ export class Sim {
     // Pass on the side it's already leaning toward, just clear of the edge. The unit's own
     // side is remembered per rock, so it doesn't dither when the leaning flips.
     const { o, off } = block;
-    if (e.passing?.rock !== o) e.passing = { rock: o, side: off >= 0 ? -1 : 1 };
-    const s = e.passing.side, clear = o.r + e.r + 10;   // (uy, -ux) is the side `off` measures toward
-    return { x: o.x + uy * s * clear, y: o.y - ux * s * clear };
+    const clear = o.r + e.r + 10, past = (s) => ({ x: o.x + uy * s * clear, y: o.y - ux * s * clear });   // (uy, -ux) is the side `off` measures toward
+    // A way past that's off the map or into another rock is no way: take the other side.
+    const open = (p) => p.x > e.r && p.y > e.r && p.x < this.w - e.r && p.y < this.h - e.r
+      && [...this.rocks, ...this.hqs].every((q) => q === o || Math.hypot(q.x - p.x, q.y - p.y) > q.r + e.r);
+    if (e.passing?.rock !== o) {
+      const lean = off >= 0 ? -1 : 1;
+      e.passing = { rock: o, side: open(past(lean)) || !open(past(-lean)) ? lean : -lean };
+    }
+    const way = past(e.passing.side), dd = Math.hypot(e.x - o.x, e.y - o.y) || 0.01;
+    // Up against it, the straight line to the way past would cut into it: walk along its edge
+    // instead, toward that side, leaning a little away.
+    if (dd < o.r + e.r + 14) {
+      const rx = (e.x - o.x) / dd, ry = (e.y - o.y) / dd;
+      let tx = -ry, ty = rx;
+      if ((way.x - e.x) * tx + (way.y - e.y) * ty < 0) { tx = -tx; ty = -ty; }
+      return { x: e.x + (tx * 0.9 + rx * 0.35) * 30, y: e.y + (ty * 0.9 + ry * 0.35) * 30 };
+    }
+    return way;
+  }
+
+  /** A unit that's trying to walk and has barely moved in a while is wedged: it tries the
+   *  other way round what's in its way. (Not "hasn't come closer": going round a big rock
+   *  can take a while without getting any closer.) */
+  unstick(e) {
+    if (!e.progress || this.t - e.progress.t > 1.5) {
+      if (e.progress && e.passing && Math.hypot(e.x - e.progress.x, e.y - e.progress.y) < Math.max(8, e.speed * 0.3)) e.passing.side *= -1;
+      e.progress = { x: e.x, y: e.y, t: this.t };
+    }
   }
 
   nearestEnemy(e, within) {
@@ -333,7 +361,7 @@ export class Sim {
           // Out of the rock, and a little around it, toward where it's headed.
           a.x = o.x + (dx / d) * min; a.y = o.y + (dy / d) * min;
           const goal = a.target ?? a.order;
-          if (goal?.x != null) { const side = Math.sign((goal.x - o.x) * dy - (goal.y - o.y) * dx) || 1; a.x += (-dy / d) * side * 1.5; a.y += (dx / d) * side * 1.5; }
+          if (goal?.x != null && a.passing?.rock !== o) { const side = Math.sign((goal.x - o.x) * dy - (goal.y - o.y) * dx) || 1; a.x += (-dy / d) * side * 1.5; a.y += (dx / d) * side * 1.5; }
         }
       }
       a.x = Math.max(a.r, Math.min(this.w - a.r, a.x)); a.y = Math.max(a.r, Math.min(this.h - a.r, a.y));

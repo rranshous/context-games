@@ -65,7 +65,7 @@ async function showMenu() {
     chosen && item('Work with someone else', showPick),
     item('Title screen', showTitle),
     el('p', { className: 'links' }, el('a', { href: '/faq', target: '_blank', textContent: 'FAQ' }), ' · ', el('a', { href: '/privacy', target: '_blank', textContent: 'Privacy' })),
-    item('Close', () => {}, 'quiet'),
+    item('Close', () => {}),
   ));
   $('menu').hidden = false;
   $('menu').onclick = (e) => { if (e.target === $('menu')) close(); };

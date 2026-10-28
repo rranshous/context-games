@@ -9,12 +9,14 @@
   --plate-img: url(img/ui/brackett/button.png); --plate-cut: 24 26; --plate-w: 12px 13px;
   --main-img: url(img/ui/brackett/main.png); --main-cut: 30 46; --main-w: 15px 23px; --main-ink: #2a1c08; --main-glow: #ffd47a;
   --knob-img: url(img/ui/brackett/knob.png);
+  --inset: 8px;
 }
 [data-aid="hollis"] {
   --panel-img: url(img/ui/hollis/panel.png); --panel-cut: 44; --panel-w: 22px;
   --plate-img: url(img/ui/hollis/button.png); --plate-cut: 24 26; --plate-w: 12px 13px;
   --main-img: url(img/ui/hollis/main.png); --main-cut: 34 62; --main-w: 17px 31px; --main-ink: #effae6; --main-glow: #b9f5a0;
   --knob-img: url(img/ui/hollis/knob.png);
+  --inset: 14px;   /* her bones reach further in than his plating */
 }
 :root {
   --bg: #15171a; --panel: #1e2126; --line: #30343b; --ink: #e6e2d8; --dim: #9a968c;
@@ -36,28 +38,28 @@ textarea { font: inherit; color: inherit; }
 
 /* ---------- the drawn pieces ---------- */
 
+/* The drawn rim is --panel-w wide; what's inside starts a little further in (--inset), so
+   words and scrolled things stay clear of the rim's ornaments. */
 .panel, .actionbar, #menu .box, #overlay .box {
-  border: var(--panel-w) solid transparent; border-image: var(--panel-img) var(--panel-cut) fill / var(--panel-w) stretch;
+  border: calc(var(--panel-w) + var(--inset, 8px)) solid transparent; border-image: var(--panel-img) var(--panel-cut) fill / var(--panel-w) stretch;
   filter: drop-shadow(0 6px 14px #0009);
 }
-.panel { padding: 8px 12px; }
-/* Every button is a drawn plate, unless it's the main one, a knob, or quiet words. */
-button { font: inherit; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 12px;
-  background: none; border: var(--plate-w) solid transparent; border-image: var(--plate-img) var(--plate-cut) fill / var(--plate-w) stretch; border-radius: 0;
+.panel { padding: 2px 6px; }
+/* Every button is a drawn plate, unless it's the main one or a knob. */
+button { font: inherit; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 12px;
+  background: none; border: calc(var(--plate-w) + 2px) solid transparent; border-image: var(--plate-img) var(--plate-cut) fill / var(--plate-w) stretch; border-radius: 0;
   transition: filter 0.12s, transform 0.06s; }
 button:hover:not(:disabled) { filter: brightness(1.2) drop-shadow(0 0 5px color-mix(in srgb, var(--aid) 55%, transparent)); }
 button:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.92); }
 button:disabled { cursor: default; filter: grayscale(0.7) brightness(0.65); }
 button:focus-visible { outline: none; filter: brightness(1.15) drop-shadow(0 0 4px var(--aid)) drop-shadow(0 0 2px var(--aid)); }
 button .icon { width: 1.05em; height: 1.05em; }
-button.main { min-height: 56px; padding: 0 20px; border-width: var(--main-w); border-image: var(--main-img) var(--main-cut) fill / var(--main-w) stretch;
+button.main { min-height: 58px; padding: 0 20px; border-width: calc(var(--main-w) + 2px); border-image: var(--main-img) var(--main-cut) fill / var(--main-w) stretch;
   color: var(--main-ink); font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: 0.06em; text-shadow: 0 1px 0 color-mix(in srgb, var(--main-glow) 40%, transparent); }
 button.main:hover:not(:disabled) { filter: brightness(1.12) drop-shadow(0 0 10px color-mix(in srgb, var(--main-glow) 60%, transparent)); }
 button.main .icon { stroke-width: 2.4; }
 button.knob { width: 46px; height: 46px; min-height: 0; padding: 0; border: 0; border-image: none; flex: none; background: var(--knob-img) center / contain no-repeat; font-size: 13px; }
 button.knob .icon { width: 19px; height: 19px; stroke-width: 2.2; }
-button.quiet { border: 0; border-image: none; min-height: 32px; padding: 0 6px; color: var(--dim); }
-button.quiet:hover:not(:disabled) { color: var(--ink); filter: none; }
 button.plate.on, .map.on { filter: brightness(1.25) drop-shadow(0 0 6px color-mix(in srgb, var(--aid) 70%, transparent)); color: var(--aid); }
 kbd { display: inline-block; padding: 1px 7px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: #ffffff0a; color: var(--ink); font: 12px/1.4 inherit; font-family: inherit; }
 .label, .shelf h3, #maps h3, #brief h3, .abilities h4 { font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); font-weight: 500; margin: 0 0 4px; }
@@ -74,7 +76,7 @@ body[data-aid="brackett"] { --room: url(img/ui/brackett/room.jpg); --bg: #15130e
 .topbar .where div { display: flex; flex-direction: column; min-width: 0; }
 .topbar .where strong { font-family: var(--display); font-weight: 500; font-size: 18px; letter-spacing: 0.06em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar .where span { font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.actionbar { grid-area: act; display: flex; align-items: center; gap: 14px; min-width: 0; padding: 4px 8px; --panel-w: 16px; }
+.actionbar { grid-area: act; display: flex; align-items: center; gap: 14px; min-width: 0; padding: 0 4px; --panel-w: 16px; }
 .actionbar .shelf { flex: 1; min-width: 0; }
 .actionbar > .main, .actionbar > #front { flex: none; min-width: 230px; }
 #front.plate { min-height: 50px; color: var(--dim); }
@@ -127,11 +129,11 @@ body[data-aid="brackett"] { --room: url(img/ui/brackett/room.jpg); --bg: #15130e
 
 #bench { grid-area: bench; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 8px; min-height: 0; }
 #specimen { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
-#art { flex: 1; min-height: 200px; display: grid; place-items: center;
+#art { flex: 1; min-height: 120px; display: grid; place-items: center;
   background: radial-gradient(ellipse at 50% 62%, color-mix(in srgb, var(--aid) 22%, transparent), transparent 70%); }
 #art img { width: 92%; max-height: 54vh; object-fit: contain; filter: drop-shadow(0 10px 14px #000a); }
 #name { margin: 8px 0 2px; font-family: var(--display); font-weight: 500; font-size: 26px; letter-spacing: 0.04em; }
-#description { margin: 0; color: var(--dim); }
+#description { margin: 0 0 4px; color: var(--dim); }
 #sheet-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; }
 #sheet { display: flex; flex-direction: column; gap: 12px; }
 #bench-actions { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
@@ -140,10 +142,10 @@ body[data-aid="brackett"] { --room: url(img/ui/brackett/room.jpg); --bg: #15130e
 
 .shelf h3 { margin-left: 2px; }
 #kept { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
-.unit { flex: 0 0 auto; flex-direction: column; gap: 0; min-width: 96px; height: 78px; padding: 0 4px; --plate-w: 7px 8px; }
+.unit { flex: 0 0 auto; flex-direction: column; gap: 0; width: 104px; height: 86px; padding: 0 4px; --plate-w: 7px 8px; }
 .unit .pic { width: 80px; height: 42px; display: grid; place-items: center; }
 .unit .pic img { max-width: 80px; max-height: 42px; }
-.unit strong { font-weight: normal; font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unit strong { font-weight: normal; font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unit span { font-size: 10px; color: var(--dim); }
 #kept .hint { margin: 10px 4px; }
 
@@ -195,12 +197,13 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 #menu .links a { color: var(--dim); }
 
 /* ---------- the front ---------- */
-#war { grid-template: "top top" auto "maps brief" minmax(0, 1fr) "act act" auto / minmax(220px, 270px) minmax(0, 1fr); }
+#war { grid-template: "top top" auto "maps brief" minmax(0, 1fr) "act act" auto / minmax(250px, 300px) minmax(0, 1fr); }
 #maps { grid-area: maps; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; }
 .map { display: grid; grid-template-columns: 28px 1fr; gap: 0 8px; justify-content: stretch; justify-items: start; text-align: left; min-height: 62px; padding: 2px 10px; flex: none; }
 .map .n { grid-row: span 2; font-family: var(--display); font-size: 22px; color: var(--dim); }
 .map strong { font-weight: normal; }
-.map span:last-child { font-size: 12px; color: var(--dim); }
+.map span:last-child { font-size: 12px; color: var(--dim); line-height: 1.25; }
+.map > * { min-width: 0; }
 .map.won .n { color: var(--aid); }
 .map.won .n::after { content: ' ✓'; font-size: 13px; }
 #brief { grid-area: brief; min-height: 0; overflow-y: auto; }
@@ -240,7 +243,7 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 /* ---------- a match ---------- */
 #match { position: fixed; inset: 0; overflow: hidden; background: #0c0d0e; touch-action: none; user-select: none; -webkit-user-select: none; }
 #field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-#hud-top { position: absolute; top: 6px; left: 6px; display: flex; gap: 6px 18px; align-items: center; padding: 0 6px; --panel-w: 14px; font-size: 14px; }
+#hud-top { position: absolute; top: 6px; left: 6px; display: flex; gap: 6px 18px; align-items: center; padding: 0 6px; --panel-w: 14px; --inset: 2px; font-size: 14px; }
 #hud-top .stat { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #hud-top .stat > .icon { width: 18px; height: 18px; color: var(--aid); }
 #hud-top .stat b { font-weight: normal; font-size: 17px; }
@@ -273,19 +276,19 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 .toast.bad { color: #f4a892; }
 .toast.bad .icon { color: #e07a60; }
 @keyframes toast { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
-#mini-frame { position: absolute; top: 58px; right: 6px; width: 196px; height: 132px; --panel-w: 13px; padding: 0; }
+#mini-frame { position: absolute; top: 58px; right: 6px; width: 196px; height: 132px; --panel-w: 13px; --inset: 0px; padding: 0; }
 #minimap { display: block; width: 100%; height: 100%; touch-action: none; background: #000; }
 #hud-make { position: absolute; left: 6px; right: 6px; bottom: 6px; pointer-events: none; }
 #makes { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 14px 14px 2px 2px; scrollbar-width: none; pointer-events: auto; width: max-content; max-width: 100%; }
 /* a unit's button: its fill is the one growing, its count how many are on the way */
-.make { position: relative; flex: 0 0 auto; display: grid; grid-template-columns: 46px auto; grid-template-rows: auto auto; gap: 0 8px; align-content: center; align-items: center; justify-items: start; text-align: left; min-height: 66px; padding: 0 16px 0 8px; overflow: visible; }
+.make { position: relative; flex: 0 0 auto; width: 186px; display: grid; grid-template-columns: 46px minmax(0, 1fr); grid-template-rows: auto auto; gap: 0 8px; align-content: center; align-items: center; justify-items: start; text-align: left; min-height: 66px; padding: 0 16px 0 8px; overflow: visible; }
 .make .progress { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--aid) 8%, transparent), color-mix(in srgb, var(--aid) 38%, transparent)); border-right: 2px solid var(--aid); pointer-events: none; }
 .make:not(.making) .progress { border-right: 0; }
 .make > :not(.progress, .count, kbd) { position: relative; }
 .make .pic { grid-row: span 2; width: 46px; height: 38px; display: grid; place-items: center; }
 .make .pic img { max-width: 46px; max-height: 38px; filter: drop-shadow(0 2px 2px #0008); }
-.make strong { font-weight: normal; font-size: 13px; }
-.make .line { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--aid); }
+.make strong { font-weight: normal; font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.make .line { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--aid); white-space: nowrap; }
 .make .line .icon { width: 12px; height: 12px; }
 .make .why:not(:empty)::before { content: '· '; }
 .make kbd { position: absolute; z-index: 1; top: -9px; right: -6px; padding: 0; border: 0; background: none; font-size: 10px; color: var(--dim); }
@@ -302,6 +305,7 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 #overlay .lede { color: var(--dim); margin: 0 0 14px; }
 #overlay .go { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
 #overlay .go .main { min-width: 220px; }
+#overlay .go .plate { min-width: 150px; min-height: 58px; }
 #overlay .facing { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: 6px 14px; margin: 6px 0 14px; padding: 10px; border-radius: 6px; background: #d0503c14; border: 1px solid #d0503c33; }
 #overlay .facing .label { flex-basis: 100%; color: #e07a60; }
 #overlay .foe { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; color: var(--dim); }
@@ -321,6 +325,8 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 @media (max-width: 800px) {
   .screen { padding: 6px; gap: 6px; }
   .panel, .actionbar { --panel-w: 14px; }
+  :root, [data-aid="brackett"] { --inset: 5px; }
+  [data-aid="hollis"] { --inset: 9px; }
   .topbar .where img { width: 38px; height: 38px; }
   .topbar .where strong { font-size: 15px; }
   .topbar .where span { font-size: 12px; }
@@ -343,7 +349,13 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
   #maps { flex-direction: row; overflow-x: auto; scrollbar-width: none; padding: 4px 8px; }
   #maps h3 { display: none; }
   .map { flex: 0 0 190px; }
-  #muster { flex-wrap: wrap; }
+  #muster, #lab .actionbar { flex-wrap: wrap; gap: 4px 8px; }
+  #lab .actionbar .shelf { flex-basis: 100%; }
+  #lab .actionbar > #front { flex: 1; min-height: 50px; }
+  #lab .shelf h3 { display: none; }
+  #overlay .go { flex-wrap: wrap; }
+  #overlay .go .main, #overlay .go .plate { min-width: 0; flex: 1 1 140px; }
+  #toasts { left: 8px; transform: none; align-items: flex-start; }
   #muster .shelf { flex-basis: 100%; }
   #muster > .main { flex: 1; }
   #muster .shelf h3 { display: none; }
@@ -360,7 +372,7 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
   #hud-orders button .icon { width: 18px; height: 18px; }
   #picked { top: 116px; max-height: 35%; }
   #toasts { top: 112px; }
-  .make { min-height: 54px; padding: 0 8px 0 2px; }
+  .make { width: 140px; min-height: 54px; padding: 0 8px 0 2px; }
   .make .why, .make kbd { display: none; }
 }
 
