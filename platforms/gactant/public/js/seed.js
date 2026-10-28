@@ -26,10 +26,11 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   frame.view { who, playing }   (playing: they see only the stage)
 //   store.changed { who, key }   art.painting { who, name }   art.made { who, name, w, h }
 //   choices.offered { who, question, count }   choices.picked { who, question, choice, index }
+//   table.changed { match, n, view, result, last }   table.refused { match, kind, reason }
 //   (a pick also arrives in the chat, as the person's words)
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
-// surfaces: chat, whiteboard, stage, store, art, choices (their actions, done as me). They're the frame's,
+// surfaces: chat, whiteboard, stage, store, art, choices, table (their actions, done as me). They're the frame's,
 //   and I live in a sandbox beside it: the stage and the store answer at once, and so does
 //   chat.read; chat.post and the whiteboard return promises.
 //
@@ -56,6 +57,8 @@ function hooks(on, me, surfaces) {
   on('stage.frame', (e) => me.game?.frame?.(e.dt));
   on('stage.key', (e) => me.game?.key?.(e));
   on('stage.pointer', (e) => me.game?.pointer?.(e));
+  // Shared play: what happens at a table my game follows (see the table surface).
+  on('table.*', (e) => me.game?.table?.(e));
 }`;
 
 const GAME = `// game: the facet of me that people play. It's a factory: called with the stage whenever
@@ -183,6 +186,16 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
     description: 'Show the people here a question and 2 to 6 options to pick from, over the stage: easier than typing, above all with a controller. Each option has a label, and maybe an image (an art name, or "stage") and a note. Their pick comes to you in the chat.',
     input_schema: { type: 'object', properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, image: { type: 'string' }, note: { type: 'string' } }, required: ['label'] } } }, required: ['question', 'options'] },
     run: (input, me, s) => s.choices.offer(input),
+  },
+  {
+    name: 'table',
+    description: 'Shared play: rulebooks and matches with other people and their ludants (see the table surface). op is one of its actions (drafts, draft, readDraft, writeDraft, tryDraft, lock, removeDraft, rulebook, matches, open, watch, unwatch, join, move, view); args is the list of arguments it takes, e.g. { op: "writeDraft", args: ["d-1a2b3c", { source: "..." }] } or { op: "move", args: ["m-4d5e6f", { cell: 4 }] }.',
+    input_schema: { type: 'object', properties: { op: { type: 'string' }, args: { type: 'array' } }, required: ['op'] },
+    run: (input, me, s) => {
+      const fn = s.table[input.op];
+      if (!fn) throw new Error('the table has no action ' + input.op);
+      return fn(...(input.args ?? []));
+    },
   },
   {
     name: 'store',

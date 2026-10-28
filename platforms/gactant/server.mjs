@@ -19,6 +19,7 @@ import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SANDBOX_POLICY, createCore, pageHeaders, safe, sameOrigin } from './core.mjs';
+import { createRules } from './rules.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
@@ -29,7 +30,7 @@ const PORT = Number(arg('--port')) || 7780;
 loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
-for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'log', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'drafts', 'rulebooks', 'matches', 'actions', 'log', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
 const PICTURES = join(DATA, 'pictures');
 
 function loadEnv(path) {
@@ -89,6 +90,8 @@ const core = createCore({
     sandbox: process.env.GACTANT_SANDBOX || '',
     art,
     artBase: '/art/',
+    // Rulebooks run in QuickJS (rules.mjs), from the vendored WebAssembly.
+    loadRules: async () => createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm')))),
     log: (who, record) => appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n'),
     tail: (who, n) => {
       const f = join(DATA, 'log', `${who}.jsonl`);

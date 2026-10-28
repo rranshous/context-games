@@ -222,5 +222,11 @@ export function createPeople({ store, settings, httpError, limit }) {
     throw httpError(404, `no route people/${b}${c ? `/${c}` : ''}`);
   }
 
-  return { route, whoIs, get };
+  /** A device's public key, to check what it signed (tables.mjs). null for a device that keeps a secret. */
+  async function deviceKey(person, device) {
+    const d = (await get(person))?.devices.find((x) => x.id === device);
+    return d?.key ? importKey(d.key) : null;
+  }
+
+  return { route, whoIs, get, deviceKey };
 }

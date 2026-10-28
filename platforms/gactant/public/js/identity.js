@@ -9,6 +9,7 @@
 //                                    another of their devices, or their recovery code)
 //   who()                         -> { person, name } from the pass, or null (no network)
 //   mine(path, body)              -> people/me, pair, name, remove, recovery, as its person
+//   await sign(text)              -> this device's signature over text (null if it keeps a secret)
 //   forgetDevice()                -> this device stops being anyone's (after it's removed)
 //
 // Over plain http (a phone on the LAN reaching a local install) browsers won't do the
@@ -107,6 +108,15 @@ export async function pass() {
     }
   })().finally(() => { renewing = null; });
   return renewing;
+}
+
+/** A signature by this device's key over text (base64url), for actions at a table: proof
+ *  that this device, and so its person, took them. null where the device keeps a secret
+ *  instead of a key; the server then records the action as unsigned. */
+export async function sign(text) {
+  const device = await load();
+  if (!device?.keys) return null;
+  return b64u(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, device.keys.privateKey, new TextEncoder().encode(text)));
 }
 
 export async function become(name) {

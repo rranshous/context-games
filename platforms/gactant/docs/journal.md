@@ -2212,3 +2212,30 @@ A fork inherits the reference (in its game code or its memory), not the rules. N
 **The demo:** a tic-tac-toe ludant drafts and locks a rulebook. A fork of it goes neon, a fork of that goes 3D, and maybe one is text only. Two explorer shards, in different forks, play a real match.
 
 **Order of work:** QuickJS running a rulebook (Node and the World), then the tic-tac-toe rulebook, then matches with signed logs, then the table surface, then the fork tree.
+
+**To talk about later (Robby, mid-build):** "how we present information to the actants about the services as the number and complexity of the surfaces increases". Every surface's `describe()` goes into the system text, and a table brings a whole API (drafts, locking, loading, matches, signed actions) plus whatever its rulebook means. At some point a ludant can't hold every surface's full manual at once. Possibilities to weigh then: short descriptions with a way to read the rest on demand (like `read_section` for big code), or surfaces that introduce themselves only when they become relevant.
+
+### Building it
+
+- **QuickJS, vendored** (`vendor/quickjs/`, quickjs-emscripten 0.32: the core, the sync WebAssembly build, its FFI types; about 600 KB, nearly all the .wasm). No npm dependency: `rules.mjs` hands it a compiled `WebAssembly.Module` (Node compiles the file, wrangler compiles it when bundling), so it never fetches anything. Checked in both: Node, and `wrangler dev` (workerd).
+- **Each rules call gets a fresh context.** A rulebook keeps nothing between calls but the state it returns. The prelude removes `Date` and `Math.random` and adds `random(n) -> [x, next n]`. Limits: 16 MB, a 512 KB stack, and a **count** of QuickJS's interrupt checks (about one per 10,000 steps), not a clock, because a Worker's clock stands still while code runs, and a count cuts off at the same place everywhere. An endless loop stops after about 120 ms. A tic-tac-toe call takes about 1.5 ms.
+- **`init(seed, options)`**: init doesn't take the players any more. `join` brings them.
+- **Each action is its own document** (`actions`, `<match>-<n>`): a Durable Object row is at most 2 MB, and a canvas that never ends would outgrow one. The match keeps its state, head, count and members.
+- **The signed text** is `gactant/act/v1 \n match \n n \n prev \n kind \n JSON(data)`. An entry's hash is `sha256(text \n signature)`, and the first prev is the match's genesis hash (`gactant/match/v1 \n id \n rulebook \n seed \n JSON(options)`). The server checks the signature against the device the pass names (`people.deviceKey`). A stale `n`/`prev` is a 409, and the table signs again on the new head. Devices that keep a secret (plain-http local installs) are recorded unsigned.
+- **Hearing others' moves:** `GET matches/<id>?after=n` waits up to 25 seconds for a new action, the same in Node and the World, with no WebSocket code yet.
+- **Actions are public** (anyone can read the log, to check it), so anything secret belongs in the state and is shown through `view`.
+- **The table surface** (`surfaces/table.js`) signs in the frame (`identity.sign`), never in the sandbox. Its actions: drafts, draft, readDraft, writeDraft, tryDraft, lock, removeDraft, rulebook, matches, open, watch, unwatch, join, move, view. Events: `table.changed`, `table.refused`. New seeds get a `table` tool, and hooks that pass `table.*` events to `game.table(e)`.
+- **Smoke: 80 checks.** The new ones: private drafts, practice runs, locking by hash, signed joins, another device's signature refused, a stale head refused, the rules' refusal, a win, each player's own view, and **the whole log checked from outside**: chain, signatures, and that it ends at the head.
+- `rulebooks/tic-tac-toe.js`, and `rulebooks/shared-canvas.js`, which Robby asked for mid-build: "as a test of our new multiplayer system also create a game which is just a collaborative drawing tool". Any number of places, no turns, never over; strokes of up to 40 points, the newest 300 kept (so it stays under the 200,000-character state), and `{ clear: true }` takes away your own.
+
+### First match between two people
+
+Locally, two people on one server: Alice at http://127.0.0.1:7780 and Bob at http://localhost:7780 (two origins, so two browsers' worth of keys). Alice seeded Vedina, and through her table drafted and locked both rulebooks. The tic-tac-toe hash came out the same as under workerd. Vedina's first offer to a new person already included "A shared-table game (turn-based, with other people)", from the table's description alone.
+
+Alice asked Vedina to build tic-tac-toe on the locked hash. It took 83 seconds and $0.19: find an open match or open one, join, draw the board, click to move, highlight the winning line, a "New match" button. It said honestly that it couldn't test a full game without a second player.
+
+Bob opened Vedina's link and took his own copy (the first hop). Its game said "trouble reaching the table". **My bug:** `table.view(match)` returned null for a match this frame hadn't followed yet, and Vedina's code reasonably expected it to look the match up. Fixed: `view` asks the server for a match it hasn't seen. Meanwhile Bob's copy, awake, had found the crash itself and patched its own game to handle a missing view. So the copy has already diverged from Vedina on its own.
+
+Then a real game: Alice X in the center, Bob O top-left (his board updated with no reload), and Alice won down the middle column. Bob's game didn't even send a move out of turn ("Waiting for Alice…"), and the smoke test covers the rules refusing one.
+
+Noticed: Vedina left a "What should I become first?" choices card over the stage. It tried tools named `choices_withdraw_placeholder` and `offer_choices_placeholder`, which don't exist. The surface has `withdraw()`, but the seed only has a tool for offering, and Vedina guessed names instead of writing a tool.

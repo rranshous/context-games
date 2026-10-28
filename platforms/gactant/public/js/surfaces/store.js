@@ -1,6 +1,6 @@
 // Store: structured state that lasts. Keys and JSON values, kept with this copy of the
 // ludant across sittings, reloads and game rebuilds. How it's saved is the frame's
-// business. It belongs to the table, like the chat: a copy starts with an empty store,
+// business. It belongs to this copy of the ludant, like the chat: a copy starts with an empty store,
 // and restoring a checkpoint leaves it alone.
 //
 // actions (as an actor)

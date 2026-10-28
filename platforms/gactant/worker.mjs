@@ -16,6 +16,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import { makeCheck } from './check.mjs';
 import { SANDBOX_POLICY, createCore, pageHeaders, sameOrigin } from './core.mjs';
+import { createRules } from './rules.mjs';
+// The rules engine's WebAssembly, compiled by wrangler when it bundles (a Worker can't compile it at run time).
+import quickjsWasm from './vendor/quickjs/quickjs.wasm';
 
 const artStore = (bucket) => ({
   async put(name, bytes, type) { await bucket.put(name, bytes, { httpMetadata: { contentType: type, cacheControl: 'public, max-age=31536000, immutable' } }); },
@@ -52,6 +55,7 @@ export class World extends DurableObject {
         sandbox: env.SANDBOX_ORIGIN || '',
         art: artStore(env.ART),
         artBase: env.ART_BASE || '/art/',
+        loadRules: () => createRules(quickjsWasm),
         version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
         sessionSecret: env.SESSION_SECRET || '',   // signs challenges and passes (people.mjs); a wrangler secret
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).

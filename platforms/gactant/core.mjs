@@ -94,6 +94,7 @@
 //                                                   store move to the art store, n owners at a time (once, 2026-10-28)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
+//   drafts, rulebooks, matches                   tables: games many ludants play together (tables.mjs has their API)
 //   POST infer          { who, messages, tools? } -> OpenRouter chat completion, on the install's key
 //                                                   (people with their own OpenRouter key call it from the browser)
 //   POST log/<who>      { record }               -> {}             a think the browser made itself
@@ -105,6 +106,7 @@ import { seedSoma } from './public/js/seed.js';
 import { publicText } from './check.mjs';
 import { createOps } from './ops.mjs';
 import { createPeople } from './people.mjs';
+import { createTables } from './tables.mjs';
 
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
 const HOLD_STALE_MS = 20000;
@@ -160,6 +162,8 @@ export function createCore({ store, settings }) {
   const isPublic = Boolean(settings.public);
   const ops = createOps({ store, log: settings.opsLog });
   const people = createPeople({ store, settings, httpError, limit: (...a) => limit(...a) });
+  // Games many ludants play together (tables.mjs); the rules run in settings.loadRules().
+  const tables = createTables({ store, loadRules: settings.loadRules ?? (() => Promise.reject(httpError(501, 'this install has no rules engine'))), people, httpError, limit: (...a) => limit(...a), owns: (l, f) => owns(l, f) });
 
   // ---------- pictures: files in settings.art, served from artBase ----------
   const art = settings.art;
@@ -499,6 +503,8 @@ export function createCore({ store, settings }) {
     const [a, b, c] = parts;
     // What pages noticed (no names, chat, prompts or keys), and reading it all back.
     if (a === 'people') return people.route(method, parts, body, from);
+    const tabled = await tables.route(method, parts, body, query, from);
+    if (tabled !== undefined) return tabled;
     if (a === 'events' && method === 'POST') return ops.events(body);
     if (a === 'flags' && method === 'POST') return flag(body, from);
     if (a === 'admin' && (b === 'flags' || b === 'moderate') && method === 'POST') {

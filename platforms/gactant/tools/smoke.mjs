@@ -10,6 +10,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { genesisText, signedText } from '../tables.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 7799, base = `http://127.0.0.1:${PORT}`, TOKEN = `smoke-${Date.now()}`;
@@ -46,7 +48,8 @@ try {
       const { challenge } = (await call('POST', 'people/challenge')).json;
       return { challenge, signature: b64u(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keys.privateKey, new TextEncoder().encode(challenge))) };
     };
-    return { key: { kty: 'EC', crv: 'P-256', x, y }, prove };
+    const sign = async (text) => b64u(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keys.privateKey, new TextEncoder().encode(text)));
+    return { key: { kty: 'EC', crv: 'P-256', x, y }, prove, sign };
   };
   const A = await device();
   const made = await call('POST', 'people', { name: 'Smoke', label: 'smoke A', key: A.key, ...(await A.prove()) });
@@ -132,6 +135,59 @@ try {
   const owners = await call('POST', 'admin/owners', { token: TOKEN });
   ok('admin lists owners by person', Array.isArray(owners.json) && owners.json.every((l) => l.owned && /Smoke|Stranger/.test(l.owner)));
   ok('a ludant a person owns can\'t be given away', (await call('POST', 'admin/own', { token: TOKEN, ludant: id, person: 'p-0000000000000000' })).status === 409);
+  // Tables: a draft, private; tried; locked by hash; a match of signed actions.
+  const ttt = readFileSync(join(HERE, 'rulebooks/tic-tac-toe.js'), 'utf8');
+  const draft = await call('POST', 'drafts', { name: 'tic-tac-toe', source: 'function init() { return {} }' }, as(pass));
+  ok('a draft', draft.json.id, JSON.stringify(draft.json));
+  ok('it says what it still needs', (await call('GET', `drafts/${draft.json.id}`, undefined, as(pass))).json.missing?.join() === 'join,move,view,result');
+  ok('someone else\'s draft isn\'t there', (await call('GET', `drafts/${draft.json.id}`, undefined, as(stranger))).status === 404);
+  ok('a draft missing rules can\'t be locked', (await call('POST', `drafts/${draft.json.id}/lock`, {}, as(pass))).status === 422);
+  ok('a draft changes', (await call('PUT', `drafts/${draft.json.id}`, { source: ttt }, as(pass))).json.missing?.length === 0);
+  const tried = await call('POST', `drafts/${draft.json.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'join', as: 'b' }, { do: 'move', as: 'b', data: { cell: 0 } }, { do: 'move', as: 'a', data: { cell: 4 } }] }, as(pass));
+  ok('a practice run: joins, a refusal, a move', tried.json.steps?.map((x) => x.ok).join() === 'true,true,false,true' && tried.json.steps[2].error === 'it\'s X\'s turn', JSON.stringify(tried.json).slice(0, 300));
+  const locked = await call('POST', `drafts/${draft.json.id}/lock`, {}, as(pass));
+  const rb = locked.json.rulebook;
+  ok('locked, named by its hash', /^[0-9a-f]{64}$/.test(rb ?? ''), JSON.stringify(locked.json));
+  ok('anyone can read a rulebook', (await call('GET', `rulebooks/${rb}`)).json.source === ttt);
+  ok('locking the same rules again gives the same hash', (await call('POST', `drafts/${draft.json.id}/lock`, {}, as(pass))).json.rulebook === rb);
+  const match = (await call('POST', 'matches', { rulebook: rb }, as(pass))).json;
+  ok('a match', match.id && match.n === 0, JSON.stringify(match));
+  let head = match.head, n = 0;
+  const act = async (who, dev, kind, data, extra = {}) => {
+    const sig = await dev.sign(signedText({ match: match.id, n, prev: head, kind, data }));
+    const r = await call('POST', `matches/${match.id}/act`, { kind, data, n, prev: head, signature: sig, ...extra }, as(who));
+    if (r.status === 200) { n = r.json.n; head = r.json.head; }
+    return r;
+  };
+  ok('a signed join', (await act(pass, A, 'join', null)).json.view?.you === 'X');
+  ok('a join signed by another device is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n, prev: head, signature: await A.sign(signedText({ match: match.id, n, prev: head, kind: 'join', data: null })) }, as(stranger))).status === 401);
+  ok('an action on an old head is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n: 0, prev: match.head, signature: await S.sign(signedText({ match: match.id, n: 0, prev: match.head, kind: 'join', data: null })) }, as(stranger))).status === 409);
+  ok('the second player joins, as O', (await act(stranger, S, 'join', null)).json.view?.you === 'O');
+  const wrong = await act(stranger, S, 'move', { cell: 0 });
+  ok('the rules refuse a move out of turn', wrong.status === 422 && wrong.json.refused === 'it\'s X\'s turn', JSON.stringify(wrong.json));
+  ok('playing through a ludant that isn\'t yours is refused', (await act(pass, A, 'move', { cell: 0 }, { ludant: linkCopy.json.id })).status === 403);
+  for (const [who, dev, cell] of [[pass, A, 0], [stranger, S, 3], [pass, A, 1], [stranger, S, 4]]) await act(who, dev, 'move', { cell });
+  const won = await act(pass, A, 'move', { cell: 2 }, { ludant: id });
+  ok('X wins', won.json.result?.winner === 'X', JSON.stringify(won.json));
+  ok('a move after the end is refused', (await act(stranger, S, 'move', { cell: 8 })).status === 422);
+  const seen = (await call('GET', `matches/${match.id}`, undefined, as(stranger))).json;
+  ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);
+  ok('the rulebook lists its matches', (await call('GET', `rulebooks/${rb}/matches`)).json[0]?.id === match.id);
+  // Anyone can check the log: the chain, every signature, and the replay.
+  const { log, seed: mSeed, options, genesis } = (await call('GET', `matches/${match.id}/log`)).json;
+  const sha = async (t) => Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))).toString('hex');
+  let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, options }));
+  let chain = prev === genesis;
+  const keys = { [me.id]: A.key, [(await call('GET', 'people/me', undefined, as(stranger))).json.id]: S.key };
+  for (const e of log) {
+    const text = signedText({ match: match.id, n: e.n, prev, kind: e.kind, data: e.data });
+    const key = await crypto.subtle.importKey('jwk', keys[e.player.id], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    chain &&= e.prev === prev && e.hash === await sha(`${text}\n${e.signature}`) && await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text));
+    prev = e.hash;
+  }
+  ok('the log checks out: a chain of signed actions', chain && log.length === 7 && prev === head);
+  ok('it says which ludant a move was played through', log.at(-1).through?.id === id);
+
   ok('abandon', (await call('POST', `ludants/${id}/abandon`, { token: 'w', by: 'smoke' }, as(pass))).status === 200);
   ok('its link says so', (await call('GET', `ludants/${id}`)).status === 410);
 } catch (err) {
