@@ -112,7 +112,7 @@ $('switch').onclick = () => { remember('mantle-aid'); showPick(); };
 // ---------- the roster ----------
 
 async function showRoster() {
-  const designs = (await fetch('/api/designs').then((r) => r.json())).filter((d) => d.aid === aid.id);
+  const designs = (await fetch('/api/designs?by=me').then((r) => r.json())).filter((d) => d.aid === aid.id);
   $('kept').replaceChildren(...(designs.length ? designs.map((d) => {
     const pic = el('div', { className: 'pic' });
     if (d.art) cutout(d.art).then((src) => pic.append(el('img', { src, alt: '' })));

@@ -8,6 +8,7 @@ const MAX = 768;
 export function cutout(url) {
   if (!cache.has(url)) cache.set(url, new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';   // pictures may come from the art domain; the canvas needs to read them
     img.onload = () => {
       const k = Math.min(1, MAX / Math.max(img.width, img.height));
       const w = Math.round(img.width * k), h = Math.round(img.height * k);

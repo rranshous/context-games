@@ -18,18 +18,18 @@ const post = (path, body) => fetch(path, { method: 'POST', headers: { 'content-t
 
 export async function think({ messages, tools }) {
   if (key()) return complete({ model: MODEL, messages, tools, max_tokens: 4000, usage: { include: true }, provider: { order: ['anthropic'], allow_fallbacks: true } });
-  if (await relayOn()) return post('/api/think', { messages, tools });
+  if (await relayOn()) return post('/api/relay/think', { messages, tools });
   throw new NotConnected('connect OpenRouter first');
 }
 
-/** A picture: returns where it's kept (a URL on the server, or the picture itself if there's nowhere to keep it). */
+/** A picture, drawn and kept: returns its address. */
 export async function draw(prompt) {
   if (key()) {
     const json = await complete({ model: ART_MODEL, modalities: ['image', 'text'], messages: [{ role: 'user', content: prompt }] });
     const image = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     if (!image) throw new Error('no picture came back');
-    return post('/api/keep-art', { image }).then((j) => j.url).catch(() => image);
+    return (await post('/api/art', { image })).url;   // kept with everyone's, where it's scanned
   }
-  if (await relayOn()) return (await post('/api/art', { prompt })).url;
+  if (await relayOn()) return (await post('/api/relay/art', { prompt })).url;
   throw new NotConnected('connect OpenRouter first');
 }

@@ -84,7 +84,13 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
 - `public/js/match.js`: a match on screen: drawing, mouse, keys and touch, the HUD. It
   also sets `window.explorer` (`state()`, `make(i)`, `order(ids, kind, x, y)`,
   `speed(n)`, `look(x, y)`, and `sim`) for playing it from outside.
-- `server.mjs`: serves the page, holds the key, and keeps designs and pictures.
+- `core.mjs`: **the API, the same wherever it runs.** It handles commanders (a signed
+  cookie per browser), designs (tied to their maker as `by`, which anyone can see and only
+  the maker can change), pictures (checked, counted per commander per day, and kept), and
+  the relay. It takes a web Request and gives back a Response.
+- `server.mjs`: the local host: files in `data/`, the pages, `node server.mjs`.
+- `worker.mjs` and `wrangler.toml`: the Cloudflare host. A Durable Object (World) keeps
+  the documents in SQLite, and R2 keeps the pictures.
 
 ## Playing a match
 
@@ -96,3 +102,27 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
 | make | the cards at the bottom, or 1–5 | the cards |
 | look around | arrows, wheel to zoom, space for home, the minimap | drag, pinch, the minimap |
 | pause | P, or ❚❚ | ❚❚ |
+
+## Hosting
+
+On Cloudflare: the Worker serves the pages and the API, one Durable Object keeps every
+document (where multiplayer will meet later), and R2 keeps every picture. Try it with
+`npx wrangler dev`, which simulates both locally.
+
+**Every picture people make is scanned.** Cloudflare's CSAM Scanning Tool looks at what's
+served through its cache. A Worker's own responses don't pass through it, so the pictures
+are served from **the R2 bucket's own custom domain** (`ART_BASE`), which does. Before
+opening to the public:
+
+1. Give the site a domain (`routes` in `wrangler.toml`).
+2. Create the bucket, `npx wrangler r2 bucket create mantle-art`, and connect a custom
+   domain to it on a Cloudflare zone (dashboard: R2 > mantle-art > Settings > Custom
+   Domains). Put that address in `ART_BASE`.
+3. Let pages read the pictures into a canvas: `npx wrangler r2 bucket cors set mantle-art
+   --file r2-cors.json`.
+4. Turn on the CSAM Scanning Tool for that zone (dashboard: Caching > Configuration > CSAM
+   Scanning Tool). It needs a contact email for alerts.
+5. `npx wrangler secret put SESSION_SECRET`, which signs commanders' cookies.
+6. `npx wrangler deploy`.
+
+Until step 2, the Worker serves `/art/*` from R2 itself, which works but isn't scanned.

@@ -378,3 +378,45 @@ should belong to the commander. They could go in the browser (IndexedDB holds th
 pictures fine), which makes the game a static site plus the commander's own OpenRouter.
 Or they could go to an account on a hosted store, as in gactant. Moving them would leave
 behind the designs kept so far (Anvil, the Warbringer and the rest). That's Robby's call.
+
+## Hosting: Cloudflare for all the things
+
+Robby: "I want all assets on cloudflares hosting that has free image scanning. If it's
+going to be a generated art from random ppl I want it scanned if we are storing it.
+Cloudflare for all the things. Don't make private per user, but so associate. Later we are
+going to add multiplayer."
+
+- **The scanner sees only what goes through Cloudflare's cache.** That's what the CSAM
+  Scanning Tool docs say ("content served for your website through the Cloudflare cache").
+  A Worker's own responses don't pass through the cache, so pictures served by the Worker
+  wouldn't be scanned. The pictures therefore live in **R2, served from the bucket's own
+  custom domain** on a Cloudflare zone, which is cached and so scanned. Until that domain
+  exists, the Worker serves `/art/*` from R2 itself, which works but isn't scanned. The
+  README lists the steps before going public; turning the tool on needs a contact email,
+  which is still on the list for gactant too.
+- **Every picture is kept by the server, whoever's key drew it.** A picture drawn on a
+  commander's own OpenRouter key goes to `POST /api/art` and is stored with everyone's
+  (scanned); nothing stays only in the browser. The server checks that it really is an
+  image (png, jpeg or webp, at most 4 MB) and allows 200 a day per commander.
+- **Commanders.** Each browser gets an anonymous commander id in a signed cookie (HMAC with
+  `SESSION_SECRET`; locally, `data/secret`). Designs carry `by`. Anyone can see anyone's
+  designs (`GET /api/designs`, or `?by=me`), but only the maker can delete one. Saving over
+  someone else's design makes a copy of your own. Each commander can keep up to 300
+  designs.
+- **One core, two hosts,** as in gactant. `core.mjs` takes a web Request and returns a
+  Response. `server.mjs` gives it files, and `worker.mjs` gives it a Durable Object (SQLite)
+  and R2. Both were tested the same way:
+  - each browser gets its own commander
+  - a design is visible to others but can't be deleted by them
+  - a picture is refused if it isn't one, and otherwise kept and served
+  - posts from another site are refused
+
+  The Worker was tested under `wrangler dev`: R2 and the Durable Object both work, and the
+  relay is off because the site is public.
+- **The relay moved** to `/api/relay/think` and `/api/relay/art`, and it's never available
+  when public.
+- **What was left behind:** the designs kept before this (Anvil, the Warbringer and the
+  rest) have no `by`, so they no longer show as anyone's. That follows the no-migrations
+  rule. Their old pictures were in `data/art/` and new ones go to `data/pictures/`.
+- **Nothing is deployed.** Robby said publishing comes later. It needs a domain for the
+  site and one for the pictures, the scanning tool turned on, and the session secret set.

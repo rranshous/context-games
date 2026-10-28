@@ -1,37 +1,32 @@
-// Mantle, run locally: Node, files on disk, no dependencies. Serves the pages, holds the
-// OpenRouter key, and keeps the designs.
+// Mantle, run locally: Node, files on disk, no dependencies. The API is core.mjs; this
+// keeps the files, serves the pages, and listens. (worker.mjs is the hosted twin.)
 //
 //   node server.mjs [--port 7790]
 //
-// .env (next to this file)
-//   OPENROUTER_API_KEY=...
-//   MANTLE_MODEL=anthropic/claude-sonnet-5.5            the aids' thinking
-//   MANTLE_ART_MODEL=google/gemini-3.1-flash-lite-image  the units' pictures
-//   MANTLE_PUBLIC=1                                     lend no thinking: everyone connects their own OpenRouter
+// .env (next to this file), all optional
+//   OPENROUTER_API_KEY=...                              lend thinking to commanders who haven't connected their own
+//   MANTLE_MODEL=anthropic/claude-sonnet-5.5            the aids' thinking, on the relay
+//   MANTLE_ART_MODEL=google/gemini-3.1-flash-lite-image  the units' pictures, on the relay
+//   MANTLE_PUBLIC=1                                     lend nothing: everyone connects their own OpenRouter
 //
-// Data: data/designs/<id>.json, one per kept design; data/art/<id>.<ext>, every picture
-// drawn; data/log.jsonl, every call, with what it cost.
+// Data: data/<kind>/<id>.json, one document each (designs, art records, tallies);
+// data/pictures/<name>, the pictures; data/log.jsonl, every relayed call with what it cost;
+// data/secret, what signs commanders' cookies here.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createCore } from './core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PUBLIC = join(HERE, 'public'), DATA = join(HERE, 'data');
+const PUBLIC = join(HERE, 'public'), DATA = join(HERE, 'data'), ART = join(DATA, 'pictures');
 const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null);
 const PORT = Number(arg('--port')) || 7790;
 
 loadEnv(join(HERE, '.env'));
-const KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = process.env.MANTLE_MODEL || 'anthropic/claude-sonnet-5.5';
-const ART_MODEL = process.env.MANTLE_ART_MODEL || 'google/gemini-3.1-flash-lite-image';
-// Public: open to anyone, so the server lends no thinking; everyone connects their own OpenRouter.
-const RELAY = Boolean(KEY) && !process.env.MANTLE_PUBLIC;
-if (!RELAY) console.warn('no relay: commanders connect their own OpenRouter to think');
-
-for (const d of ['designs', 'art']) mkdirSync(join(DATA, d), { recursive: true });
+mkdirSync(ART, { recursive: true });
 
 function loadEnv(path) {
   if (!existsSync(path)) return;
@@ -41,78 +36,49 @@ function loadEnv(path) {
   }
 }
 
+const SECRET = join(DATA, 'secret');
+if (!existsSync(SECRET)) writeFileSync(SECRET, randomBytes(32).toString('hex'));
+
+const dir = (kind) => { const d = join(DATA, kind); mkdirSync(d, { recursive: true }); return d; };
+const file = (kind, id) => join(dir(kind), `${String(id).replace(/[^a-z0-9.-]/gi, '')}.json`);
+const store = {
+  async get(kind, id) { const f = file(kind, id); return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null; },
+  async put(kind, id, doc) { writeFileSync(file(kind, id), JSON.stringify(doc, null, 1)); },
+  async list(kind) { return readdirSync(dir(kind)).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(dir(kind), f), 'utf8'))); },
+  async remove(kind, id) { rmSync(file(kind, id), { force: true }); },
+};
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.json': 'application/json', '.svg': 'image/svg+xml' };
-const safe = (id) => String(id).replace(/[^a-z0-9-]/gi, '').slice(0, 64);
-const log = (entry) => appendFileSync(join(DATA, 'log.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`);
-
-async function openrouter(body) {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${KEY}`, 'content-type': 'application/json', 'x-title': 'Mantle' },
-    body: JSON.stringify(body),
-  }).catch((err) => ({ ok: false, status: 599, json: async () => ({ error: { message: err.message } }) }));
-  const json = await res.json().catch(() => ({ error: { message: `OpenRouter answered ${res.status}` } }));
-  if (!res.ok || json.error) throw new Error(json.error?.message ?? `OpenRouter answered ${res.status}`);
-  return json;
-}
-
-const keep = (b64, ext) => { const name = `${randomUUID()}.${ext}`; writeFileSync(join(DATA, 'art', name), Buffer.from(b64, 'base64')); return name; };
-const relayOnly = (f) => async (body) => { if (!RELAY) throw new Error('this server lends no thinking: connect your own OpenRouter'); return f(body); };
-
-const routes = {
-  'GET /api/relay': async () => ({ thinking: RELAY }),
-  // A picture drawn on the commander's own key, kept here so their design can point at it.
-  'POST /api/keep-art': async ({ image }) => {
-    const m = String(image).match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
-    if (!m || m[2].length > 8e6) throw new Error('not a picture');
-    return { url: `/art/${keep(m[2], m[1] === 'jpeg' ? 'jpg' : m[1])}` };
-  },
-  // An aid thinks: the page holds the conversation and the tools, the model is ours.
-  'POST /api/think': relayOnly(async ({ messages, tools }) => {
-    const json = await openrouter({ model: MODEL, messages, tools, max_tokens: 4000 });
-    log({ kind: 'think', model: MODEL, usage: json.usage, last: messages.findLast((m) => m.role !== 'system'), reply: json.choices?.[0]?.message });
-    return json;
-  }),
-  // A unit's picture, kept on disk.
-  'POST /api/art': relayOnly(async ({ prompt }) => {
-    const t = Date.now();
-    const json = await openrouter({ model: ART_MODEL, modalities: ['image', 'text'], messages: [{ role: 'user', content: prompt }] });
-    const url = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!url) throw new Error('no picture came back');
-    const [, mime, b64] = url.match(/^data:image\/(\w+);base64,(.*)$/s);
-    const name = keep(b64, mime === 'jpeg' ? 'jpg' : mime);
-    log({ kind: 'art', model: ART_MODEL, prompt, seconds: (Date.now() - t) / 1000, cost: json.usage?.cost, art: name });
-    return { url: `/art/${name}` };
-  }),
-  'GET /api/designs': async () => readdirSync(join(DATA, 'designs')).filter((f) => f.endsWith('.json'))
-    .map((f) => JSON.parse(readFileSync(join(DATA, 'designs', f), 'utf8'))).sort((a, b) => b.kept.localeCompare(a.kept)),
-  'POST /api/designs': async (design) => {
-    const id = (design.id && safe(design.id)) || randomUUID();
-    const kept = { ...design, id, kept: new Date().toISOString() };
-    writeFileSync(join(DATA, 'designs', `${id}.json`), JSON.stringify(kept, null, 1));
-    return kept;
-  },
-  'DELETE /api/designs': async ({ id }) => { rmSync(join(DATA, 'designs', `${safe(id)}.json`), { force: true }); return { ok: true }; },
+const art = {
+  async put(name, bytes) { writeFileSync(join(ART, name), bytes); },
+  async get(name) { const f = join(ART, name); return existsSync(f) ? { body: readFileSync(f), type: TYPES[extname(f)] ?? 'application/octet-stream' } : null; },
 };
 
+const core = createCore({
+  store, art,
+  settings: {
+    key: process.env.OPENROUTER_API_KEY || '',
+    model: process.env.MANTLE_MODEL || 'anthropic/claude-sonnet-5.5',
+    artModel: process.env.MANTLE_ART_MODEL || 'google/gemini-3.1-flash-lite-image',
+    public: Boolean(process.env.MANTLE_PUBLIC),
+    secret: readFileSync(SECRET, 'utf8'),
+    artBase: '/art/',
+    log: (entry) => appendFileSync(join(DATA, 'log.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`),
+  },
+});
+
 createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x');
-  const route = routes[`${req.method} ${url.pathname}`];
-  if (route) {
-    try {
-      let body = '';
-      for await (const chunk of req) body += chunk;
-      const out = await route(body ? JSON.parse(body) : {});
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out));
-    } catch (err) {
-      console.error(url.pathname, err.message);
-      res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: err.message }));
+  const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/art/')) {
+    let body = null;
+    if (req.method !== 'GET' && req.method !== 'HEAD') { const chunks = []; for await (const c of req) chunks.push(c); body = Buffer.concat(chunks); }
+    const out = await core.handle(new Request(url, { method: req.method, headers: req.headers, body }));
+    if (out) {
+      res.writeHead(out.status, Object.fromEntries(out.headers));
+      return res.end(Buffer.from(await out.arrayBuffer()));
     }
-    return;
   }
-  const root = url.pathname.startsWith('/art/') ? join(DATA, 'art') : PUBLIC;
-  const rel = url.pathname.startsWith('/art/') ? url.pathname.slice(5) : url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-  const path = normalize(join(root, rel));
-  if (!path.startsWith(root) || !existsSync(path)) return res.writeHead(404).end('not here');
+  const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
+  const path = normalize(join(PUBLIC, rel));
+  if (!path.startsWith(PUBLIC) || !existsSync(path)) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream', 'cache-control': 'no-cache' }).end(readFileSync(path));
-}).listen(PORT, () => console.log(`Mantle: http://localhost:${PORT}/`));
+}).listen(PORT, () => console.log(`Mantle: http://localhost:${PORT}/${process.env.OPENROUTER_API_KEY && !process.env.MANTLE_PUBLIC ? '' : '  (no relay: commanders connect their own OpenRouter)'}`));

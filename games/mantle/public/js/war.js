@@ -16,7 +16,7 @@ const open = (i) => i === 0 || won().includes(LEVELS[i - 1].id);
 const picked = () => { try { return JSON.parse(recall(`mantle-roster-${ctx.aidId}`) ?? '[]'); } catch { return []; } };
 
 export async function showWar(aidId, { back, screen }) {
-  ctx = { aidId, back, screen, designs: (await fetch('/api/designs').then((r) => r.json())).filter((d) => d.aid === aidId) };
+  ctx = { aidId, back, screen, designs: (await fetch('/api/designs?by=me').then((r) => r.json())).filter((d) => d.aid === aidId) };
   $('to-lab').onclick = back;
   const first = LEVELS.findIndex((l, i) => open(i) && !won().includes(l.id));
   showMaps(LEVELS[first < 0 ? 0 : first]);

@@ -1,0 +1,43 @@
+# Mantle on Cloudflare. Local use doesn't need any of this: node server.mjs.
+# Try it here: npx wrangler dev      Deploy (when it's time): npx wrangler deploy
+#
+# Before opening it to the public (see README, "Hosting"):
+#   - a domain for the site (routes below) and one for the pictures: an R2 custom domain
+#     on a Cloudflare zone, put in ART_BASE, with r2-cors.json applied to the bucket
+#   - the CSAM Scanning Tool turned on for that zone (dashboard: Caching > Configuration),
+#     which needs a contact email
+#   - SESSION_SECRET set: npx wrangler secret put SESSION_SECRET
+name = "mantle"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+
+workers_dev = true
+preview_urls = false
+# routes = [{ pattern = "example.com", custom_domain = true }]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true   # so /api/* and /art/* reach the Worker
+
+[[durable_objects.bindings]]
+name = "WORLD"
+class_name = "World"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["World"]
+
+# Every picture: the units commanders design. Served from its own custom domain so it
+# goes through Cloudflare's cache, where the CSAM Scanning Tool sees it.
+[[r2_buckets]]
+binding = "ART"
+bucket_name = "mantle-art"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[vars]
+MANTLE_PUBLIC = "1"   # lend no thinking: everyone connects their own OpenRouter
+ART_BASE = ""         # e.g. "https://art.example.com/" once the bucket has a custom domain
