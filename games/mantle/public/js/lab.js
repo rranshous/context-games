@@ -127,7 +127,7 @@ async function showThinking() {
   $('thinking').replaceChildren(...(from === 'yours'
     ? [el('span', { className: 'quiet', textContent: 'thinking on your OpenRouter' }), el('button', { className: 'quiet', textContent: 'disconnect', onclick: () => { disconnect(); showThinking(); } })]
     : [from === 'server' && el('span', { className: 'quiet', textContent: 'thinking on this server\'s key' }),
-      el('button', { className: from ? 'quiet' : 'connect', textContent: from ? 'connect your own OpenRouter' : 'Connect OpenRouter to design', onclick: () => connect().then(showThinking) })]));
+      el('button', { className: from ? 'quiet' : 'connect', textContent: from ? 'connect your own OpenRouter' : 'Connect OpenRouter to design', onclick: () => connect().then(showThinking) })].filter(Boolean)));
 }
 addEventListener('storage', (e) => { if (e.key === 'mantle-openrouter-key') showThinking(); });
 showThinking();
