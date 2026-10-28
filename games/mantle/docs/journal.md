@@ -519,3 +519,22 @@ could see each one:
   The Hollis wins are long grinds (11–19 minutes), carried by a regenerating Hulk with a
   healer behind it. I stopped there rather than tune to my own two test rosters: real
   players' designs will vary more than either.
+
+## Published: mantle.rip (2026-10-28)
+
+Robby registered **mantle.rip** and said to publish.
+
+- **Deployed:** the Worker is on custom domains `mantle.rip` and `www.mantle.rip` (www
+  redirects to the bare name), with the `workers.dev` address turned off. There's one name
+  for the site.
+- **Art:** bucket `mantle-art` is created, CORS is applied, and `art.mantle.rip` is its
+  custom domain. `ART_BASE` points there, so every stored picture is served through the
+  cache the CSAM tool scans.
+- **Secrets:** `SESSION_SECRET` was generated and put straight into wrangler, and never
+  printed. `MANTLE_PUBLIC=1`, so the site lends no thinking: every commander connects their
+  own OpenRouter account.
+- **Drama:** the domain was minutes old. The .rip registry hadn't published its nameservers
+  yet, so nothing resolved. Cloudflare's edge answered plain http with the redirect, but
+  https handshakes failed because Cloudflare can't issue the certificate until the
+  delegation shows up. Waiting it out.
+- **Left for Robby:** turning on the CSAM Scanning Tool (dashboard, with a contact email).

@@ -55,6 +55,8 @@ export default {
     if (url.protocol === 'http:' && !url.hostname.endsWith('localhost') && url.hostname !== '127.0.0.1') {
       return Response.redirect(`https://${url.host}${url.pathname}${url.search}`, 301);
     }
+    // One name for it, too: www goes to the bare domain.
+    if (url.hostname.startsWith('www.')) return Response.redirect(`https://${url.hostname.slice(4)}${url.pathname}${url.search}`, 301);
     if (url.pathname.startsWith('/art/')) {
       const pic = await artStore(env.ART).get(url.pathname.slice(5).replace(/[^a-z0-9.-]/gi, ''));
       return pic ? new Response(pic.body, { headers: { 'content-type': pic.type, 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': '*' } }) : new Response('not here', { status: 404 });

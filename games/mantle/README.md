@@ -110,20 +110,23 @@ On Cloudflare: the Worker serves the pages and the API, one Durable Object keeps
 document (where multiplayer will meet later), and R2 keeps every picture. Try it with
 `npx wrangler dev`, which simulates both locally.
 
+**Live at https://mantle.rip.** `www.mantle.rip` and plain http both go on to it. Ship a
+change with `npx wrangler deploy`.
+
 **Every picture people make is scanned.** Cloudflare's CSAM Scanning Tool looks at what's
 served through its cache. A Worker's own responses don't pass through it, so the pictures
-are served from **the R2 bucket's own custom domain** (`ART_BASE`), which does. Before
-opening to the public:
+are served from the R2 bucket's own custom domain, **https://art.mantle.rip** (`ART_BASE`),
+which does. How it was set up:
 
-1. Give the site a domain (`routes` in `wrangler.toml`).
-2. Create the bucket, `npx wrangler r2 bucket create mantle-art`, and connect a custom
-   domain to it on a Cloudflare zone (dashboard: R2 > mantle-art > Settings > Custom
-   Domains). Put that address in `ART_BASE`.
-3. Let pages read the pictures into a canvas: `npx wrangler r2 bucket cors set mantle-art
-   --file r2-cors.json`.
-4. Turn on the CSAM Scanning Tool for that zone (dashboard: Caching > Configuration > CSAM
-   Scanning Tool). It needs a contact email for alerts.
-5. `npx wrangler secret put SESSION_SECRET`, which signs commanders' cookies.
+1. The site's domains: `routes` in `wrangler.toml` (custom domains on the mantle.rip zone).
+2. The bucket: `npx wrangler r2 bucket create mantle-art`, then
+   `npx wrangler r2 bucket domain add mantle-art --domain art.mantle.rip --zone-id <zone>`.
+3. CORS, so pages can read the pictures into a canvas:
+   `npx wrangler r2 bucket cors set mantle-art --file r2-cors.json`.
+4. The CSAM Scanning Tool for the zone (dashboard: Caching > Configuration > CSAM Scanning
+   Tool). It needs a contact email for alerts, so it's a dashboard step for the owner.
+5. `SESSION_SECRET`, which signs commanders' cookies: a wrangler secret.
 6. `npx wrangler deploy`.
 
-Until step 2, the Worker serves `/art/*` from R2 itself, which works but isn't scanned.
+The Worker still answers `/art/*` from R2 itself (for `wrangler dev`). That path isn't
+scanned, and nothing on the live site points at it.

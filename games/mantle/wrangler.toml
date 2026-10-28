@@ -1,7 +1,8 @@
 # Mantle on Cloudflare. Local use doesn't need any of this: node server.mjs.
 # Try it here: npx wrangler dev      Deploy (when it's time): npx wrangler deploy
 #
-# Before opening it to the public (see README, "Hosting"):
+# Live at https://mantle.rip, pictures at https://art.mantle.rip (see README, "Hosting").
+# What it took:
 #   - a domain for the site (routes below) and one for the pictures: an R2 custom domain
 #     on a Cloudflare zone, put in ART_BASE, with r2-cors.json applied to the bucket
 #   - the CSAM Scanning Tool turned on for that zone (dashboard: Caching > Configuration),
@@ -11,9 +12,12 @@ name = "mantle"
 main = "worker.mjs"
 compatibility_date = "2025-09-01"
 
-workers_dev = true
+workers_dev = false
 preview_urls = false
-# routes = [{ pattern = "example.com", custom_domain = true }]
+routes = [
+  { pattern = "mantle.rip", custom_domain = true },
+  { pattern = "www.mantle.rip", custom_domain = true },   # sent on to mantle.rip
+]
 
 [assets]
 directory = "./public"
@@ -40,4 +44,4 @@ head_sampling_rate = 1
 
 [vars]
 MANTLE_PUBLIC = "1"   # lend no thinking: everyone connects their own OpenRouter
-ART_BASE = ""         # e.g. "https://art.example.com/" once the bucket has a custom domain
+ART_BASE = "https://art.mantle.rip/"   # the bucket's custom domain: cached, so scanned
