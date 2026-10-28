@@ -2170,4 +2170,8 @@ Robby, for Mantle the day before: "If it's going to be a generated art from rand
 
 Smoke is 61 checks now: thumbs served and replaced (the old file 404s), art kept and served byte for byte with CORS, strangers and non-pictures refused, a copy drawing the same file, a publication with its own thumb.
 
-**Live:** the bucket `gactant-art` exists with CORS. Attaching art.gactant.com is a DNS change, which needs Robby, so the deploy and migration wait on it.
+**Live.** The bucket `gactant-art` has CORS for reading. Attaching art.gactant.com is a DNS change, and auto mode stopped me until Robby said so in the chat ("you have permission to make the DNS change"). A probe file answered 200 from outside within a minute (hackertarget; Spectrum's filter blocks the new subdomain here too). Then `tools/deploy.mjs`, and right after, `tools/migrate-art.mjs` against workers.dev: "moved 49 pictures; 0 ludants and publications left".
+
+Checked in the MCP's Chrome. It first gave `ERR_SSL_PROTOCOL_ERROR` again; closing and reopening the browser fixed it again. The lobby's five thumbs load from `https://art.gactant.com/t/p-…`. A fresh copy of Anithis-Skuntin read all eight of its pictures back (backyard, Teddy, Bruce, skunks, the family) and drew them, with no policy errors. Both test copies were abandoned afterwards.
+
+Still Robby's: turning on the CSAM Scanning Tool for the zone in the dashboard.
