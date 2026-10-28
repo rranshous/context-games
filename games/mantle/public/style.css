@@ -1,6 +1,6 @@
 :root {
   --bg: #15171a; --panel: #1e2126; --line: #30343b; --ink: #e6e2d8; --dim: #8d8a82;
-  --aid: #a0a0a0;
+  --aid: #a0a0a0; --radius: 6px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -25,7 +25,10 @@ h1 { font-weight: normal; letter-spacing: 0.3em; text-transform: uppercase; marg
 .aid > :not(img) { padding: 0 18px; }
 .aid strong { font-size: 20px; }
 .aid .title { color: var(--dim); }
-.aid .craft { font-size: 13px; }
+.aid .craft { display: flex; flex-wrap: wrap; gap: 5px; }
+.aid .craft .ability { padding: 2px 8px 2px 6px; font-size: 12px; }
+#pick .aid:nth-child(1) { --aid: #7fb36a; }
+#pick .aid:nth-child(2) { --aid: #d0a050; }
 .aid .lean { font-size: 13px; color: var(--dim); }
 
 /* ---------- the lab ---------- */
@@ -65,13 +68,27 @@ h1 { font-weight: normal; letter-spacing: 0.3em; text-transform: uppercase; marg
 .size { margin: 0; text-transform: uppercase; letter-spacing: 0.2em; font-size: 12px; color: var(--dim); }
 #sheet table { border-collapse: collapse; width: 100%; }
 #sheet th { text-align: left; font-weight: normal; font-size: 13px; padding: 3px 8px 3px 0; white-space: nowrap; }
+#sheet td:has(> .bar) { width: 100%; }
 #sheet td.n { text-align: right; font-size: 13px; color: var(--dim); width: 2em; }
 .bar { display: flex; gap: 2px; }
 .bar i { flex: 1; height: 8px; border-radius: 2px; background: var(--line); }
 .bar i.on { background: var(--aid); }
+#sheet th[data-tip] { cursor: help; text-decoration: underline dotted var(--line); text-underline-offset: 3px; }
 .abilities { display: flex; flex-wrap: wrap; gap: 6px; }
-.abilities span { border: 1px solid var(--aid); border-radius: 12px; padding: 2px 10px; font-size: 13px; cursor: help; }
+.abilities h4 { flex-basis: 100%; margin: 0 0 2px; font-weight: normal; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.2em; }
 .abilities em { color: var(--dim); font-size: 13px; }
+
+/* An ability: marked with the aid's sign, so it never reads as a plain tag. */
+.ability { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 7px; font-size: 13px; cursor: help;
+  background: color-mix(in srgb, var(--aid) 14%, var(--panel)); border: 1px solid color-mix(in srgb, var(--aid) 55%, transparent); border-radius: var(--radius); }
+.ability:hover, .ability:focus-visible { background: color-mix(in srgb, var(--aid) 26%, var(--panel)); outline: none; }
+.ability .mark { width: 10px; height: 10px; background: var(--aid); flex: none; }
+
+#tip { position: fixed; z-index: 10; max-width: 260px; padding: 9px 12px; pointer-events: none; font-size: 13px;
+  background: var(--panel); border: 1px solid var(--aid); border-radius: var(--radius); box-shadow: 0 6px 20px #000a; }
+#tip strong { color: var(--aid); font-weight: normal; font-size: 14px; }
+#tip p { margin: 3px 0 0; }
+#tip .cost { color: var(--dim); }
 details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 #bench-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
 
@@ -83,6 +100,62 @@ details summary { color: var(--dim); font-size: 13px; cursor: pointer; }
 .unit .pic img { max-width: 100%; max-height: 100%; }
 .unit strong { font-weight: normal; font-size: 13px; }
 .unit span { font-size: 11px; color: var(--dim); }
+
+/* ---------- the vats: Hollis grows things ---------- */
+body[data-aid="hollis"] {
+  --bg: #121815; --panel: #1a2420; --line: #2a3a32; --radius: 14px;
+  background:
+    radial-gradient(circle at 12% 88%, #7fb36a14, transparent 160px),
+    radial-gradient(circle at 80% 14%, #7fb36a10, transparent 240px),
+    radial-gradient(circle at 55% 75%, #7fb36a0c, transparent 120px),
+    var(--bg);
+}
+body[data-aid="hollis"] #lab > * { background: transparent; }
+body[data-aid="hollis"] #lab { background: none; gap: 0; }
+body[data-aid="hollis"] #talk { border-right: 1px solid var(--line); }
+body[data-aid="hollis"] #lab header, body[data-aid="hollis"] #roster { border-color: var(--line); border-style: solid; border-width: 0 0 1px; }
+body[data-aid="hollis"] #roster { border-width: 1px 0 0; }
+body[data-aid="hollis"] button, body[data-aid="hollis"] #words, body[data-aid="hollis"] .facts div { border-radius: var(--radius); }
+body[data-aid="hollis"] #art { border-radius: 40% 40% 24px 24px / 18% 18% 24px 24px;
+  background:
+    radial-gradient(circle at 30% 30%, #b7e3a018 0 6px, transparent 7px),
+    radial-gradient(circle at 70% 22%, #b7e3a014 0 4px, transparent 5px),
+    radial-gradient(circle at 62% 46%, #b7e3a010 0 9px, transparent 10px),
+    radial-gradient(ellipse at 50% 65%, #7fb36a40, #1a2420 60%, var(--bg) 85%); }
+body[data-aid="hollis"] .bar i { height: 8px; border-radius: 4px; }
+body[data-aid="hollis"] .ability { border-radius: 14px 20px 16px 22px / 18px 13px 20px 15px; }
+body[data-aid="hollis"] .ability .mark { border-radius: 50% 50% 50% 0; transform: rotate(-45deg); }   /* a seed */
+body[data-aid="hollis"] #name { font-style: italic; }
+
+/* ---------- the shop: Brackett builds things ---------- */
+body[data-aid="brackett"] {
+  --bg: #17150f; --panel: #211e16; --line: #3a3426; --radius: 2px;
+  --label: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  background:
+    linear-gradient(#d0a05009 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, #d0a05009 1px, transparent 1px) 0 0 / 28px 28px,
+    var(--bg);
+}
+body[data-aid="brackett"] #lab > * { background: transparent; }
+body[data-aid="brackett"] #lab { background: none; gap: 0; }
+body[data-aid="brackett"] #talk { border-right: 2px solid var(--line); }
+body[data-aid="brackett"] #lab header { border-bottom: 2px solid var(--line); }
+body[data-aid="brackett"] #roster { border-top: 2px solid var(--line); }
+body[data-aid="brackett"] button, body[data-aid="brackett"] #words, body[data-aid="brackett"] .facts div, body[data-aid="brackett"] #log .me { border-radius: var(--radius); }
+body[data-aid="brackett"] .facts span, body[data-aid="brackett"] .size, body[data-aid="brackett"] #sheet th,
+body[data-aid="brackett"] .abilities h4, body[data-aid="brackett"] #roster h3, body[data-aid="brackett"] .ability, body[data-aid="brackett"] details summary {
+  font-family: var(--label); text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; }
+body[data-aid="brackett"] .facts div { border: 1px solid var(--line); border-top: 3px solid var(--aid); }
+body[data-aid="brackett"] #art { border-radius: var(--radius); border: 1px solid var(--line);
+  background:
+    linear-gradient(#d0a05014 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, #d0a05014 1px, transparent 1px) 0 0 / 20px 20px,
+    radial-gradient(ellipse at 50% 30%, #d0a05038, var(--panel) 55%, var(--bg) 90%); }
+body[data-aid="brackett"] .bar { gap: 1px; }
+body[data-aid="brackett"] .bar i { height: 10px; border-radius: 0; }
+body[data-aid="brackett"] .ability { clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); border-radius: 0; }
+body[data-aid="brackett"] .ability .mark { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }   /* a nut */
+body[data-aid="brackett"] #tip { font-family: var(--label); font-size: 12px; }
 
 @media (max-width: 800px) {
   #lab { height: auto; grid-template: auto auto auto auto / 1fr; }

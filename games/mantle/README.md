@@ -40,5 +40,5 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
   note after the conversation (the way gactant shows a ludant its soma). A new look means a
   new picture.
 - `public/js/cutout.js`: the pictures come on white, and this lifts the unit off it.
-- `public/js/lab.js`: the page.
+- `public/js/lab.js`: the page. Hovering an ability or a stat says what it is. The lab is styled after the aid you chose (`body[data-aid]` in `style.css`): the vats for Hollis, the shop for Brackett.
 - `server.mjs`: serves the page, holds the key, and keeps designs and pictures.

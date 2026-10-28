@@ -29,16 +29,16 @@ export function cutout(url) {
       }
       // Background showing through a gap (between legs, inside treads) is enclosed, so the
       // fill can't reach it: clear any pocket of near-pure white big enough to be a gap.
-      const pocket = new Uint8Array(w * h), POCKET = w * h * 0.0015;
+      const pocket = new Uint8Array(w * h), POCKET = w * h * 0.0005;
       for (let s = 0; s < w * h; s++) {
-        if (seen[s] || pocket[s] || light(s * 4) < 244) continue;
+        if (seen[s] || pocket[s] || light(s * 4) < 240) continue;
         const region = [], q = [s];
         pocket[s] = 1;
         while (q.length) {
           const p = q.pop(); region.push(p);
           const x = p % w;
           for (const n of [x > 0 && p - 1, x < w - 1 && p + 1, p - w, p + w]) {
-            if (n === false || n < 0 || n >= w * h || seen[n] || pocket[n] || light(n * 4) < 244) continue;
+            if (n === false || n < 0 || n >= w * h || seen[n] || pocket[n] || light(n * 4) < 240) continue;
             pocket[n] = 1; q.push(n);
           }
         }

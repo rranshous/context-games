@@ -7,7 +7,7 @@ import { cutout } from './cutout.js';
 import { SIZES, STATS } from './spec.js';
 
 const $ = (id) => document.getElementById(id);
-const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const el = (tag, { dataset, ...props } = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); Object.assign(e.dataset, dataset); e.append(...kids); return e; };
 const remember = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
 const recall = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 
@@ -17,12 +17,13 @@ const busy = new Set();
 // ---------- who you work with ----------
 
 function showPick() {
+  delete document.body.dataset.aid;
   $('lab').hidden = true; $('pick').hidden = false;
   $('aids').replaceChildren(...Object.values(AIDS).map((a) => el('button', { className: 'aid', onclick: () => start(a.id) },
     el('img', { src: `img/${a.id}.jpg`, alt: '' }),
     el('strong', { textContent: a.name }),
     el('span', { className: 'title', textContent: `${a.title}, ${a.makes} in ${a.lab}` }),
-    el('span', { className: 'craft', textContent: `${Object.values(a.abilities).map((x) => x.word).join(' · ')}` }),
+    el('span', { className: 'craft' }, ...Object.values(a.abilities).map((x) => ability(x))),
     el('span', { className: 'lean', textContent: a.leanText.replace(/^In (your|their) \w+, /, '').replace(/^./, (c) => c.toUpperCase()) }),
   )));
 }
@@ -31,6 +32,7 @@ function start(aidId) {
   remember('mantle-aid', aidId);
   const a = AIDS[aidId];
   document.documentElement.style.setProperty('--aid', a.color);
+  document.body.dataset.aid = aidId;   // the lab is dressed as theirs: the vats or the shop
   aid = new Aid(aidId, { onChange: showBench, onSay: say, onBusy: setBusy });
   $('pick').hidden = true; $('lab').hidden = false;
   $('where').textContent = `${a.lab}, with ${a.name}`;
@@ -76,6 +78,10 @@ $('words').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preven
 
 // ---------- the bench ----------
 
+/** An ability, marked as one: hover it to hear what it does (and, on a unit, what it adds to the cost). */
+const ability = (x, cost) => el('span', { className: 'ability', tabIndex: 0, dataset: { tip: x.word, about: `${x.about[0].toUpperCase()}${x.about.slice(1)}.`, ...(cost != null ? { cost: `Adds ${cost} to this unit's cost.` } : {}) } },
+  el('i', { className: 'mark', ariaHidden: 'true' }), x.word);
+
 const rating = (r) => el('span', { className: 'bar' }, ...Array.from({ length: 10 }, (_, i) => el('i', { className: i < r ? 'on' : '' })));
 
 function showBench(d) {
@@ -99,8 +105,9 @@ function showBench(d) {
       el('div', {}, el('b', { textContent: `${priced.seconds}s` }), el('span', { textContent: `to ${a.makes === 'grows' ? 'grow' : 'build'}` })),
     ),
     el('p', { className: 'size', textContent: `${SIZES[spec.size - 1]}` }),
-    el('table', {}, ...Object.entries(STATS).map(([s, { word }]) => el('tr', {}, el('th', { textContent: word }), el('td', {}, rating(spec.stats[s])), el('td', { className: 'n', textContent: spec.stats[s] })))),
-    el('div', { className: 'abilities' }, ...(spec.abilities.length ? spec.abilities.map((x) => el('span', { title: a.abilities[x].about, textContent: a.abilities[x].word })) : [el('em', { textContent: 'no abilities' })])),
+    el('table', {}, ...Object.entries(STATS).map(([s, { word }]) => el('tr', {}, el('th', { textContent: word, dataset: { tip: word, about: `${STATS[s].about[0].toUpperCase()}${STATS[s].about.slice(1)}.` } }), el('td', {}, rating(spec.stats[s])), el('td', { className: 'n', textContent: spec.stats[s] })))),
+    el('div', { className: 'abilities' }, el('h4', { textContent: 'Abilities' }),
+      ...(spec.abilities.length ? spec.abilities.map((x) => ability(a.abilities[x], priced.lines.find((l) => l.what === a.abilities[x].word)?.cost)) : [el('em', { textContent: 'none' })])),
     el('details', {}, el('summary', { textContent: 'where the cost comes from' }),
       el('table', { className: 'price' }, ...priced.lines.map((l) => el('tr', {}, el('th', { textContent: l.what }), el('td', { className: 'n', textContent: l.cost }))))),
   );
@@ -127,6 +134,22 @@ async function showRoster() {
     return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, pic, el('strong', { textContent: d.name }), el('span', { textContent: `${d.priced.cost} · ${SIZES[d.spec.size - 1]}` }));
   }) : [el('p', { className: 'hint', textContent: 'Keep a design and it shows up here.' })]));
 }
+
+// ---------- what things are, on hover ----------
+
+const tip = el('div', { id: 'tip', hidden: true });
+document.body.append(tip);
+function showTip(target) {
+  const { tip: title, about, cost } = target.dataset;
+  tip.replaceChildren(el('strong', { textContent: title }), el('p', { textContent: about }), ...(cost ? [el('p', { className: 'cost', textContent: cost })] : []));
+  tip.hidden = false;
+  const r = target.getBoundingClientRect(), t = tip.getBoundingClientRect();
+  const left = Math.min(window.innerWidth - t.width - 8, Math.max(8, r.left + r.width / 2 - t.width / 2));
+  const top = r.top - t.height - 8 > 8 ? r.top - t.height - 8 : r.bottom + 8;
+  Object.assign(tip.style, { left: `${left}px`, top: `${top}px` });
+}
+for (const kind of ['mouseover', 'focusin']) document.addEventListener(kind, (e) => { const t = e.target.closest?.('[data-tip]'); if (t) showTip(t); });
+for (const kind of ['mouseout', 'focusout']) document.addEventListener(kind, (e) => { if (e.target.closest?.('[data-tip]')) tip.hidden = true; });
 
 const chosen = recall('mantle-aid');
 AIDS[chosen] ? start(chosen) : showPick();

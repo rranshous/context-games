@@ -104,3 +104,17 @@ note after the conversation, the same way gactant shows a ludant its live soma.
   would fix it.
 
 What the session cost: 12 calls for $0.21, plus $0.13 for the two portraits.
+
+### Abilities you can read, and a lab that's theirs
+
+Robby: "could i get an explaination when i mouse over one, also maybe make the UI a bit better so it's easier for me to immediatly tell that the (right now) pill is an ability. maybe style the surface based on which builder i chose."
+
+- **Abilities have their own place.** On the sheet they now sit under an "Abilities" heading. Each one is a tile marked with the aid's sign: a seed for Hollis, a hex nut for Brackett. Hovering or focusing a tile shows what it does and what it adds to this unit's cost. Stat names have the same hover, explaining what they measure. On the pick screen, each aid's abilities are tiles too, so you can hover them before choosing.
+- **The lab is dressed as theirs.** The page gets `data-aid`, and each aid has a look:
+  - **Hollis's vats:** deep green, soft round corners, faint cells in the background, a vat-shaped glow with bubbles behind the unit, rounded stat bars, and italic names.
+  - **Brackett's shop:** amber, sharp corners, a blueprint grid, a floodlit grid behind the unit, monospace uppercase labels, square stat bars, and chamfered ability tiles.
+- **The drama:**
+  - `el()` used `Object.assign` to set `dataset`, which only has a getter, so it threw. Data attributes are now set on their own.
+  - In the shop, the monospace labels squeezed the stat bars down to a sliver. The bar cell now takes the spare width.
+  - The white pockets under the repair drone were too small to clear. The size floor went from 0.15% to 0.05% of the image, and the whiteness floor from 244 to 240.
+
