@@ -30,14 +30,14 @@ export const MAX_ABILITIES = 3;
 const ALL_ROUND = ['health', 'armor', 'damage', 'rate', 'range'];
 const FIGHT = ['health', 'armor', 'damage', 'rate', 'range'];
 const SCALES = {
-  shield: { of: ['health', 'armor'], k: 0.45 },
+  shield: { of: FIGHT, k: 0.3 },               // more time alive is more of everything it does
   regenerate: { of: ['health'], k: 0.35 },
-  blast: { of: ['damage', 'rate'], k: 0.45 },
+  blast: { of: FIGHT, k: 0.35 },
   venom: { of: ['damage', 'rate'], k: 0.3 },
   siege: { of: ['damage', 'range'], k: 0.25 },
-  wings: { of: FIGHT, k: 0.25 },
-  rotors: { of: FIGHT, k: 0.25 },
-  brood: { of: ['health'], k: 0.2 },
+  wings: { of: FIGHT, k: 0.45 },               // out of reach of everything that fights up close
+  rotors: { of: FIGHT, k: 0.45 },
+  brood: { of: ['health'], k: 0.2, flat: 100 }, // two young are worth something whatever they came from
 };
 
 /** A spec, checked against the contract and the aid's own limits. Returns the problems, if any. */
@@ -73,12 +73,24 @@ export function price(spec, aidId) {
     total += cost;
   }
   const statCost = Object.fromEntries(lines.filter((l) => l.stat).map((l) => [l.stat, l.cost]));
+  // Abilities that multiply a unit also multiply each other (a shielded flier that blasts):
+  // each one past the first costs more, in turn.
+  let stacked = 0;
   for (const a of spec.abilities ?? []) {
     // An ability that multiplies what a unit is (a shield on a tough one, a blast on a hard
     // hitter) costs a share of what it multiplies, as well as its own price.
     const scale = SCALES[a];
-    const cost = aid.abilities[a].cost * (0.7 + 0.15 * spec.size) + (scale ? scale.k * scale.of.reduce((n, st) => n + statCost[st], 0) : 0);
+    const share = scale ? (scale.k * scale.of.reduce((n, st) => n + statCost[st], 0) + (scale.flat ?? 0)) * (1 + 0.5 * stacked++) : 0;
+    const cost = aid.abilities[a].cost * (0.7 + 0.15 * spec.size) + share;
     lines.push({ what: aid.abilities[a].word, cost });
+    total += cost;
+  }
+  // Hitting hard and often multiplies too: damage × rate is what it deals, where the
+  // price above adds them. Past a middling pair, that pays again.
+  const often = (spec.stats.damage * spec.stats.rate) / 25;
+  if (often > 1) {
+    const cost = (statCost.damage + statCost.rate) * (often - 1) * 0.5;
+    lines.push({ what: 'hits hard and often', cost });
     total += cost;
   }
   // Strength in a fight multiplies (tough, and hard-hitting, and long-reaching) where the
@@ -105,5 +117,5 @@ ${Object.entries(STATS).map(([s, { about }]) => `  - ${s}: ${about}`).join('\n')
 - abilities: up to ${MAX_ABILITIES}, from what your lab can make:
 ${Object.entries(aid.abilities).map(([a, { about }]) => `  - ${a}: ${about}`).join('\n')}
 ${aid.rules?.length ? `- your lab's limits: ${aid.ruleText}\n` : ''}
-Price: every rating costs more than the one before it, so a unit that is great at everything is very dear, and one great at one thing and plain at the rest is a bargain. An ability that multiplies what a unit already is costs a share of what it multiplies too: a shield or regeneration more on a tough unit, a blast or venom more on a hard hitter, wings or rotors more on a strong fighter. On top of that, a unit whose health, armor, damage, attack rate and range average above 5 pays extra for being strong all round, and more the higher they go: specialists don't. ${aid.leanText} The price, the room it takes and the time to make it are worked out from the spec, the same for everyone: you can't set them, only see them.`;
+Price: every rating costs more than the one before it, so a unit that is great at everything is very dear, and one great at one thing and plain at the rest is a bargain. An ability that multiplies what a unit already is costs a share of what it multiplies too: a shield or regeneration more on a tough unit, a blast or venom more on a hard hitter, wings or rotors more on a strong fighter. Each such ability after the first costs more again, since they multiply each other. A unit that hits hard and often (damage times attack rate past 25) pays extra for it. On top of that, a unit whose health, armor, damage, attack rate and range average above 5 pays extra for being strong all round, and more the higher they go: specialists don't. ${aid.leanText} The price, the room it takes and the time to make it are worked out from the spec, the same for everyone: you can't set them, only see them.`;
 }

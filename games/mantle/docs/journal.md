@@ -420,3 +420,102 @@ going to add multiplayer."
   rule. Their old pictures were in `data/art/` and new ones go to `data/pictures/`.
 - **Nothing is deployed.** Robby said publishing comes later. It needs a domain for the
   site and one for the pictures, the scanning tool turned on, and the session secret set.
+
+## The red team
+
+Robby: "Red team sounds fine." A background agent wrote `tools/redteam.mjs`.
+- **The search:** random designs for one lab, then mutations of the best. Each design is
+  scored by its average duel margin at equal matter against a fixed field: the rivals' units
+  and the player-like test units.
+- **Where it differs from `duel.mjs`, on purpose:**
+  - Unit counts are matched so both sides' matter is within about 10%. `duel.mjs` rounds
+    each side separately, which handed the Wasp 2150 matter against 2000; that's why its
+    score rose when it got pricier.
+  - Each side is held to the supply cap.
+  - Spawns are seeded, so a design scores the same twice.
+  - `--floor` keeps speed and sight at 3 or more, because open ground can't see what they're
+    worth.
+  - `--reach` scores only the duels the rival can fight back in.
+- **Speed:** about 45 seconds a lab on six threads.
+
+### What it found
+
+Every top exploit was a tiny unit, and all of them came from abilities. Each scored +68
+to +88, and none lost a matchup:
+1. **A burrow bug.** A strike revealed the unit for 1.5 seconds, but a slow attacker's
+   pause between shots is longer than that. It hid again before every shot, so every shot
+   was a double-damage ambush and enemies kept losing their target.
+2. **Healing stacked.** Every healer healed every ally near it, so ten cheap healers healed
+   ten times over, and a swarm of them got stronger with the square of its size.
+3. **Brood was a flat gift.** The two young are worth about 190 matter by the formula,
+   whatever the parent cost.
+4. **Flight was too cheap** for immunity to everything that fights up close.
+5. **Glass cannons ducked both surcharges.**
+   - Damage × rate is damage per second, but the price added the two.
+   - Shield was priced on health and armor, and blast on damage and rate.
+   - Dumping health and armor kept the strong-all-round average at 5.0, so that surcharge
+     never applied.
+
+It also noticed a few things in the sim:
+- Venom doses overwrote each other instead of adding.
+- Flyers still leapt.
+- A flyer with range 1 got the close-up damage bonus while nothing on the ground could hit
+  it back.
+- Repair and mend never check whether the ally is a machine or a living thing. It doesn't
+  matter while each side has one lab.
+
+### The fixes
+
+The agent tried its fixes locally and reverted them, as asked. I applied them myself so I
+could see each one:
+
+**sim.js**
+- After a strike, a unit stays seen for 4 seconds, longer than the slowest pause between
+  attacks.
+- An ally is tended once a moment, however many healers tend it.
+- Venom doses add up, to at most three.
+- Flyers don't leap.
+- The close-up damage bonus is for the ground only.
+
+**spec.js**
+- Shield and blast cost a share of all the fighting stats (k 0.3 and 0.35).
+- Wings and rotors cost k 0.45.
+- Brood costs a flat 100 more.
+- New charge, **"hits hard and often":** when damage × rate passes 25, the damage and rate
+  costs are charged again, in proportion.
+- New charge for **stacking abilities:** a multiplying ability costs 50% more for each one
+  before it. This closed the last exploit, a tiny shielded flyer that blasts (+47 where it
+  could be hit).
+
+**aids.js**
+- A flier can't burrow.
+
+### After the fixes
+
+| | before | after |
+|---|---|---|
+| Hollis, best design where the rival can hit back | +68 | about +13 to +31 |
+| Brackett, best design where the rival can hit back | +88 | about +26 to +32 |
+| Brackett's best designs, ranked only on duels the rival can fight back in (`--reach`) | ability exploits | plain stat lines with no abilities, about +38 |
+
+- What's left at the top of the whole-field ranking is flight's immunity to melee. That's
+  the counter as designed: answer flyers with range.
+- The plain stat lines score +38 because the field includes deliberately weak rival units.
+  That number is about the field, not the formula.
+- The duel table shows most units within ±15.
+
+### The maps after the repricing
+
+- **Softer at first.** Fixing the burrow bug and repricing the Matron and Moth made the
+  Warren and Iron Crown easier. Their rivals' supply lines went up (×1.3 → ×1.45 and
+  ×1.55 → ×1.8).
+- **The test rosters now split on those two maps:**
+
+  | map | Brackett roster | Hollis roster |
+  |---|---|---|
+  | the Warren | 1 of 4 | 3 of 4 |
+  | Iron Crown | 1 of 4 | 3 of 4 |
+
+  The Hollis wins are long grinds (11–19 minutes), carried by a regenerating Hulk with a
+  healer behind it. I stopped there rather than tune to my own two test rosters: real
+  players' designs will vary more than either.

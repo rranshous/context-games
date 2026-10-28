@@ -81,7 +81,7 @@ export const LEVELS = [
     w: 2000, h: 1250, ground: '#26221c', seed: 19,
     deposits: [[500, 460], [1500, 790], [1000, 380], [1000, 880], [1650, 330], [380, 950]],
     units: ['skitter', 'spitter', 'delver', 'moth', 'matron'],
-    rival: { start: ['delver', 'delver', 'moth'], build: ['skitter', 'delver', 'moth', 'spitter', 'skitter', 'matron'], income: 1.3, firstWave: 130, every: 70, wave: 10, grow: 3, ambush: true },
+    rival: { start: ['delver', 'delver', 'moth'], build: ['skitter', 'delver', 'moth', 'spitter', 'skitter', 'matron'], income: 1.45, firstWave: 130, every: 70, wave: 10, grow: 3, ambush: true },
   },
   {
     id: 'crown', name: 'Iron Crown', holder: 'the Crown, with both labs behind it',
@@ -89,7 +89,7 @@ export const LEVELS = [
     w: 2300, h: 1400, ground: '#24211f', seed: 23,
     deposits: [[560, 500], [1740, 900], [1150, 420], [1150, 980], [1900, 380], [400, 1050], [1150, 700]],
     units: ['picket', 'bastion', 'mortar', 'hornet', 'skitter', 'delver', 'moth', 'matron'],
-    rival: { start: ['bastion', 'picket', 'picket', 'hornet', 'delver'], build: ['picket', 'hornet', 'skitter', 'mortar', 'delver', 'moth', 'bastion', 'matron'], income: 1.55, firstWave: 100, every: 60, wave: 10, grow: 3, ambush: true },
+    rival: { start: ['bastion', 'picket', 'picket', 'hornet', 'delver'], build: ['picket', 'hornet', 'skitter', 'mortar', 'delver', 'moth', 'bastion', 'matron'], income: 1.8, firstWave: 100, every: 60, wave: 10, grow: 3, ambush: true },
   },
 ];
 

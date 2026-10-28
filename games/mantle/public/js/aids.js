@@ -24,8 +24,9 @@ export const AIDS = {
     leanText: 'In your vats, health comes cheap, while armor and range come dear: flesh is easy to grow, shell and spit are not.',
     rules: [
       (s) => (s.abilities?.includes('wings') && s.size > 3 ? 'wings can only lift a body up to medium size' : null),
+      (s) => (s.abilities?.includes('wings') && s.abilities?.includes('burrow') ? 'a flier can\'t burrow' : null),
     ],
-    ruleText: 'wings can only lift a body up to medium size.',
+    ruleText: 'wings can only lift a body up to medium size, and a flier can\'t burrow.',
     look: 'It is a living creature, grown, not built: organic, with flesh, chitin, scales, hide or slime. No metal, no machinery, no clothing.',
     color: '#7fb36a',
   },

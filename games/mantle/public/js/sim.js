@@ -15,7 +15,9 @@ export function body(spec) {
     hp: 20 + s.health * 22,
     armor: s.armor * 0.065,
     speed: 10 + s.speed * 8,
-    dmg: (2 + s.damage * 4) * (s.range === 1 ? 1.8 : 1),   // up close hits harder: it has to get there
+    // Up close hits harder: it has to get there. Not from the air, where nothing on the
+    // ground can hit back up close anyway.
+    dmg: (2 + s.damage * 4) * (s.range === 1 && !(has.has('wings') || has.has('rotors')) ? 1.8 : 1),
     cooldown: 1 / (0.25 + s.rate * 0.12),
     melee: s.range === 1,
     range: s.range === 1 ? 6 : 20 + s.range * 20,
@@ -178,7 +180,8 @@ export class Sim {
     if (e.has.has('regenerate')) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.015 * dt);
     if (e.maxShield && e.quiet > 4) e.shield = Math.min(e.maxShield, e.shield + e.maxShield * 0.1 * dt);
     if (e.has.has('mend') || e.has.has('repair')) {
-      for (const o of this.entities) if (o.side === e.side && o.kind === 'unit' && o !== e && dist(o, e) < 90 && o.hp < o.maxHp) o.hp = Math.min(o.maxHp, o.hp + 3 * dt);
+      // Each ally is tended once a moment, however many tend it: healers don't add up.
+      for (const o of this.entities) if (o.side === e.side && o.kind === 'unit' && o !== e && o.mended !== this.t && dist(o, e) < 90 && o.hp < o.maxHp) { o.hp = Math.min(o.maxHp, o.hp + 3 * dt); o.mended = this.t; }
     }
     if (e.kind === 'hq') return this.fightFrom(e, dt, this.nearestEnemy(e, e.range + e.r));
 
@@ -193,7 +196,7 @@ export class Sim {
       e.target = t;
       const reach = this.reachOf(e) + e.r + t.r;
       const d = dist(e, t);
-      if (e.has.has('leap') && e.leap <= 0 && d > reach && d < reach + 120) {
+      if (e.has.has('leap') && !e.flying && e.leap <= 0 && d > reach && d < reach + 120) {
         const k = (d - reach + 2) / d;
         e.x += (t.x - e.x) * k; e.y += (t.y - e.y) * k; e.leap = 6; e.still = 0;
         this.effects.push({ kind: 'leap', x: e.x, y: e.y, ttl: 0.4, side: e.side });
@@ -276,10 +279,14 @@ export class Sim {
     e.swung = this.t;   // when it last attacked, and at what: for drawing a lunge or a recoil
     e.swungAt = { x: t.x, y: t.y };
     const ambush = this.hidden(e) && e.has.has('burrow');
-    e.reveal = 1.5;
+    e.reveal = 4;   // longer than the slowest pause between attacks: once it strikes, it stays seen while it fights
     let dmg = e.dmg * (ambush ? 2 : 1);
     this.hurt(t, dmg, e);
-    if (e.has.has('venom') && t.kind === 'unit') t.poison = { dps: (e.dmg * 0.4) / 3, left: 3, from: e.side };
+    if (e.has.has('venom') && t.kind === 'unit') {
+      // Doses add up, to three's worth.
+      const dose = (e.dmg * 0.4) / 3;
+      t.poison = { dps: Math.min(dose * 3, (t.poison?.dps ?? 0) + dose), left: 3, from: e.side };
+    }
     if (e.has.has('blast')) for (const o of this.entities) if (o.side !== e.side && o !== t && o.hp > 0 && dist(o, t) < 45 && this.canHit(e, o)) this.hurt(o, dmg * 0.5, e);
     this.effects.push({ kind: e.melee ? 'bite' : 'shot', x0: e.x, y0: e.y, x: t.x, y: t.y, ttl: e.melee ? 0.15 : 0.12, side: e.side, blast: e.has.has('blast'), big: ambush,
       lab: e.kind === 'hq' ? 'base' : e.design.aid, venom: e.has.has('venom'), r: e.r, at: this.t });
