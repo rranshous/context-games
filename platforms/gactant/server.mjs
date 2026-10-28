@@ -10,6 +10,7 @@
 //   GACTANT_SANDBOX=http://127.0.0.1:7780   serve the sandbox from another site, as hosted
 //
 // Data: data/<kind>/<id>.json, one document each (ludants, published, checkpoints, names),
+// data/pictures/ the art and thumbs (served at /art/, as R2 serves them hosted),
 // and data/log/<who>.jsonl, every inference with image bytes stripped. Reading those logs is
 // how Claude sees what a ludant saw and did.
 
@@ -28,7 +29,8 @@ const PORT = Number(arg('--port')) || 7780;
 loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
-for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'flags', 'assets', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'log']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'log', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
+const PICTURES = join(DATA, 'pictures');
 
 function loadEnv(path) {
   if (!existsSync(path)) return;
@@ -57,9 +59,19 @@ const store = {
   async get(kind, id) { const f = file(kind, id); return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null; },
   async put(kind, id, doc) { writeFileSync(file(kind, id), JSON.stringify(doc, null, 1)); },
   async remove(kind, id) { rmSync(file(kind, id), { force: true }); },
+  async drop(kind) { rmSync(join(DATA, kind), { recursive: true, force: true }); },
   async list(kind) {
     return readdirSync(join(DATA, kind)).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(DATA, kind, f), 'utf8')));
   },
+};
+
+// ---------- pictures: files under data/pictures, named as core.mjs names them ----------
+
+const picture = (name) => { const f = normalize(join(PICTURES, name)); if (!f.startsWith(PICTURES + '/') || !/^[at]\/[a-z0-9.-]+$/.test(name)) throw new Error(`bad picture ${name}`); return f; };
+const art = {
+  async put(name, bytes) { writeFileSync(picture(name), bytes); },
+  async get(name) { const f = picture(name); return existsSync(f) ? { bytes: new Uint8Array(readFileSync(f)), type: TYPES[extname(f)] ?? 'application/octet-stream' } : null; },
+  async remove(name) { rmSync(picture(name), { force: true }); },
 };
 
 const core = createCore({
@@ -75,6 +87,8 @@ const core = createCore({
     // Where the sandbox page comes from: here (its iframe's origin is opaque anyway), or
     // another site, the way the hosted install uses gactantbox.com (e.g. http://127.0.0.1:7780).
     sandbox: process.env.GACTANT_SANDBOX || '',
+    art,
+    artBase: '/art/',
     log: (who, record) => appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n'),
     tail: (who, n) => {
       const f = join(DATA, 'log', `${who}.jsonl`);
@@ -86,7 +100,7 @@ const core = createCore({
 
 // ---------- pages ----------
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.txt': 'text/plain', '.xml': 'application/xml' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.txt': 'text/plain', '.xml': 'application/xml' };
 
 function serveStatic(path, res) {
   if (path === '/') path = '/index.html';
@@ -106,6 +120,12 @@ const json = (res, code, value) => { res.writeHead(code, { 'Content-Type': 'appl
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname.startsWith('/art/')) {
+    const pic = await art.get(url.pathname.slice(5)).catch(() => null);
+    if (!pic) { res.writeHead(404); res.end('not here'); return; }
+    res.writeHead(200, { 'Content-Type': pic.type, 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*' });
+    res.end(pic.bytes); return;
+  }
   if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res);
   if (!sameOrigin(req.headers.origin, req.headers.host)) return json(res, 403, { error: 'the API answers only this site\'s own pages' });
   try {

@@ -9,12 +9,21 @@
 //
 // A store keeps JSON documents by kind and id, and is async whether or not it needs to be:
 //   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]     remove(kind, id)
-// Kinds: assets (its art: `l-<ludant>-<name>` / `p-<publication>-<name>`), ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
-// names in use, so a new seed's is fresh), thumbs (a small picture of a ludant's or a
-// publication's stage, `l-<id>` or `p-<id>`, kept apart so lists stay light).
+// Kinds: ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
+// names in use, so a new seed's is fresh), thumbs (where the small picture of a ludant's or a
+// publication's stage is, `l-<id>` or `p-<id>`, kept apart so lists stay light).
+//
+// Pictures (art and thumbs) aren't documents. They're files in settings.art, served from
+// settings.artBase: hosted, an R2 bucket behind its own custom domain, so they go through
+// Cloudflare's cache, where the CSAM Scanning Tool sees them; locally, data/pictures/ at /art/.
+//   art: { put(file, bytes, type), get(file) -> { bytes, type } | null, remove(file) }
+//   a/<sha256>.<ext>          a piece of art, named by what's in it, so a ludant, its copies
+//                             and its publications all point at the same file. Never removed:
+//                             any of them may still draw it.
+//   t/<l|p>-<id>-<hash>.<ext> a thumb; the ludant's is replaced (and the old one removed) as it changes
 //
 // settings: { model, key (OpenRouter, or ''), public (bool), sandbox (origin of the sandbox
-//             page, or '' for this one), log(who, record), tail(who, n), opsLog(record) }
+//             page, or '' for this one), art, artBase, log(who, record), tail(who, n), opsLog(record) }
 //   opsLog: where trouble is also written as it happens (the Worker: Cloudflare's logs).
 //   adminToken: lets tools/push.mjs bring publications here from another install.
 //   public: the install is open to anyone. Then nobody can list every ludant (a ludant is
@@ -64,11 +73,11 @@
 //   GET  published/<id>                          -> metadata
 //   POST published/<id>/copy { by }              -> { id }          a new ludant, descended from it
 //   POST ludants/<id>/thumb { token, image }     -> {}             a picture of its stage now (a small JPEG data URL)
-//   GET  ludants/<id>/assets                     -> [{ name, w, h, prompt, by, at, image }]   its art
+//   GET  ludants/<id>/assets                     -> [{ name, w, h, prompt, by, at, url }]   its art
 //   POST ludants/<id>/assets { token, name, image, w, h, prompt, by } -> meta   keep a picture (replaces one of that name)
 //   POST ludants/<id>/unasset { token, name }    -> { removed }
 //   (publishing copies a ludant's art to the publication; taking a copy copies it on)
-//   GET  thumbs/<l|p>/<id>                       -> { image }       (null if there's none yet)
+//   GET  thumbs/<l|p>/<id>                       -> { url }         (null if there's none yet)
 //   POST reports        { id?, report }          -> { id }          what a device's check page found (/check.html);
 //                                                   with an id, updates that report as the check goes on
 //   POST admin/reports { token, n? }             -> newest reports (needs settings.adminToken; tools/reports.mjs)
@@ -81,6 +90,8 @@
 //   POST admin/own { token, ludant, person }     -> { id, owner }   gives a ludant no person owns to a person (tools/own.mjs)
 //   POST admin/people { token }                  -> [{ id, name, created, devices }]
 //   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
+//   POST admin/migrate-art { token, n? }         -> { moved, left }   art and thumbs kept as data URLs in the
+//                                                   store move to the art store, n owners at a time (once, 2026-10-28)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
 //   POST infer          { who, messages, tools? } -> OpenRouter chat completion, on the install's key
@@ -99,27 +110,29 @@ const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
 const HOLD_STALE_MS = 20000;
 const MAX_LUDANT = 1_500_000;    // characters of JSON in a save: soma and surfaces together
 const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
-const MAX_THUMB = 60_000;        // characters of data URL
+const MAX_THUMB = 45_000;        // bytes in a thumb
+const MAX_FLAG_IMAGE = 60_000;   // characters of data URL in a report's picture
 const MAX_REPORT = 60_000;       // characters of JSON in a check report
 const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
 const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each costs a little)
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
 const SEED_A_DAY = 20;           // new ludants one address may seed in a day
 const COPY_A_DAY = 40;           // copies one address may take in a day
-const ART_BUDGET = 20_000_000;   // characters of pictures one ludant keeps, all told
+const ART_BUDGET = 15_000_000;   // bytes of pictures one ludant keeps, all told
 const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its first)
 // Ludants nobody came back to: still exactly as they began (one checkpoint), with no save
 // and nobody sitting down this long, they're cleared away. A seed is a pulsing dot; a copy can be taken again.
 const UNTOUCHED_SEED_MS = 7 * 86400_000;
 const UNTOUCHED_COPY_MS = 30 * 86400_000;
 const TRUSTED_AFTER_MS = 24 * 3600_000;   // a checked publication with no reports earns the front page after this
-const MAX_ASSET = 1_500_000;     // characters of data URL in one picture
+const MAX_ASSET = 1_100_000;     // bytes in one picture
 const MAX_ASSETS = 60;           // pictures per ludant
 const assetName = (n) => { if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(n))) throw httpError(400, `art names are lowercase words joined by -, up to 40 characters: ${n}`); return n; };
 
 export function httpError(code, message, extra) { return Object.assign(new Error(message), { code, extra }); }
 
 const now = () => new Date().toISOString();
+const PICTURE = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/;
 const slug = (s) => String(s || 'actant').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'actant';
 const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, '0')).join('');
 const newId = (name) => `${slug(name)}-${hex(3)}`;
@@ -147,6 +160,54 @@ export function createCore({ store, settings }) {
   const isPublic = Boolean(settings.public);
   const ops = createOps({ store, log: settings.opsLog });
   const people = createPeople({ store, settings, httpError, limit: (...a) => limit(...a) });
+
+  // ---------- pictures: files in settings.art, served from artBase ----------
+  const art = settings.art;
+  const artBase = settings.artBase ?? '/art/';
+  const urlOf = (file) => (file ? artBase + file : null);
+  /** A picture sent as a data URL: its bytes, if it is one and isn't too big. */
+  const pictureOf = (image, max) => {
+    const m = String(image ?? '').match(PICTURE);
+    if (!m) throw httpError(400, 'a picture is a png, jpeg, webp or gif data URL');
+    const bytes = Uint8Array.from(atob(m[2]), (ch) => ch.charCodeAt(0));
+    if (bytes.length > max) throw httpError(413, `a picture here is at most ${Math.round(max / 1000)} KB`);
+    return { bytes, type: `image/${m[1]}`, ext: m[1] === 'jpeg' ? 'jpg' : m[1] };
+  };
+  const hashOf = async (bytes) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)).slice(0, 16), (x) => x.toString(16).padStart(2, '0')).join('');
+  /** Keep a piece of art; it's named by what's in it. -> { file, bytes } */
+  async function keepArt(image) {
+    const p = pictureOf(image, MAX_ASSET);
+    const file = `a/${await hashOf(p.bytes)}.${p.ext}`;
+    await art.put(file, p.bytes, p.type);
+    return { file, bytes: p.bytes.length };
+  }
+  /** Keep a thumb as `key` (l-<id> or p-<id>), removing the one it replaces. */
+  async function keepThumb(key, p) {
+    const file = `t/${key}-${(await hashOf(p.bytes)).slice(0, 12)}.${p.ext}`;
+    const old = await store.get('thumbs', key);
+    if (old?.file === file) return file;
+    await art.put(file, p.bytes, p.type);
+    await store.put('thumbs', key, { file, at: now() });
+    if (old?.file) await art.remove(old.file);
+    return file;
+  }
+  async function dropThumb(key) {
+    const old = await store.get('thumbs', key);
+    if (old?.file) await art.remove(old.file);
+    await store.remove('thumbs', key);
+  }
+  /** A kept picture as a data URL, for the publish check to look at. */
+  async function dataUrlOf(file) {
+    const pic = file ? await art.get(file) : null;
+    if (!pic) return null;
+    let s = '';
+    for (let i = 0; i < pic.bytes.length; i += 0x8000) s += String.fromCharCode(...pic.bytes.subarray(i, i + 0x8000));
+    return `data:${pic.type};base64,${btoa(s)}`;
+  }
+  /** What the publish check looks at: the stage's picture, and the art. */
+  async function picturesOf(thumbKey, assets) {
+    return Promise.all([(await store.get('thumbs', thumbKey))?.file, ...(assets ?? []).map((m) => m.file)].map(dataUrlOf));
+  }
 
   const read = async (kind, id) => {
     const doc = await store.get(kind, safe(id));
@@ -311,8 +372,7 @@ export function createCore({ store, settings }) {
   async function letGo(ludant, how) {
     const id = ludant.id;
     for (const cp of ludant.checkpoints ?? []) await store.remove('checkpoints', `${id}-${cp.n}`);
-    for (const a of ludant.assets ?? []) await store.remove('assets', `l-${id}-${a.name}`);
-    await store.remove('thumbs', `l-${id}`);
+    await dropThumb(`l-${id}`);
     const abandoned = { name: nameOf(ludant.soma), at: now(), ...how };
     await store.put('ludants', id, { id, abandoned, lineage: ludant.lineage ?? {} });
     holds.delete(id);
@@ -335,7 +395,7 @@ export function createCore({ store, settings }) {
     const ludant = body.ludant ? safe(body.ludant) : null;
     const published = body.published ? safe(body.published) : null;
     if (!ludant && !published) throw httpError(400, 'a report says what it is about');
-    const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_THUMB ? body.image : null;
+    const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
     const id = `f-${hex(4)}`;
     const doc = { id, at: now(), status: 'open', reason, note: String(body.note ?? '').slice(0, 1000), by: String(body.by || 'someone').slice(0, 40), person: from.person ?? null, ludant, published, image };
     await store.put('flags', id, doc);
@@ -384,9 +444,7 @@ export function createCore({ store, settings }) {
   }
 
   async function recheck(pub) {
-    const images = [(await store.get('thumbs', `p-${pub.id}`))?.image];
-    for (const m of pub.assets ?? []) images.push((await store.get('assets', `p-${pub.id}-${m.name}`))?.image);
-    const look = await lookAt(pub, images);
+    const look = await lookAt(pub, await picturesOf(`p-${pub.id}`, pub.assets));
     if (look.checked === 'unchecked') return;
     pub.checked = look.checked;
     if (look.why) {
@@ -492,6 +550,39 @@ export function createCore({ store, settings }) {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       return (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(body.n) || 10);
     }
+    // Once (2026-10-28): art and thumbs were data URLs in the store; they move to the art
+    // store, n ludants and publications at a time, until nothing is left (tools/migrate-art.mjs).
+    if (a === 'admin' && b === 'migrate-art' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      const n = Math.max(1, Number(body.n) || 20);
+      let moved = 0, owners = 0, missing = 0;
+      for (const [kind, prefix] of [['ludants', 'l'], ['published', 'p']]) {
+        for (const doc of await store.list(kind)) {
+          const old = (doc.assets ?? []).filter((m) => !m.file);
+          if (!old.length || owners >= n) continue;
+          owners++;
+          for (const m of old) {
+            const kept = await store.get('assets', `${prefix}-${doc.id}-${m.name}`);
+            if (kept?.image) Object.assign(m, await keepArt(kept.image)), moved++;
+            else missing++;
+          }
+          doc.assets = doc.assets.filter((m) => m.file);
+          await store.put(kind, doc.id, doc);
+          for (const m of old) await store.remove('assets', `${prefix}-${doc.id}-${m.name}`);
+        }
+      }
+      for (const [kind, prefix] of [['ludants', 'l'], ['published', 'p']]) {
+        for (const doc of await store.list(kind)) {
+          const t = await store.get('thumbs', `${prefix}-${doc.id}`);
+          if (!t?.image) continue;
+          try { await keepThumb(`${prefix}-${doc.id}`, pictureOf(t.image, MAX_THUMB * 2)); moved++; } catch { await store.remove('thumbs', `${prefix}-${doc.id}`); missing++; }
+        }
+      }
+      const left = [...await store.list('ludants'), ...await store.list('published')].filter((d) => (d.assets ?? []).some((m) => !m.file)).length;
+      // Pictures nothing listed any more (removed art was never deleted) go with the kind.
+      if (!left) await store.drop?.('assets');
+      return { moved, missing, left };
+    }
     if (a === 'admin' && b === 'import' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       let imported = 0;
@@ -507,7 +598,7 @@ export function createCore({ store, settings }) {
     }
     if (a === 'thumbs' && (b === 'l' || b === 'p') && c) {
       if (b === 'p' && (await store.get('published', safe(c)))?.hidden) return { image: null };
-      return { image: (await store.get('thumbs', `${b}-${safe(c)}`))?.image ?? null };
+      return { url: urlOf((await store.get('thumbs', `${b}-${safe(c)}`))?.file) };
     }
 
     if (a === 'ludants') {
@@ -571,21 +662,22 @@ export function createCore({ store, settings }) {
       }
       // Art: pictures made for the ludant, kept apart from it (they're big) and listed on it.
       if (c === 'assets' && method === 'GET') {
-        return (await Promise.all((ludant.assets ?? []).map(async (m) => ({ ...m, image: (await store.get('assets', `l-${b}-${m.name}`))?.image ?? null })))).filter((a) => a.image);
+        return (ludant.assets ?? []).filter((m) => m.file).map(({ file, ...m }) => ({ ...m, url: urlOf(file) }));
       }
       if (c === 'assets' && method === 'POST') {
         await requireHold(ludant, body, from);
-        const name = assetName(body.name), image = String(body.image ?? '');
-        if (!image.startsWith('data:image/') || image.length > MAX_ASSET) throw httpError(400, `a picture is an image data URL, up to ${MAX_ASSET} characters`);
+        const name = assetName(body.name);
         const list = (ludant.assets ?? []).filter((m) => m.name !== name);
         if (list.length >= MAX_ASSETS) throw httpError(413, `a ludant keeps up to ${MAX_ASSETS} pictures; remove one first`);
         const kept = list.reduce((n, m) => n + (m.bytes ?? 0), 0);
-        if (kept + image.length > ART_BUDGET) throw httpError(413, `its pictures would be over the ${Math.round(ART_BUDGET / 1e6)} MB a ludant keeps (${Math.round(kept / 1e6)} MB now); remove some first, or make smaller ones`);
-        const meta = { name, w: Number(body.w) || 0, h: Number(body.h) || 0, prompt: String(body.prompt ?? '').slice(0, 1000), by: String(body.by ?? '').slice(0, 60), at: now(), bytes: image.length };
-        await store.put('assets', `l-${b}-${name}`, { image });
+        const size = pictureOf(body.image, MAX_ASSET).bytes.length;
+        if (kept + size > ART_BUDGET) throw httpError(413, `its pictures would be over the ${Math.round(ART_BUDGET / 1e6)} MB a ludant keeps (${Math.round(kept / 1e6)} MB now); remove some first, or make smaller ones`);
+        const { file, bytes } = await keepArt(body.image);
+        const meta = { name, w: Number(body.w) || 0, h: Number(body.h) || 0, prompt: String(body.prompt ?? '').slice(0, 1000), by: String(body.by ?? '').slice(0, 60), at: now(), bytes, file };
         ludant.assets = [...list, meta];
         await store.put('ludants', b, ludant);
-        return meta;
+        const { file: _, ...shown } = meta;
+        return { ...shown, url: urlOf(file) };
       }
       if (c === 'unasset' && method === 'POST') {
         await requireHold(ludant, body, from);
@@ -596,15 +688,14 @@ export function createCore({ store, settings }) {
       }
       if (c === 'thumb' && method === 'POST') {
         await requireHold(ludant, body, from);
-        const image = String(body.image ?? '');
-        if (!image.startsWith('data:image/') || image.length > MAX_THUMB) throw httpError(400, 'a thumb is a small image data URL');
-        await store.put('thumbs', `l-${b}`, { image, at: now() });
+        const p = pictureOf(body.image, MAX_THUMB);
+        await keepThumb(`l-${b}`, p);
         // A publication without a picture takes its first player's, while their copy is
         // still exactly what was published.
         const source = ludant.lineage?.from?.published;
         if (source && !(await store.get('thumbs', `p-${source}`))) {
           const pub = await store.get('published', source);
-          if (pub && sameBody(pub.soma, ludant.soma)) await store.put('thumbs', `p-${source}`, { image, at: now() });
+          if (pub && sameBody(pub.soma, ludant.soma)) await keepThumb(`p-${source}`, p);
         }
         return {};
       }
@@ -623,11 +714,7 @@ export function createCore({ store, settings }) {
           lineage: { from: { ludant: b, name: nameOf(ludant.soma) }, takenBy: body.by || null },
         };
         await checkpoint(copy, `copied from ${nameOf(ludant.soma)}`, body.by);
-        for (const m of ludant.assets ?? []) {
-          const a = await store.get('assets', `l-${b}-${m.name}`);
-          if (a) await store.put('assets', `l-${id}-${m.name}`, a);
-        }
-        copy.assets = ludant.assets ?? [];
+        copy.assets = ludant.assets ?? [];   // the same files: art is named by what's in it
         ownedBy(copy, from);
         await store.put('ludants', id, copy);
         return { id };
@@ -694,9 +781,7 @@ export function createCore({ store, settings }) {
         // A look before it goes public: its words and pictures (check.mjs). Something the
         // check doesn't like is published but hidden, waiting for a person to look.
         const title = ludant.soma.sections.title.trim(), note = String(body.note || '').slice(0, 500);
-        const images = [(await store.get('thumbs', `l-${ludant.id}`))?.image];
-        for (const m of ludant.assets ?? []) images.push((await store.get('assets', `l-${ludant.id}-${m.name}`))?.image);
-        const look = await lookAt({ name, title, note, soma: ludant.soma }, images);
+        const look = await lookAt({ name, title, note, soma: ludant.soma }, await picturesOf(`l-${ludant.id}`, ludant.assets));
         counted();
         const n = await checkpoint(ludant, `published as ${name}`, body.by);
         await store.put('ludants', ludant.id, ludant);
@@ -712,16 +797,13 @@ export function createCore({ store, settings }) {
           await store.put('flags', fid, { id: fid, at: now(), status: 'open', reason: 'check', note: look.why.replace(/^the publish check: /, ''), by: 'the publish check', ludant: ludant.id, published: id, image: null });
         }
         // Its art goes with it: the snapshot draws with the pictures it had.
-        for (const m of ludant.assets ?? []) {
-          const a = await store.get('assets', `l-${ludant.id}-${m.name}`);
-          if (a) await store.put('assets', `p-${id}-${m.name}`, a);
-        }
         const pubDoc = await store.get('published', id);
         pubDoc.assets = ludant.assets ?? [];
         await store.put('published', id, pubDoc);
         // Its picture is the ludant's latest, so the lobby can show what it looks like.
-        const thumb = await store.get('thumbs', `l-${ludant.id}`);
-        if (thumb) await store.put('thumbs', `p-${id}`, thumb);
+        const thumb = (await store.get('thumbs', `l-${ludant.id}`))?.file;
+        const pic = thumb ? await art.get(thumb) : null;
+        if (pic) await keepThumb(`p-${id}`, { bytes: pic.bytes, type: pic.type, ext: thumb.split('.').pop() });
         return { id, name, ...(look.why ? { held: look.why } : {}) };
       }
       const pub = await read('published', b);
@@ -737,10 +819,6 @@ export function createCore({ store, settings }) {
           lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ludant: pub.ludant }, takenBy: body.by || null },
         };
         await checkpoint(ludant, `as received: ${pub.name}`, body.by);
-        for (const m of pub.assets ?? []) {
-          const a = await store.get('assets', `p-${pub.id}-${m.name}`);
-          if (a) await store.put('assets', `l-${id}-${m.name}`, a);
-        }
         ludant.assets = pub.assets ?? [];
         ownedBy(ludant, from);
         await store.put('ludants', id, ludant);
@@ -775,8 +853,7 @@ export function createCore({ store, settings }) {
       const copy = Boolean(l.lineage?.from);
       if (idle < (copy ? UNTOUCHED_COPY_MS : UNTOUCHED_SEED_MS)) continue;
       for (const cp of l.checkpoints ?? []) await store.remove('checkpoints', `${l.id}-${cp.n}`);
-      for (const a of l.assets ?? []) await store.remove('assets', `l-${l.id}-${a.name}`);
-      await store.remove('thumbs', `l-${l.id}`);
+      await dropThumb(`l-${l.id}`);
       await store.remove('ludants', l.id);
       cleared++;
     }
@@ -803,15 +880,17 @@ export function sameOrigin(origin, host) {
 // their owner keys. So they run only the platform's own scripts, talk only to this site
 // and OpenRouter, embed only the sandbox, and can't be framed by anyone else. Hosted, they
 // also let in Cloudflare's Web Analytics beacon (which Cloudflare adds to each page itself).
-export function pageHeaders(sandboxOrigin = '', https = false) {
+export function pageHeaders(sandboxOrigin = '', https = false, artBase = '') {
   const analytics = https ? { script: ' https://static.cloudflareinsights.com', connect: ' https://cloudflareinsights.com' } : { script: '', connect: '' };
+  // Pictures from their own domain when hosted (see the art store): shown, and read into canvases.
+  const pictures = /^https?:\/\//.test(artBase) ? ` ${new URL(artBase).origin}` : '';
   return {
     'Content-Security-Policy': [
       "default-src 'self'",
       `script-src 'self'${analytics.script}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      `connect-src 'self' https://openrouter.ai${analytics.connect}`,
+      `img-src 'self' data: blob:${pictures}`,
+      `connect-src 'self' https://openrouter.ai${analytics.connect}${pictures}`,
       `frame-src ${sandboxOrigin || "'self'"}`,
       "worker-src 'self'",
       "object-src 'none'",

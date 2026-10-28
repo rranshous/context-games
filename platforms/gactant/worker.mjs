@@ -5,6 +5,10 @@
 //   World (one DO)    holds every document in its SQLite storage, and the holds in memory.
 //                     Cloudflare keeps it durable and can restore it to any point in the last
 //                     30 days, so there's no machine of ours to lose.
+//   R2 (ART)          keeps the pictures (art and thumbs). Served from the bucket's own custom
+//                     domain (ART_BASE), so they go through Cloudflare's cache, which is what
+//                     the CSAM Scanning Tool looks at. /art/* here answers from R2 too, for
+//                     `wrangler dev`, but isn't cached, so isn't scanned.
 //
 // Two hostnames: the site, and SANDBOX_ORIGIN, a different registrable domain that serves
 // only the sandbox page and its scripts, so a ludant's code runs in its own browser process.
@@ -12,6 +16,12 @@
 import { DurableObject } from 'cloudflare:workers';
 import { makeCheck } from './check.mjs';
 import { SANDBOX_POLICY, createCore, pageHeaders, sameOrigin } from './core.mjs';
+
+const artStore = (bucket) => ({
+  async put(name, bytes, type) { await bucket.put(name, bytes, { httpMetadata: { contentType: type, cacheControl: 'public, max-age=31536000, immutable' } }); },
+  async get(name) { const o = await bucket.get(name); return o ? { bytes: new Uint8Array(await o.arrayBuffer()), type: o.httpMetadata?.contentType ?? 'application/octet-stream' } : null; },
+  async remove(name) { await bucket.delete(name); },
+});
 
 const json = (code, value) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
 
@@ -26,6 +36,7 @@ export class World extends DurableObject {
       async put(kind, id, doc) { sql.exec('INSERT OR REPLACE INTO docs (kind, id, json) VALUES (?, ?, ?)', kind, id, JSON.stringify(doc)); },
       async list(kind) { return sql.exec('SELECT json FROM docs WHERE kind = ?', kind).toArray().map((r) => JSON.parse(r.json)); },
       async remove(kind, id) { sql.exec('DELETE FROM docs WHERE kind = ? AND id = ?', kind, id); },
+      async drop(kind) { sql.exec('DELETE FROM docs WHERE kind = ?', kind); },
       async size() {
         const kinds = Object.fromEntries(sql.exec('SELECT kind, count(*) AS docs, sum(length(json)) AS chars FROM docs GROUP BY kind').toArray().map((r) => [r.kind, { docs: r.docs, chars: r.chars }]));
         return { bytes: ctx.storage.sql.databaseSize, kinds };
@@ -39,6 +50,8 @@ export class World extends DurableObject {
         public: env.GACTANT_PUBLIC === '1',
         adminToken: env.ADMIN_TOKEN || '',
         sandbox: env.SANDBOX_ORIGIN || '',
+        art: artStore(env.ART),
+        artBase: env.ART_BASE || '/art/',
         version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
         sessionSecret: env.SESSION_SECRET || '',   // signs challenges and passes (people.mjs); a wrangler secret
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
@@ -84,7 +97,7 @@ async function asset(request, env, path) {
   // no-transform keeps Cloudflare from adding it there.
   if (env.SANDBOX_ORIGIN && url.host === new URL(env.SANDBOX_ORIGIN).host && url.pathname.endsWith('.html')) out.headers.set('Cache-Control', [res.headers.get('Cache-Control'), 'no-transform'].filter(Boolean).join(', '));
   if (url.pathname === '/sandbox.html') out.headers.set('Content-Security-Policy', SANDBOX_POLICY);
-  else if (url.pathname.endsWith('.html')) for (const [k, v] of Object.entries(pageHeaders(env.SANDBOX_ORIGIN, true))) out.headers.set(k, v);
+  else if (url.pathname.endsWith('.html')) for (const [k, v] of Object.entries(pageHeaders(env.SANDBOX_ORIGIN, true, env.ART_BASE))) out.headers.set(k, v);
   return out;
 }
 
@@ -124,6 +137,10 @@ export default {
       if (url.pathname === '/robots.txt') return asset(request, env, '/box/robots.txt');
       const ok = url.pathname === '/sandbox.html' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/js/') || url.pathname.startsWith('/vendor/');
       return ok ? asset(request, env, url.pathname) : Response.redirect(`${env.SANDBOX_ORIGIN}/`, 302);
+    }
+    if (url.pathname.startsWith('/art/')) {
+      const o = await env.ART.get(url.pathname.slice(5));
+      return o ? new Response(o.body, { headers: { 'Content-Type': o.httpMetadata?.contentType ?? 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*', 'X-Content-Type-Options': 'nosniff' } }) : new Response('not here', { status: 404 });
     }
     if (url.pathname.startsWith('/api/')) {
       if (!sameOrigin(request.headers.get('origin'), url.host)) return json(403, { error: 'the API answers only this site\'s own pages' });

@@ -214,6 +214,11 @@ for thinking, at about 3¢ an image (7¢ for the best model).
 - `art.concept({ style })` takes the game as it is on the stage now and reimagines it.
 - Art is kept with the ludant on the server. It goes with a publication, and copies get
   it. The game draws it with `stage.image(name)`. The inspector has an art tab.
+- Pictures are files, not documents: art is named by what's in it (`a/<sha256>.<ext>`), so a
+  ludant, its copies and its publications share one file, and thumbs are `t/<l|p>-<id>-<hash>`.
+  Hosted, they're in R2 (`gactant-art`), served from **art.gactant.com**, the bucket's own
+  custom domain, so they pass through Cloudflare's cache, where the **CSAM Scanning Tool**
+  sees them. Locally they're in `data/pictures/`, served at `/art/`.
 
 And a way to ask without typing: **`choices.offer({ question, options })`** puts a few
 options over the stage, with pictures or just words. A pick (by click, tap or
@@ -367,7 +372,7 @@ On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`
 
 ### Limits, so nothing balloons
 
-Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per ludant: 60 pictures and 20 MB of them, the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
+Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per ludant: 60 pictures and 15 MB of them (1.1 MB each), the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
 
 ### The site's pages
 
@@ -380,6 +385,11 @@ New domains get judged by filters, so the site looks like a real one:
 - **gactantbox.com:** its root says what it is (`public/box/`) and isn't indexed. Anything else redirects there.
 
 ### Deploying
+
+The pictures' bucket, once: `npx wrangler r2 bucket create gactant-art`, then
+`npx wrangler r2 bucket domain add gactant-art --domain art.gactant.com --zone-id <gactant.com's>`
+and `npx wrangler r2 bucket cors set gactant-art --file r2-cors.json`. Turn on the CSAM
+Scanning Tool for the gactant.com zone in the dashboard (it needs a contact email).
 
 `npm run deploy` (`tools/deploy.mjs`):
 1. **Smoke test** (`tools/smoke.mjs`): a fresh local server with scratch data. It checks pages and policies, owning and refusing, saving, publishing, copying, reports, events, ops and abandon. Nothing goes up if it fails.

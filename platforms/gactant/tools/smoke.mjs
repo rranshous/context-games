@@ -79,6 +79,18 @@ try {
   ok('nor finds it in their lobby', !(await call('GET', 'ludants?mine=1', undefined, as(stranger))).json.some((l) => l.id === id));
   ok('arrive', (await call('POST', `ludants/${id}/arrive`, { token: 'w', who: 'smoke' }, as(pass))).status === 200);
   ok('a picture of it', (await call('POST', `ludants/${id}/thumb`, { token: 'w', image: 'data:image/jpeg;base64,AAAA' }, as(pass))).status === 200);
+  const firstThumb = (await call('GET', `thumbs/l/${id}`)).json.url;
+  ok('the picture is served from the art store', firstThumb?.startsWith('/art/t/') && (await fetch(`${base}${firstThumb}`)).status === 200, firstThumb);
+  await call('POST', `ludants/${id}/thumb`, { token: 'w', image: 'data:image/jpeg;base64,BBBB' }, as(pass));
+  ok('a new picture replaces it, and the old one goes', (await call('GET', `thumbs/l/${id}`)).json.url !== firstThumb && (await fetch(`${base}${firstThumb}`)).status === 404);
+  // Art: kept as files, named by what's in them.
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const made1 = await call('POST', `ludants/${id}/assets`, { token: 'w', name: 'dot', image: PNG, w: 1, h: 1, prompt: 'a dot', by: 'smoke' }, as(pass));
+  ok('art is kept', made1.json.url?.startsWith('/art/a/') && !('file' in made1.json), JSON.stringify(made1.json));
+  const artRes = await fetch(`${base}${made1.json.url}`);
+  ok('art is served as it was sent, to any site', artRes.headers.get('content-type') === 'image/png' && artRes.headers.get('access-control-allow-origin') === '*' && Buffer.from(await artRes.arrayBuffer()).toString('base64') === PNG.split(',')[1]);
+  ok('a stranger can\'t add art', (await call('POST', `ludants/${id}/assets`, { token: 'w', name: 'x', image: PNG }, as(stranger))).status === 403);
+  ok('art that isn\'t a picture is refused', (await call('POST', `ludants/${id}/assets`, { token: 'w', name: 'x', image: 'data:text/html;base64,PGI+' }, as(pass))).status === 400);
 
   // Another device of theirs, by a code.
   const { code } = (await call('POST', 'people/pair', {}, as(pass))).json;
@@ -106,6 +118,8 @@ try {
   const list = await call('GET', 'published');
   ok('it\'s listed (untrusted)', list.json.some?.((p) => p.id === pub.json.id && p.trusted === false));
   const copy = await call('POST', `published/${pub.json.id}/copy`, { by: 'player' }, as(stranger));
+  ok('a copy draws with the same art file', (await call('GET', `ludants/${copy.json.id}/assets`, undefined, as(stranger))).json[0]?.url === made1.json.url);
+  ok('a publication has its own picture', (await call('GET', `thumbs/p/${pub.json.id}`)).json.url?.startsWith(`/art/t/p-${pub.json.id}-`));
   ok('a copy belongs to whoever took it', copy.json.id && (await call('POST', `ludants/${copy.json.id}/hold`, { token: 'c', who: 'stranger' }, as(stranger))).json.held === true);
   const linkCopy = await call('POST', `ludants/${id}/copy`, { by: 'stranger' }, as(stranger));
   ok('a stranger may copy a ludant by its link', linkCopy.json.id);

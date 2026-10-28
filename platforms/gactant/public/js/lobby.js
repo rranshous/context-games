@@ -32,8 +32,8 @@ function thumb(kind, id, name) {
     if (!e.isIntersecting) return;
     obs.disconnect();
     try {
-      const { image } = await api('GET', `thumbs/${kind}/${id}`);
-      if (image) box.replaceChildren(el('img', { src: image, alt: `${name}, as it looks` }));
+      const { url } = await api('GET', `thumbs/${kind}/${id}`);
+      if (url) box.replaceChildren(el('img', { src: url, alt: `${name}, as it looks` }));
     } catch {}
   }, { rootMargin: '200px' }).observe(box);
   return box;

@@ -39,6 +39,15 @@ new_sqlite_classes = ["World"]
 enabled = true
 head_sampling_rate = 1
 
+# The pictures (art and thumbs), served from the bucket's own custom domain so they pass
+# through Cloudflare's cache, where the CSAM Scanning Tool sees them. Setting it up:
+#   npx wrangler r2 bucket create gactant-art
+#   npx wrangler r2 bucket domain add gactant-art --domain art.gactant.com --zone-id <gactant.com's>
+#   npx wrangler r2 bucket cors set gactant-art --file r2-cors.json
+[[r2_buckets]]
+binding = "ART"
+bucket_name = "gactant-art"
+
 # Workers AI, for the look each publication gets before it goes public (check.mjs).
 # Capped at 200 checks a day in core.mjs; a check is a few hundred neurons, and the
 # free plan's 10,000 a day cover most days.
@@ -56,3 +65,4 @@ crons = ["17 * * * *"]
 [vars]
 GACTANT_PUBLIC = "1"
 SANDBOX_ORIGIN = "https://gactantbox.com"
+ART_BASE = "https://art.gactant.com/"

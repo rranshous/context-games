@@ -2153,3 +2153,21 @@ Next, untested: Anthropic's hour-long cache mark (`ttl: '1h'`) on the system tex
 ### www, and http
 
 Robby: "can you make sure that www.gactant.com works and that http forward to https plz". `www.gactant.com` had no DNS record at all. It's now a custom domain on the Worker (so Cloudflare made the record and the certificate), and the Worker sends plain http, and any `www.`, on to the https bare domain with a 301, keeping the path. Checked from outside (hackertarget's header fetch, since Spectrum's filter here answers plain http itself): http://gactant.com/rules.html, http://www.gactant.com/rules.html and https://www.gactant.com/rules.html all 301 to https://gactant.com/rules.html, which answers 200, and http://gactantbox.com/ goes to https://gactantbox.com/. No HSTS header yet: that waits on the preload decision.
+
+## Part 16: pictures where the scanner sees them
+
+Robby, for Mantle the day before: "If it's going to be a generated art from random ppl I want it scanned if we are storing it. Cloudflare for all the things." It was still pending here. This time: "pound out the still pending art. i'd like the existing ludants to survive the migration." So this is the first migration gactant has had. The no-migrations rule gives way when Robby asks.
+
+**What changed.** Art and thumbs were data URLs in the World's SQLite (`assets`, `thumbs`). Cloudflare's CSAM Scanning Tool only sees what's served through its cache, and the Worker's own answers aren't. So pictures are now files in an art store (`settings.art`: R2 hosted, `data/pictures/` locally), served from `artBase` (https://art.gactant.com/, the bucket's own custom domain; `/art/` locally).
+- **Art is named by what's in it** (`a/<sha256 128 bits>.<ext>`). A copy or a publication used to copy every picture's document; now it copies the list, and they all point at the same file. Art files are never removed, since any of them may still draw it. That's also why removing one ludant's art doesn't delete the file.
+- **Thumbs are per owner** (`t/l-<id>-<hash>`, `t/p-<id>-<hash>`). A new one replaces the old file, and an unchanged picture (the stage at rest, every 90 seconds) writes nothing.
+- **The server checks a picture is one**: png, jpeg, webp or gif, decoded, up to 1.1 MB (art) or 45 KB (thumbs). The limits are bytes now, not characters of data URL (15 MB of art a ludant, was 20M characters).
+- **The browser reads art back into data URLs** (`art.js`), because the frame hands it to the sandbox as bytes, shows it to the model as references, and `look()` returns it. The page policy allows the art origin in `img-src` and `connect-src`. The sandbox never fetches pictures, so its policy is unchanged.
+- **The publish check** reads the files back as data URLs for Workers AI.
+- Reports' pictures (⚑) stay in the store: only the moderator ever sees them.
+
+**The migration:** `POST admin/migrate-art` (`tools/migrate-art.mjs`) walks ludants and publications, moves each picture to a file, records `file` on its entry, and removes the document, a few owners per call so a call stays short. It also moves thumbs. When nothing is left, it drops the `assets` kind entirely, which takes the orphans with it: `unasset` never deleted the document. On a copy of the local data: 14 picture documents became 7 files (Fishtest and its publication share them), a second run did nothing, and a fresh player's copy of Fishtest-Little-Catch drew its ukiyo-e sea, boat and fish from the files.
+
+Smoke is 61 checks now: thumbs served and replaced (the old file 404s), art kept and served byte for byte with CORS, strangers and non-pictures refused, a copy drawing the same file, a publication with its own thumb.
+
+**Live:** the bucket `gactant-art` exists with CORS. Attaching art.gactant.com is a DNS change, which needs Robby, so the deploy and migration wait on it.

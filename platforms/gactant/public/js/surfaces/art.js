@@ -1,6 +1,8 @@
 // Art: pictures made for the ludant by an image model, through OpenRouter, on whoever
 // pays for its thinking. They're kept with the ludant on the server (a publication carries
 // them, and so do copies), and the game draws them: stage.image(name) in the sandbox.
+// The server serves them from the art store's address; here they're read back into data
+// URLs, so they can be looked at, sent as references, and handed to the sandbox.
 //
 // actions (as an actor)
 //   make({ name, prompt, style?, transparent = true, reference?, quality?, size? }) -> { name, width, height, image }
@@ -22,6 +24,17 @@ const KEY_NEAR = 60, KEY_FAR = 115;   // distance from the key color: gone, then
 const dataToBytes = (url) => {
   const [head, b64] = url.split(',');
   return { type: head.match(/data:([^;]+)/)?.[1] ?? 'image/png', bytes: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer };
+};
+const readPicture = async (url) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`picture ${res.status}`);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
 };
 const loadImage = (url) => new Promise((resolve, reject) => {
   const img = new Image();
@@ -62,7 +75,8 @@ export class Art {
   /** The art kept for this ludant, fetched when the frame starts. */
   async fetch() {
     const list = await api('GET', `ludants/${this.frame.recordId}/assets`).catch(() => []);
-    this.assets = new Map(list.map((a) => [a.name, a]));
+    const read = await Promise.all(list.map(async ({ url, ...a }) => ({ ...a, image: await readPicture(url).catch(() => null) })));
+    this.assets = new Map(read.filter((a) => a.image).map((a) => [a.name, a]));
   }
 
   /** The art, as the sandbox takes it: bytes it can turn into pictures. */
@@ -131,7 +145,8 @@ export class Art {
       const { url } = await this.frame.imagine({ prompt: words, images: refs, quality });
       const { image, w, h } = await this.finish(url, { transparent, size });
       const meta = await api('POST', `ludants/${this.frame.recordId}/assets`, { token: this.frame.token, name, image, w, h, prompt, by: who });
-      this.assets.set(name, { ...meta, image });
+      const { url: _, ...kept } = meta;
+      this.assets.set(name, { ...kept, image });
       const { type, bytes } = dataToBytes(image);
       this.frame.sandbox.sendWith?.([bytes], 'asset', name, bytes, type);
       this.frame.bus.emit('art.made', { who, name, w, h });
