@@ -576,3 +576,39 @@ Robby: the lab's chat "gets squished as the length grows", on mobile too. Two ca
 - **Also:** the FAQ link in the lab header had taken the header's `margin-left: auto`, which
   wrapped the phone header badly. The phone header is now three deliberate lines: who
   you're with, how it thinks, where to go.
+
+## Polish (2026-10-28)
+
+Robby: "making the game feel more polished. i'm thinking better sprites for UI elements,
+layout tweaks, interface improvements". Mid-way he added: "i can't figure out how to get
+back to the builder type selection screen. feels like the game needs a title screen as well".
+
+I went through every screen at desktop and phone sizes first, then fixed what felt least
+finished:
+
+- **Title screen.** The game opens on it: the name over both aids' faces, *Continue with
+  <your aid>* or *Work with someone else*, and how many maps you've taken. "Mantle" at the
+  top of the lab and the front leads back to it, and choosing an aid has a way back too.
+  Switching aid used to be a quiet link in the lab header; that was the drama of the day.
+- **Icons** (`icons.js`): line drawings that take the text color, so they wear each aid's
+  color. Matter is a cut gem (a crystal cluster read as a flame at 12px). Others: army room,
+  time, clock, sound, pause, speed, box, fight, move, rally, base, alarm.
+- **Match HUD:** matter with its rate; army room with a fill bar that turns amber when the
+  army is full; icon buttons for sound, speed and pause; order buttons with icons. On a
+  phone, the order buttons stack the icon over a small label so all four fit on one line.
+- **Build buttons** show what's happening. The fill is the one growing, a badge counts how
+  many are on the way (tap it to take one back), and the button says why it can't make one
+  ("short 65", "army full", "line full"). This replaced the separate row of bay chips.
+- **Start card:** who you face, with pictures; the goal with its icons; the controls as key
+  chips (gestures on touch).
+- **End card:** a tally of the fight's length, units made and lost, and theirs destroyed.
+- **Toasts** carry an icon.
+- **Map edge:** past the map is the same ground in shadow, and the edge darkens into it,
+  instead of flat black.
+- **The front:** the muster is always on screen at the bottom: five slots (tap one to
+  leave that unit behind), *design an answer*, and Begin. Taking a unit used to redraw
+  the whole briefing, and Begin sat below every design. Card buttons now sit at the
+  bottom of each card.
+- **Missing pictures:** one helper (`picture()` in `ui.js`) cuts every unit picture out,
+  and shows a mark for a design whose picture is gone instead of a blank. The bench says
+  "Its likeness is lost. Ask for a new one."

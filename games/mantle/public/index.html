@@ -22,7 +22,19 @@
 <link rel="manifest" href="/site.webmanifest">
 </head>
 <body>
+<main id="title" hidden>
+  <div class="faces" aria-hidden="true"><img src="img/hollis.jpg" alt=""><img src="img/brackett.jpg" alt=""></div>
+  <div class="mark">
+    <h1>Mantle</h1>
+    <p class="tagline">Design every unit in your army. Then take them to war.</p>
+    <div id="title-go"></div>
+    <p id="title-progress"></p>
+  </div>
+  <footer class="site"><a href="/faq">FAQ</a> · <a href="/privacy">Privacy</a></footer>
+</main>
+
 <main id="pick" hidden>
+  <button id="pick-back" class="quiet">← Mantle</button>
   <h1>Mantle</h1>
   <p class="lede">Your army starts with nothing. Every unit in it is one you design, with the one person you work with. Who will it be?</p>
   <div id="aids"></div>
@@ -79,21 +91,24 @@
 <main id="match" hidden>
   <canvas id="field"></canvas>
   <div id="hud-top">
-    <span id="matter"></span><span id="supply"></span><span id="clock"></span>
-    <button id="mute" class="quiet">sound on</button>
-    <button id="speed" class="quiet">×1</button>
-    <button id="pause">❚❚</button>
+    <span id="matter" class="stat" data-tip="Matter" data-about="What you make units with. Your base brings it in, and so does every deposit you hold and every gatherer at one."></span>
+    <span id="supply" class="stat" data-tip="Room in the army" data-about="How much army you can field at once. Bigger units take more room."></span>
+    <span class="spacer"></span>
+    <span id="clock" class="stat"></span>
+    <button id="mute" class="quiet" title="Sound"></button>
+    <button id="speed" class="quiet" title="Game speed"></button>
+    <button id="pause" title="Pause (P)"></button>
   </div>
   <div id="hud-orders">
-    <button id="all-army">All army</button>
-    <button id="box-mode">Box</button>
-    <button id="order-mode">Fight</button>
-    <button id="rally-mode">Rally</button>
+    <button id="all-army" title="Pick your whole army (Q)"></button>
+    <button id="box-mode" title="The next drag picks everything inside it"></button>
+    <button id="order-mode" title="Fight: attack what's met on the way (A). Move: go there, whatever happens."></button>
+    <button id="rally-mode" title="Where new units gather: tap the ground"></button>
   </div>
   <div id="picked"></div>
   <canvas id="minimap"></canvas>
   <div id="toasts"></div>
-  <div id="hud-make"><div id="bays"></div><div id="makes"></div></div>
+  <div id="hud-make"><div id="makes"></div></div>
   <div id="overlay" hidden></div>
 </main>
 <script type="module" src="js/lab.js"></script>

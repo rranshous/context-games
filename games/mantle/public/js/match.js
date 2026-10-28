@@ -13,7 +13,8 @@ import { cutout } from './cutout.js';
 import { RIVAL_UNITS } from './levels.js';
 import { Rival } from './rival.js';
 import { SUPPLY_CAP, Sim, rng } from './sim.js';
-import { $, el, priced } from './ui.js';
+import { $, el, picture, priced } from './ui.js';
+import { icon } from './icons.js';
 import { isMuted, play, setMuted, wake } from './sound.js';
 
 const RIVAL = '#d0503c';
@@ -62,16 +63,20 @@ class Match {
 
     this.wire();
     this.buildMakes();
-    $('mute').textContent = isMuted() ? 'sound off' : 'sound on';
+    this.dress();
     window.explorer = this.explorer();
     this.paused = true;
     const touch = matchMedia('(pointer: coarse)').matches, lv = sim.level;
+    const keys = touch
+      ? [['tap', 'pick a unit, or send it'], ['drag', 'look around'], ['pinch', 'zoom'], [icon('all'), 'your whole army'], [icon('box'), 'pick with a box'], [icon('rally'), 'where new units gather']]
+      : [['click', 'pick, or drag a box'], ['right-click', 'move or attack'], ['A', 'then click: fight your way there'], ['1–5', 'make units'], ['Q', 'your whole army'], ['space', 'back to base'], ['arrows · wheel', 'look around'], ['P', 'pause']];
     this.overlay(lv.name, [
-      lv.blurb,
-      'Hold the crystal deposits for matter, make units from your roster, and destroy their base.',
-      touch ? 'Tap a unit to pick it, tap the ground or an enemy to send it. Drag to look around, pinch to zoom. All army, Box and Rally are at the top left.'
-        : 'Click or drag to pick units; right-click to move or attack; A then click to fight your way there. 1–5 make units, arrows and the wheel look around, P pauses.',
-    ], [['Begin', () => { wake(); this.paused = false; $('overlay').hidden = true; }]]);
+      el('p', { className: 'lede', textContent: lv.blurb }),
+      el('div', { className: 'facing' }, el('span', { className: 'label', textContent: 'You face' }),
+        ...[...new Set(lv.units)].map((k) => el('span', { className: 'foe' }, picture(RIVAL_UNITS[k].art), el('span', { textContent: RIVAL_UNITS[k].name })))),
+      el('p', { className: 'goal' }, 'Hold the ', icon('matter'), ' deposits for matter, make units from your roster, and destroy their ', icon('base'), ' base.'),
+      el('dl', { className: 'keys' }, ...keys.flatMap(([k, what]) => [el('dt', {}, typeof k === 'string' ? el('kbd', { textContent: k }) : k), el('dd', { textContent: what })])),
+    ], [['Begin', () => { wake(); this.paused = false; $('overlay').hidden = true; }]], 'start');
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -105,6 +110,17 @@ class Match {
       grad.addColorStop(0, '#77716a'); grad.addColorStop(1, '#3a3733');
       g.fillStyle = grad; g.shadowColor = '#0008'; g.shadowBlur = 14; g.shadowOffsetY = 6; g.fill();
       g.shadowColor = 'transparent';
+    }
+    return c;
+  }
+
+  /** The map's edge, darkening into the shadow beyond it. */
+  paintRim() {
+    const { w, h } = this.sim, c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d'), k = 90;
+    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, k, 0, 0, 0, k, h], [w, 0, w - k, 0, w - k, 0, k, h], [0, 0, 0, k, 0, 0, w, k], [0, h, 0, h - k, 0, h - k, w, k]]) {
+      const grad = g.createLinearGradient(x0, y0, x1, y1);
+      grad.addColorStop(0, '#00000099'); grad.addColorStop(1, '#00000000');
+      g.fillStyle = grad; g.fillRect(rx, ry, rw, rh);
     }
     return c;
   }
@@ -162,7 +178,7 @@ class Match {
     $('rally-mode').onclick = () => { this.mode.rally = !this.mode.rally; };
     $('pause').onclick = () => this.pause(!this.paused);
     $('speed').onclick = () => { this.speed = this.speed === 1 ? 2 : 1; };
-    $('mute').onclick = () => { setMuted(!isMuted()); wake(); $('mute').textContent = isMuted() ? 'sound off' : 'sound on'; };
+    $('mute').onclick = () => { setMuted(!isMuted()); wake(); this.dress(); };
     on(window, 'pointerdown', wake);
     on(window, 'keydown', wake);
   }
@@ -284,14 +300,17 @@ class Match {
     if (this.sim.winner != null || (!on && !$('overlay').hidden && !this.pausedByMe)) return;
     this.pausedByMe = on;
     this.paused = on;
+    this.dress();
     if (!on) return void ($('overlay').hidden = true);
     this.overlay('Paused', [], [['Resume', () => this.pause(false)], ['Give up', () => this.end('lost')]]);
   }
 
-  overlay(title, lines, buttons) {
-    $('overlay').replaceChildren(el('div', { className: 'box' }, el('h2', { textContent: title }), ...lines.map((l) => el('p', { textContent: l })),
-      el('div', { className: 'go' }, ...buttons.map(([t, f]) => el('button', { textContent: t, onclick: f })))));
+  /** A card over the field: the start, a pause, the end. Lines are words or elements. */
+  overlay(title, lines, buttons, kind = '') {
+    $('overlay').replaceChildren(el('div', { className: `box ${kind}` }, el('h2', { textContent: title }), ...lines.map((l) => typeof l === 'string' ? el('p', { textContent: l }) : l),
+      el('div', { className: 'go' }, ...buttons.map(([t, f], i) => el('button', { className: i ? 'quiet' : 'main', textContent: t, onclick: f })))));
     $('overlay').hidden = false;
+    $('overlay').querySelector('.go button')?.focus();
   }
 
   // ---------- the loop ----------
@@ -333,21 +352,21 @@ class Match {
     if (sim.stats[0].made > this.told.made) { this.told.made = sim.stats[0].made; play('ready'); }
     sim.deposits.forEach((d, i) => {
       if (d.owner === this.told.owners[i]) return;
-      if (d.owner === 0) { this.toast('Deposit taken'); play('taken'); }
-      else if (this.told.owners[i] === 0) { this.toast('Deposit lost', true); play('lost'); this.ping(d); }
+      if (d.owner === 0) { this.toast('Deposit taken', false, 'matter'); play('taken'); }
+      else if (this.told.owners[i] === 0) { this.toast('Deposit lost', true, 'matter'); play('lost'); this.ping(d); }
       this.told.owners[i] = d.owner;
     });
     if (t - this.told.alarm > 12) {
       const struck = sim.entities.find((e) => e.side === 0 && t - (e.hit ?? -9) < 0.2 && !this.onScreen(e));
       if (struck) {
         this.told.alarm = t;
-        this.toast(struck.kind === 'hq' ? 'Your base is under attack' : 'Your units are under attack', true);
+        this.toast(struck.kind === 'hq' ? 'Your base is under attack' : 'Your units are under attack', true, struck.kind === 'hq' ? 'base' : 'alarm');
         play('alarm'); this.ping(struck);
       }
     }
     if (this.rival.launched && this.rival.launched !== this.told.wave) {
       this.told.wave = this.rival.launched;
-      this.toast('Their army is on the move', true); play('alarm'); this.ping(this.rival.launched);
+      this.toast('Their army is on the move', true, 'alarm'); play('alarm'); this.ping(this.rival.launched);
     }
     for (const p of this.pings) p.age += 1 / 60;
     this.pings = this.pings.filter((p) => p.age < 3);
@@ -355,8 +374,8 @@ class Match {
 
   ping(p) { this.pings.push({ x: p.x, y: p.y, age: 0 }); }
 
-  toast(text, bad = false) {
-    const t = el('div', { className: `toast${bad ? ' bad' : ''}`, textContent: text });
+  toast(text, bad = false, mark = 'ready') {
+    const t = el('div', { className: `toast${bad ? ' bad' : ''}` }, icon(mark), text);
     $('toasts').append(t);
     setTimeout(() => t.remove(), 3200);
     while ($('toasts').children.length > 3) $('toasts').firstChild.remove();
@@ -366,10 +385,11 @@ class Match {
     const won = this.sim.winner === 0, s = this.sim.stats, t = Math.round(this.sim.t);
     this.draw(); this.hud();
     play(won ? 'won' : 'beaten');
+    const tally = (n, what) => el('div', {}, el('b', { textContent: n }), el('span', { textContent: what }));
     this.overlay(won ? 'Victory' : 'Defeat', [
-      won ? 'Their base is down.' : 'Your base is down.',
-      `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · you made ${s[0].made}, lost ${s[0].lost}, and destroyed ${s[0].killed} of theirs.`,
-    ], [['Back to the front', () => this.end(won ? 'won' : 'lost')]]);
+      el('p', { className: 'lede', textContent: won ? `Their base is down. ${this.sim.level.name} is yours.` : 'Your base is down.' }),
+      el('div', { className: 'tally' }, tally(`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, 'the fight'), tally(s[0].made, 'made'), tally(s[0].lost, 'lost'), tally(s[0].killed, 'of theirs destroyed')),
+    ], [['Back to the front', () => this.end(won ? 'won' : 'lost')]], won ? 'won' : 'lost');
     this.running = false;
   }
 
@@ -386,10 +406,13 @@ class Match {
   draw() {
     const g = this.g, c = this.cam, dpr = this.dpr, sim = this.sim;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#0c0d0e'; g.fillRect(0, 0, this.vw, this.vh);
+    // Past the edge of the map: the same ground, in shadow.
+    g.fillStyle = sim.level.ground; g.fillRect(0, 0, this.vw, this.vh);
+    g.fillStyle = '#000000b0'; g.fillRect(0, 0, this.vw, this.vh);
     const shake = this.fx.shake ? [(Math.random() - 0.5) * this.fx.shake, (Math.random() - 0.5) * this.fx.shake] : [0, 0];
     g.setTransform(c.z * dpr, 0, 0, c.z * dpr, (-c.x * c.z + shake[0]) * dpr, (-c.y * c.z + shake[1]) * dpr);
     g.drawImage(this.ground, 0, 0);
+    g.drawImage(this.rim ??= this.paintRim(), 0, 0);
 
     for (const d of sim.deposits) this.drawDeposit(d);
     if (sim.sides[0].rally) this.drawFlag(sim.sides[0].rally);
@@ -541,29 +564,61 @@ class Match {
   buildMakes() {
     const side = this.sim.sides[0], a = AIDS[this.aidId];
     $('makes').replaceChildren(...side.roster.map((d, i) => {
-      const pic = el('span', { className: 'pic' });
-      cutout(d.art).then((src) => pic.append(el('img', { src, alt: '' }))).catch(() => {});
+      // Tapping the count takes back the last one waiting.
+      const count = el('span', { className: 'count', title: 'tap to take one back', onclick: (e) => {
+        e.stopPropagation();
+        const j = side.queue.lastIndexOf(d);
+        if (j >= 0) this.sim.cancel(0, j);
+      } });
       return el('button', { className: 'make', onclick: () => this.make(i), dataset: { tip: d.name, about: d.description, cost: `${a.makes === 'grows' ? 'Grows' : 'Builds'} in ${d.priced.seconds}s, takes ${d.priced.supply} room.` } },
-        pic, el('strong', { textContent: d.name }), el('span', { className: 'line', textContent: `${d.priced.cost}` }), el('kbd', { textContent: i + 1 }));
+        el('i', { className: 'progress' }), picture(d.art), el('strong', { textContent: d.name }),
+        el('span', { className: 'line' }, icon('matter'), el('span', { textContent: d.priced.cost }), el('span', { className: 'why' })), el('kbd', { textContent: i + 1 }), count);
     }));
   }
 
+  /** The HUD's fixed parts: their icons, and the labels that follow a setting. */
+  dress() {
+    const label = (id, name, text) => $(id).replaceChildren(icon(name), ...(text ? [el('span', { textContent: text })] : []));
+    label('mute', isMuted() ? 'muted' : 'sound');
+    label('pause', this.paused && this.pausedByMe ? 'play' : 'pause');
+    label('all-army', 'all', 'All army');
+    label('box-mode', 'box', 'Box');
+    label('order-mode', this.mode.order === 'fight' ? 'fight' : 'move', this.mode.order === 'fight' ? 'Fight' : 'Move');
+    label('rally-mode', 'rally', 'Rally');
+    if (!$('matter').firstChild) {
+      $('matter').append(icon('matter'), el('b'), el('small'));
+      $('supply').append(icon('army'), el('b'), el('i', { className: 'fill' }, el('i')));
+      $('clock').append(icon('clock'), el('b'));
+    }
+  }
+
   hud() {
-    const sim = this.sim, side = sim.sides[0], t = Math.floor(sim.t);
-    $('matter').textContent = `matter ${Math.floor(side.matter)} (+${(side.rate ?? 0).toFixed(1)}/s)`;
-    $('supply').textContent = `army ${sim.supply(0)}/${SUPPLY_CAP}`;
-    $('clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    const sim = this.sim, side = sim.sides[0], t = Math.floor(sim.t), room = sim.supply(0);
+    $('matter').querySelector('b').textContent = Math.floor(side.matter);
+    $('matter').querySelector('small').textContent = `+${(side.rate ?? 0).toFixed(1)}/s`;
+    $('supply').querySelector('b').textContent = `${room}/${SUPPLY_CAP}`;
+    $('supply').querySelector('.fill i').style.width = `${100 * room / SUPPLY_CAP}%`;
+    $('supply').classList.toggle('full', room >= SUPPLY_CAP);
+    $('clock').querySelector('b').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
     $('speed').textContent = `×${this.speed}`;
     $('box-mode').classList.toggle('on', this.mode.box);
     $('rally-mode').classList.toggle('on', this.mode.rally);
-    $('order-mode').textContent = this.mode.order === 'fight' ? 'Fight' : 'Move';
+    $('order-mode').classList.toggle('move', this.mode.order === 'move');
+    if (this.dressedFor !== `${this.mode.order}${this.paused && this.pausedByMe}`) { this.dressedFor = `${this.mode.order}${this.paused && this.pausedByMe}`; this.dress(); }
+    // Each unit's button: what's growing (its fill), how many wait (its count), and why it can't be made now.
     [...$('makes').children].forEach((b, i) => {
       const d = side.roster[i];
-      b.classList.toggle('poor', side.matter < d.priced.cost || sim.supply(0) + d.priced.supply > SUPPLY_CAP);
+      const bay = side.bays.filter((x) => x.design === d).sort((x, y) => x.left - y.left)[0];
+      const waiting = side.queue.filter((x) => x === d).length + side.bays.filter((x) => x.design === d).length;
+      const short = d.priced.cost - Math.floor(side.matter), crowded = room + d.priced.supply > SUPPLY_CAP, busy = side.queue.length >= 6;
+      b.querySelector('.progress').style.width = bay ? `${100 * (1 - bay.left / d.priced.seconds)}%` : '0';
+      b.classList.toggle('making', Boolean(bay));
+      const count = b.querySelector('.count');
+      count.textContent = waiting > 1 || (waiting && !bay) ? `×${waiting}` : '';
+      count.classList.toggle('takeback', side.queue.includes(d));
+      b.classList.toggle('poor', short > 0 || crowded || busy);
+      b.querySelector('.why').textContent = crowded ? 'army full' : busy ? 'line full' : short > 0 ? `short ${short}` : '';
     });
-    const making = side.bays.map((b) => el('span', { className: 'bay' }, b.design.name, el('i', { style: `width:${100 * (1 - b.left / b.design.priced.seconds)}%` })));
-    const waiting = side.queue.map((d, i) => el('button', { className: 'bay waiting', textContent: d.name, title: 'tap to cancel', onclick: () => this.sim.cancel(0, i) }));
-    $('bays').replaceChildren(...making, ...waiting);
     // What's picked, grouped by design: tap a group to keep just that group.
     const picked = [...this.selected].map((id) => sim.entities.find((e) => e.id === id)).filter(Boolean);
     const groups = new Map();
@@ -573,11 +628,9 @@ class Match {
       this.pickedKey = key;
       const hint = this.mode.rally ? 'tap where new units should gather' : this.mode.armed ? 'click where to fight' : '';
       $('picked').replaceChildren(...[...groups].map(([name, g]) => {
-        const pic = el('span', { className: 'pic' });
-        cutout(g.art).then((src) => pic.append(el('img', { src, alt: '' }))).catch(() => {});
         const health = g.units.reduce((h, u) => h + u.hp / u.maxHp, 0) / g.units.length;
         return el('button', { className: 'group', title: name, onclick: () => { this.selected = new Set(g.units.map((u) => u.id)); } },
-          pic, el('span', { textContent: g.units.length > 1 ? `${g.units.length} ${name}` : name }), el('i', { style: `width:${Math.round(health * 100)}%` }));
+          picture(g.art), el('span', { textContent: g.units.length > 1 ? `${g.units.length} ${name}` : name }), el('i', { style: `width:${Math.round(health * 100)}%` }));
       }), ...(hint ? [el('span', { className: 'hint', textContent: hint })] : []));
     }
   }

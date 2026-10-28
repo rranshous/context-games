@@ -6,8 +6,10 @@ import { AIDS } from './aids.js';
 import { Aid } from './aid.js';
 import { cutout } from './cutout.js';
 import { SIZES } from './spec.js';
-import { $, ability, el, priced, recall, remember, sheet } from './ui.js';
+import { $, ability, el, picture, priced, recall, remember, sheet } from './ui.js';
 import { showWar } from './war.js';
+import { icon } from './icons.js';
+import { LEVELS } from './levels.js';
 import { source } from './brain.js';
 import { connect, disconnect } from './openrouter.js';
 
@@ -16,9 +18,32 @@ const busy = new Set();
 
 // ---------- who you work with ----------
 
-const SCREENS = ['pick', 'lab', 'war', 'match'];
+const SCREENS = ['title', 'pick', 'lab', 'war', 'match'];
 const screen = (name) => { for (const s of SCREENS) $(s).hidden = s !== name; };
 function showLab() { screen('lab'); showRoster(); }
+
+// ---------- the title ----------
+
+function showTitle() {
+  delete document.body.dataset.aid;
+  document.documentElement.style.removeProperty('--aid');
+  screen('title');
+  const chosen = AIDS[recall('mantle-aid')];
+  const button = (text, onclick, className = '') => el('button', { className, onclick }, ...text);
+  $('title-go').replaceChildren(...(chosen
+    ? [button([`Continue with ${chosen.name}`, icon('forward')], () => start(chosen.id), 'main'), button(['Work with someone else'], showPick, 'quiet')]
+    : [button(['Begin', icon('forward')], showPick, 'main')]));
+  if (chosen) $('title-go').firstChild.style.setProperty('--aid', chosen.color);
+  let won = [];
+  try { won = JSON.parse(recall('mantle-won') ?? '[]'); } catch {}
+  $('title-progress').textContent = won.length ? `${won.length} of ${LEVELS.length} maps taken` : '';
+}
+$('pick-back').onclick = showTitle;
+// The name at the top of every screen leads back to the title.
+for (const h of document.querySelectorAll('#lab header h1, #war header h1')) {
+  Object.assign(h, { tabIndex: 0, title: 'To the title screen', onclick: showTitle, onkeydown: (e) => { if (e.key === 'Enter') showTitle(); } });
+  h.classList.add('home');
+}
 
 function showPick() {
   delete document.body.dataset.aid;
@@ -92,7 +117,8 @@ function showBench(d) {
   }
   $('name').textContent = d.name;
   $('description').textContent = d.description;
-  if (d.art) cutout(d.art).then((src) => { if (aid.bench === d) $('art').replaceChildren(el('img', { src, alt: d.name })); });
+  if (d.art) cutout(d.art).then((src) => { if (aid.bench === d) $('art').replaceChildren(el('img', { src, alt: d.name })); })
+    .catch(() => { if (aid.bench === d) $('art').replaceChildren(el('p', { className: 'hint', textContent: 'Its likeness is lost. Ask for a new one.' })); });
   else $('art').replaceChildren(el('p', { className: 'hint', textContent: 'Making a likeness…' }));
 
   $('sheet').replaceChildren(...sheet({ ...d, aid: aid.id }));
@@ -107,16 +133,14 @@ $('keep').onclick = async () => {
   showRoster();
 };
 $('fresh').onclick = () => aid.clear();
-$('switch').onclick = () => { remember('mantle-aid'); showPick(); };
+$('switch').onclick = showPick;
 
 // ---------- the roster ----------
 
 async function showRoster() {
   const designs = (await fetch('/api/designs?by=me').then((r) => r.json())).filter((d) => d.aid === aid.id);
   $('kept').replaceChildren(...(designs.length ? designs.map((d) => {
-    const pic = el('div', { className: 'pic' });
-    if (d.art) cutout(d.art).then((src) => pic.append(el('img', { src, alt: '' })));
-    return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, pic, el('strong', { textContent: d.name }), el('span', { textContent: `${priced(d).cost} · ${SIZES[d.spec.size - 1]}` }));
+    return el('button', { className: 'unit', title: d.description, onclick: () => aid.load(d) }, picture(d.art), el('strong', { textContent: d.name }), el('span', { textContent: `${priced(d).cost} · ${SIZES[d.spec.size - 1]}` }));
   }) : [el('p', { className: 'hint', textContent: 'Keep a design and it shows up here.' })]));
 }
 
@@ -134,5 +158,4 @@ showThinking();
 
 $('front').onclick = () => { screen('war'); showWar(aid.id, { back: showLab, screen }); };
 
-const chosen = recall('mantle-aid');
-AIDS[chosen] ? start(chosen) : showPick();
+showTitle();

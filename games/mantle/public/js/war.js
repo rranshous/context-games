@@ -4,10 +4,10 @@
 // the lab and design an answer.
 
 import { AIDS } from './aids.js';
-import { cutout } from './cutout.js';
+import { icon } from './icons.js';
 import { LEVELS, RIVAL_UNITS, ROSTER_SIZE } from './levels.js';
 import { startMatch } from './match.js';
-import { $, ability, el, priced, recall, remember, sheet } from './ui.js';
+import { $, ability, el, picture, priced, recall, remember, sheet } from './ui.js';
 
 let ctx = null;   // { aidId, back, screen, designs, level }
 
@@ -45,12 +45,18 @@ function showBrief(level) {
     `Their first push comes at about ${Math.round(r.firstWave / 60 * 2) / 2} minutes${r.ambush ? ', and things lie in wait on the roads' : ''}.`,
   ];
   const mine = new Set(picked().filter((id) => ctx.designs.some((d) => d.id === id)));
+  const a = AIDS[ctx.aidId];
+  const cards = new Map();
+  // Taking a unit changes its card and the muster, not the whole briefing.
+  const update = () => {
+    remember(`mantle-roster-${ctx.aidId}`, JSON.stringify([...mine]));
+    for (const [id, card] of cards) setCard(card, { on: mine.has(id), full: !mine.has(id) && mine.size >= ROSTER_SIZE });
+    showMuster(level, mine, toggle);
+  };
   const toggle = (id) => {
     if (mine.has(id)) mine.delete(id); else if (mine.size < ROSTER_SIZE) mine.add(id);
-    remember(`mantle-roster-${ctx.aidId}`, JSON.stringify([...mine]));
-    showBrief(level);
+    update();
   };
-  const a = AIDS[ctx.aidId];
 
   $('brief').replaceChildren(
     el('h2', { textContent: level.name }),
@@ -62,33 +68,55 @@ function showBrief(level) {
 
     el('h3', { textContent: `Your roster: up to ${ROSTER_SIZE}, from what ${a.name} has ${a.makes === 'grows' ? 'grown' : 'built'} for you` }),
     ctx.designs.length
-      ? el('div', { className: 'yours' }, ...ctx.designs.map((d) => unitCard(d, { on: mine.has(d.id), onclick: () => toggle(d.id), full: !mine.has(d.id) && mine.size >= ROSTER_SIZE })))
+      ? el('div', { className: 'yours' }, ...ctx.designs.map((d) => { const c = unitCard(d, { onclick: () => toggle(d.id) }); cards.set(d.id, c); return c; }))
       : el('p', { className: 'hint', textContent: 'You have no designs yet. Go back to the lab and make some.' }),
+    el('div', { id: 'muster' }),
+  );
+  update();
+}
+
+/** The muster: the roster you're taking in, slot by slot, and the way in. Always in view. */
+function showMuster(level, mine, toggle) {
+  const roster = ctx.designs.filter((d) => mine.has(d.id));
+  const slots = Array.from({ length: ROSTER_SIZE }, (_, i) => {
+    const d = roster[i];
+    return d
+      ? el('button', { className: 'slot', title: `${d.name}: tap to leave it behind`, onclick: () => toggle(d.id) }, picture(d.art), el('span', { textContent: d.name }))
+      : el('span', { className: 'slot empty' }, el('span', { textContent: i + 1 }));
+  });
+  $('muster').replaceChildren(
+    el('div', { className: 'slots' }, ...slots),
     el('div', { className: 'go' },
-      el('button', { className: 'quiet', textContent: '← design an answer in the lab', onclick: ctx.back }),
-      el('button', { id: 'begin', textContent: `Begin (${mine.size} of ${ROSTER_SIZE})`, disabled: !mine.size, onclick: () => begin(level, ctx.designs.filter((d) => mine.has(d.id))) }),
+      el('button', { className: 'quiet', onclick: ctx.back }, icon('back'), ' design an answer'),
+      el('button', { id: 'begin', disabled: !roster.length, onclick: () => begin(level, roster) }, roster.length ? 'Begin' : 'Take a unit first', icon('forward')),
     ),
   );
 }
 
+function setCard(card, { on, full }) {
+  card.classList.toggle('on', on); card.classList.toggle('full', full);
+  const b = card.querySelector('.pick');
+  if (!b) return;
+  b.disabled = full && !on;
+  b.replaceChildren(...(on ? [icon('check'), ' Taking it'] : [full ? 'Roster full' : 'Take it']));
+}
+
 /** A unit as a card: its picture, name, cost and time; tap to see the whole sheet. */
-function unitCard(d, { rival = false, on = false, full = false, onclick } = {}) {
-  const pic = el('div', { className: 'pic' });
-  if (d.art) cutout(d.art).then((src) => pic.append(el('img', { src, alt: '' })));
+function unitCard(d, { rival = false, onclick } = {}) {
   const p = priced(d), lab = AIDS[d.aid];
-  const card = el('div', { className: `card${rival ? ' rival' : ''}${on ? ' on' : ''}${full ? ' full' : ''}` },
-    pic,
+  const card = el('div', { className: `card${rival ? ' rival' : ''}` },
+    picture(d.art),
     el('div', { className: 'about' },
       el('strong', { textContent: d.name }),
-      el('span', { className: 'line', textContent: `${p.cost} · ${p.seconds}s · ${p.supply} room${rival ? ` · from ${lab.title === 'biologist' ? 'the vats' : 'a shop'}` : ''}` }),
+      el('span', { className: 'line' },
+        el('span', {}, icon('matter'), p.cost), el('span', {}, icon('time'), `${p.seconds}s`), el('span', {}, icon('army'), p.supply),
+        ...(rival ? [el('span', { textContent: `from ${lab.title === 'biologist' ? 'the vats' : 'a shop'}` })] : [])),
       el('span', { className: 'craft' }, ...d.spec.abilities.map((x) => ability(lab.abilities[x]))),
       el('p', { className: 'desc', textContent: d.description }),
     ),
     el('details', { className: 'more' }, el('summary', { textContent: 'stats' }), el('div', { className: 'sheet' }, ...sheet(d, { compact: true }))),
   );
-  if (onclick) {
-    card.append(el('button', { className: 'pick', textContent: on ? 'Taking it ✓' : full ? 'Roster full' : 'Take it', disabled: full && !on, onclick }));
-  }
+  if (onclick) card.append(el('button', { className: 'pick', textContent: 'Take it', onclick }));
   return card;
 }
 

@@ -65,8 +65,9 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
   note after the conversation (the way gactant shows a ludant its soma). A new look means a
   new picture.
 - `public/js/cutout.js`: the pictures come on white, and this lifts the unit off it.
-- `public/js/lab.js`: the page. Hovering an ability or a stat says what it is. The lab is styled after the aid you chose (`body[data-aid]` in `style.css`): the vats for Hollis, the shop for Brackett.
-- `public/js/ui.js`: shared page pieces: a unit's sheet, ability tiles, and the tips.
+- `public/js/lab.js`: the page: the title screen (continue with your aid, or choose another; the name atop every screen leads back to it), choosing an aid, and the lab. Hovering an ability or a stat says what it is. The lab is styled after the aid you chose (`body[data-aid]` in `style.css`): the vats for Hollis, the shop for Brackett.
+- `public/js/ui.js`: shared page pieces: a unit's sheet, ability tiles, a unit's picture (with a mark for one whose likeness is gone), and the tips.
+- `public/js/icons.js`: the icons: line drawings that take the color of the text around them.
 - `public/js/levels.js`: the campaign. The rivals' units are specs from the same two
   labs, checked by `check()` at load. Each map says why it's harder: the rival's head
   start, their supply line, deposits, first push, ambushes.
@@ -81,7 +82,7 @@ cost, in `data/log.jsonl`. `data/` isn't committed.
   from the look). It also draws shots in flight, flashes, dust, falling bodies, and the
   marks they leave on the ground.
 - `public/js/sound.js`: sound made in the browser from noise and oscillators, with no files.
-- `public/js/war.js`: the front: maps, briefings, rosters, progress.
+- `public/js/war.js`: the front: maps, briefings, rosters, progress. The muster, always in view at the bottom, holds the roster you're taking in and Begin.
 - `public/js/match.js`: a match on screen: drawing, mouse, keys and touch, the HUD. It
   also sets `window.explorer` (`state()`, `make(i)`, `order(ids, kind, x, y)`,
   `speed(n)`, `look(x, y)`, and `sim`) for playing it from outside.

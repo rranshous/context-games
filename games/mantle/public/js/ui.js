@@ -2,6 +2,8 @@
 // as shown on the bench and in briefings), and the tips that say what things are.
 
 import { AIDS } from './aids.js';
+import { cutout } from './cutout.js';
+import { icon } from './icons.js';
 import { SIZES, STATS, price } from './spec.js';
 
 export const $ = (id) => document.getElementById(id);
@@ -14,6 +16,16 @@ const sentence = (s) => `${s[0].toUpperCase()}${s.slice(1)}.`;
 export const ability = (x, cost) => el('span', { className: 'ability', tabIndex: 0, dataset: { tip: x.word, about: sentence(x.about), ...(cost != null ? { cost: `Adds ${cost} to this unit's cost.` } : {}) } },
   el('i', { className: 'mark', ariaHidden: 'true' }), x.word);
 
+/** A unit's picture, cut out of its background, in a frame (`.pic`). A picture that can't
+ *  load (gone, or never drawn) shows the mark of an unknown unit instead of nothing. */
+export function picture(url, className = 'pic') {
+  const frame = el('span', { className });
+  const missing = () => frame.replaceChildren(el('span', { className: 'unknown', title: 'no likeness' }, icon('unknown')));
+  if (!url) missing();
+  else cutout(url).then((src) => frame.replaceChildren(el('img', { src, alt: '' }))).catch(missing);
+  return frame;
+}
+
 export const rating = (r) => el('span', { className: 'bar' }, ...Array.from({ length: 10 }, (_, i) => el('i', { className: i < r ? 'on' : '' })));
 
 /** A design's price, worked out now: the contract can change, and a kept design's saved price with it. */
@@ -24,9 +36,9 @@ export function sheet(d, { compact = false } = {}) {
   const p = priced(d), a = AIDS[d.aid], spec = d.spec;
   return [
     el('div', { className: 'facts' },
-      el('div', {}, el('b', { textContent: p.cost }), el('span', { textContent: 'cost' })),
-      el('div', {}, el('b', { textContent: p.supply }), el('span', { textContent: 'room in the army' })),
-      el('div', {}, el('b', { textContent: `${p.seconds}s` }), el('span', { textContent: `to ${a.makes === 'grows' ? 'grow' : 'build'}` })),
+      el('div', {}, el('b', {}, icon('matter'), p.cost), el('span', { textContent: 'cost' })),
+      el('div', {}, el('b', {}, icon('army'), p.supply), el('span', { textContent: 'room in the army' })),
+      el('div', {}, el('b', {}, icon('time'), `${p.seconds}s`), el('span', { textContent: `to ${a.makes === 'grows' ? 'grow' : 'build'}` })),
     ),
     el('p', { className: 'size', textContent: SIZES[spec.size - 1] }),
     el('table', {}, ...Object.entries(STATS).map(([s, { word, about }]) => el('tr', {},
