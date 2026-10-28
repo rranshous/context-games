@@ -228,5 +228,11 @@ export function createPeople({ store, settings, httpError, limit }) {
     return d?.key ? importKey(d.key) : null;
   }
 
-  return { route, whoIs, get, deviceKey };
+  /** A device's public key as JWK, for anyone checking what it signed. null if it has none. */
+  async function publicKey(person, device) {
+    const d = (await get(person))?.devices.find((x) => x.id === device);
+    return d?.key ? { kty: 'EC', crv: 'P-256', x: d.key.x, y: d.key.y } : null;
+  }
+
+  return { route, whoIs, get, deviceKey, publicKey };
 }

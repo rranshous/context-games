@@ -2239,3 +2239,25 @@ Bob opened Vedina's link and took his own copy (the first hop). Its game said "t
 Then a real game: Alice X in the center, Bob O top-left (his board updated with no reload), and Alice won down the middle column. Bob's game didn't even send a move out of turn ("Waiting for Alice…"), and the smoke test covers the rules refusing one.
 
 Noticed: Vedina left a "What should I become first?" choices card over the stage. It tried tools named `choices_withdraw_placeholder` and `offer_choices_placeholder`, which don't exist. The surface has `withdraw()`, but the seed only has a tool for offering, and Vedina guessed names instead of writing a tool.
+
+### Down the fork tree, and the canvas
+
+**The tree**, all on rulebook `003e39d7…`:
+
+```
+Vedina (Alice: plain, built by Vedina on the hash)
+└── Vedina-Neon-Tic-Tac-Toe (Bob's copy: "a neon synthwave look… keep playing the exact same rulebook")
+    └── Vedina-Walnut-Tic-Tac-Toe (Carol's copy of Bob's: "3D: a wooden board on a table… same locked rulebook")
+```
+
+Carol was a third person at http://[::1]:7780 (IPv6 localhost: another origin, and still a secure context, so a real key). Each fork rebuilt only its interface and kept the hash. Neon was a synthwave sun, a scrolling grid, marks as neon tubes ($0.18). Walnut was three.js, a walnut board with a drifting camera and pieces that drop in, and a ghost piece under the pointer ($0.21). Carol's copy found Bob's open match and joined it as O before she had said a word. Bob played by clicking his neon board; Carol through her table's `move` (the same signed path her game uses: clicking into a 3D scene from Playwright would have been guesswork). Carol won the top row, and both boards showed it, each in its own look.
+
+**The canvas:** Alice seeded Honta and asked for the shared canvas on its hash ($0.20, 74 seconds): it joins the newest canvas match or opens one, draws with mouse or finger, sends strokes in 40-point chunks, has three brush sizes and "clear mine", and shows who's drawing with a pulse after each stroke. Bob took a copy from the link, and it joined Alice's canvas on its own. Alice's spiral and Bob's wave met on both screens.
+
+**"Anyone can check" needed the keys.** The smoke test passed because it already knew both keys; a stranger wouldn't. So the log now brings each signing device's public key (`people.publicKey`), and `tools/check-match.mjs <match> [install]` checks a match trusting nothing: the rulebook against its hash, the genesis, the chain, every signature, and a replay through QuickJS that must reach the same result. All three local matches check out. The log also tells the fork story: Bob joined through "Vedina" and moved through "Vedina-Neon-Tic-Tac-Toe", because he restyled his copy in between.
+
+All four ludants together cost about $0.85 of thinking.
+
+**Not done yet:** deploying (nothing here is live); standings per rulebook (`result` gives a winner by place, so a leaderboard needs results to name people, maybe a `winners: [player ids]` convention); and the lobby doesn't know about tables at all yet.
+
+A slip of mine, for the record: cleaning up `wrangler dev`, `pgrep -x workerd` matched every workerd, so I probably killed the workerd of another session's `wrangler dev` (port 8790); its wrangler started a new one. `pkill -f` in a shell also kills that shell when the pattern is in its own command line: use `pgrep -f "[w]rangler …"`, and check cwd or parent before killing.

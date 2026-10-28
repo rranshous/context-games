@@ -174,17 +174,17 @@ try {
   ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);
   ok('the rulebook lists its matches', (await call('GET', `rulebooks/${rb}/matches`)).json[0]?.id === match.id);
   // Anyone can check the log: the chain, every signature, and the replay.
-  const { log, seed: mSeed, options, genesis } = (await call('GET', `matches/${match.id}/log`)).json;
+  const { log, seed: mSeed, options, genesis, keys } = (await call('GET', `matches/${match.id}/log`)).json;
   const sha = async (t) => Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))).toString('hex');
   let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, options }));
   let chain = prev === genesis;
-  const keys = { [me.id]: A.key, [(await call('GET', 'people/me', undefined, as(stranger))).json.id]: S.key };
   for (const e of log) {
     const text = signedText({ match: match.id, n: e.n, prev, kind: e.kind, data: e.data });
-    const key = await crypto.subtle.importKey('jwk', keys[e.player.id], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const key = await crypto.subtle.importKey('jwk', keys[e.device], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     chain &&= e.prev === prev && e.hash === await sha(`${text}\n${e.signature}`) && await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text));
     prev = e.hash;
   }
+  ok('the log brings the signers\' public keys', keys && Object.values(keys).map((k) => k.x).sort().join() === [A.key.x, S.key.x].sort().join());
   ok('the log checks out: a chain of signed actions', chain && log.length === 7 && prev === head);
   ok('it says which ludant a move was played through', log.at(-1).through?.id === id);
 

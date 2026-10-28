@@ -34,8 +34,9 @@
 //
 // Actions are public (anyone can read the log, to check it). Anything secret, like a dealt
 // hand, belongs in the state, made from the seed, and shown only through view.
-//   GET  matches/<id>/log?from=0         -> { id, rulebook, seed, options, genesis, n, head, log, more }   to check it;
-//                                           up to 1000 actions at a time
+//   GET  matches/<id>/log?from=0         -> { id, rulebook, seed, options, genesis, n, head, result, log, keys, more }
+//                                           to check it (tools/check-match.mjs); up to 1000 actions at a time;
+//                                           keys: each signing device's public key (JWK), by device id
 //   POST matches/<id>/act { kind: join|move, data, n, prev, signature?, ludant? }
 //                                        -> { n, head, view, result }       409 if n or prev aren't the latest;
 //                                           422 { refused } if the rules said no
@@ -257,8 +258,12 @@ export function createTables({ store, loadRules, people, httpError, limit, owns 
         const from_ = Math.max(0, Number(query.get('from')) || 0), upto = Math.min(m.n, from_ + 1000);
         const log = [];
         for (let i = from_; i < upto; i++) log.push(await store.get('actions', actionId(m.id, i)));
+        // The public key of each device that signed, so anyone can check the signatures. (A
+        // device its person has since removed is gone, and so is its key.)
+        const keys = {};
+        for (const e of log) if (e?.signature && !(e.device in keys)) keys[e.device] = await people.publicKey(e.player.id, e.device);
         const { state, by, members, ...kept } = m;
-        return { ...kept, log, more: upto < m.n };
+        return { ...kept, log, keys, more: upto < m.n };
       }
       if (c === 'act' && method === 'POST') return act(m, body, from);
     }

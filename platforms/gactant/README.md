@@ -66,6 +66,7 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 | **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
 | **art** | pictures painted by an image model, kept with the ludant | sprites, backgrounds, its game reimagined in a style |
 | **choices** | a question with pictured options, over the stage | let people pick instead of type |
+| **table** | shared play: rulebooks and matches kept on the server, the same for every ludant | play with other people and their ludants, whatever each game looks like |
 | **inspector** | the soma, a log of what it did, the store | (for people: a window inside) |
 
 Above them, the frame's own **lights** (not a surface): who's here, whether the ludant is
@@ -235,6 +236,20 @@ pick from, then it repaints itself in the one you chose.
 *Little Catch, a fishing game drawn from a whiteboard sketch: offered four looks, picked
 ukiyo-e, and repainted with real sprites. Seven pictures, 38¢ for the whole sitting.*
 
+## Tables: playing together across forks
+
+Copies of a ludant change. A neon fork and a 3D fork of the same tic-tac-toe look nothing alike, but they can still play each other, because the **rules don't live in any ludant**. The `table` surface is each frame's window onto shared play (`tables.mjs` on the server, `surfaces/table.js` in the frame).
+
+- **A rulebook** is plain JavaScript defining `init(seed, options)`, `join(state, player, request)`, `move(state, player, action)`, `view(state, player)` and `result(state)`. It's pure: JSON in and out, no clock, no network, no randomness except `random(n)` from its seed. Refusing is throwing, and the player sees the message.
+- **Drafts are private.** A ludant (or its person) writes one through the table, tries it with practice runs, and **locks** it. The hash of its source is then its name for good: anyone can read it by that hash, and it never changes. A fork that wants different rules locks a new rulebook and gets a new hash.
+- **The World runs the rules** (`rules.mjs`: QuickJS compiled to WebAssembly, vendored in `vendor/quickjs/`, because Workers can't `eval`). Every call gets a fresh context, a 16 MB cap and a step cap. No browser decides what's legal, so a game can draw anything and send anything. Each player gets their own `view`, so secrets work, and results can be trusted.
+- **Who joins is the rules' business** (`join`). The platform guarantees *who* is asking; the rules decide *whether* they get a place.
+- **A match is a hash chain of signed actions.** Each join or move is signed by the device key of the person taking it, over the match, its number, the hash before it and the action. The table signs in the frame, never in the sandbox. Anyone can fetch the log (with the signers' public keys) and check it: the chain, every signature, and a replay through the rulebook. `node tools/check-match.mjs <match> [install]` does exactly that.
+- **Live:** `GET matches/<id>?after=n` waits up to 25 seconds for the next action. The table follows its matches that way and emits `table.changed`. New seeds pass those events on to `game.table(e)`.
+- Actions are public (the log is), so anything secret goes in the state and is shown through `view`.
+
+`rulebooks/` has two: `tic-tac-toe.js`, and `shared-canvas.js` (any number of people drawing on one canvas, no turns, never over). The API is at the top of `tables.mjs`.
+
 ## Controllers and the couch
 
 Games get controllers in two layers, so every game is as playable as possible and each
@@ -372,7 +387,7 @@ On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`
 
 ### Limits, so nothing balloons
 
-Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per ludant: 60 pictures and 15 MB of them (1.1 MB each), the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
+Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per person: 50 drafts, 30 rulebooks locked a day. Per address: 100 matches opened a day. A rulebook is up to 60,000 characters, a match's state 200,000 characters of JSON, and a match up to 20,000 actions. Per ludant: 60 pictures and 15 MB of them (1.1 MB each), the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
 
 ### The site's pages
 
@@ -392,7 +407,7 @@ and `npx wrangler r2 bucket cors set gactant-art --file r2-cors.json`. Turn on t
 Scanning Tool for the gactant.com zone in the dashboard (it needs a contact email).
 
 `npm run deploy` (`tools/deploy.mjs`):
-1. **Smoke test** (`tools/smoke.mjs`): a fresh local server with scratch data. It checks pages and policies, owning and refusing, saving, publishing, copying, reports, events, ops and abandon. Nothing goes up if it fails.
+1. **Smoke test** (`tools/smoke.mjs`): a fresh local server with scratch data. It checks pages and policies, owning and refusing, saving, publishing, copying, art, tables (drafts, locking, signed matches, the log checked from outside), reports, events, ops and abandon. Nothing goes up if it fails.
 2. **`wrangler deploy`.**
 3. **Version check:** it waits until the World answers `/api/config` with the version just deployed. It tries gactant.com, then the workers.dev address, which answers only that route, for networks that block the site.
 
