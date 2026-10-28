@@ -227,6 +227,8 @@ export class Sim {
     if (d < 0.5) return;
     const step = Math.min(d, e.speed * dt);
     e.x += (dx / d) * step; e.y += (dy / d) * step;
+    e.walked = (e.walked ?? 0) + step;   // how far it has walked: its stride keeps time with this
+    e.moved = this.t;
     if (Math.abs(dx) > 1) e.face = dx > 0 ? 1 : -1;
     e.still = 0;
   }
@@ -271,18 +273,22 @@ export class Sim {
     if (t.x !== e.x) e.face = t.x > e.x ? 1 : -1;
     if (e.cool > 0) return;
     e.cool = e.cooldown;
+    e.swung = this.t;   // when it last attacked, and at what: for drawing a lunge or a recoil
+    e.swungAt = { x: t.x, y: t.y };
     const ambush = this.hidden(e) && e.has.has('burrow');
     e.reveal = 1.5;
     let dmg = e.dmg * (ambush ? 2 : 1);
     this.hurt(t, dmg, e);
     if (e.has.has('venom') && t.kind === 'unit') t.poison = { dps: (e.dmg * 0.4) / 3, left: 3, from: e.side };
     if (e.has.has('blast')) for (const o of this.entities) if (o.side !== e.side && o !== t && o.hp > 0 && dist(o, t) < 45 && this.canHit(e, o)) this.hurt(o, dmg * 0.5, e);
-    this.effects.push({ kind: e.melee ? 'bite' : 'shot', x0: e.x, y0: e.y, x: t.x, y: t.y, ttl: e.melee ? 0.15 : 0.12, side: e.side, blast: e.has.has('blast'), big: ambush });
+    this.effects.push({ kind: e.melee ? 'bite' : 'shot', x0: e.x, y0: e.y, x: t.x, y: t.y, ttl: e.melee ? 0.15 : 0.12, side: e.side, blast: e.has.has('blast'), big: ambush,
+      lab: e.kind === 'hq' ? 'base' : e.design.aid, venom: e.has.has('venom'), r: e.r, at: this.t });
   }
 
   hurt(t, amount, from, pure = false) {
     let a = pure ? amount : amount * (1 - t.armor);
     t.quiet = 0;
+    if (!pure) t.hit = this.t;
     if (t.shield > 0) { const soak = Math.min(t.shield, a); t.shield -= soak; a -= soak; }
     t.hp -= a;
     if (t.hp <= 0 && !t.dead) {
@@ -294,7 +300,7 @@ export class Sim {
   bury() {
     for (const e of this.entities.filter((x) => x.hp <= 0 && x.kind === 'unit')) {
       this.stats[e.side].lost++;
-      this.effects.push({ kind: 'death', x: e.x, y: e.y, r: e.r, ttl: 0.6, side: e.side });
+      this.effects.push({ kind: 'death', x: e.x, y: e.y, r: e.r, ttl: 0.6, side: e.side, at: this.t, art: e.design.art, face: e.face, flying: e.flying, young: e.young, lab: e.design.aid });
       if (e.has.has('brood') && !e.young) for (let i = 0; i < 2; i++) this.spawn(e.side, e.design, { x: e.x, y: e.y, r: 0 }, true).order = { ...e.order };
     }
     this.entities = this.entities.filter((x) => x.hp > 0 || x.kind === 'hq');

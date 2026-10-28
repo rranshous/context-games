@@ -8,6 +8,7 @@
 // drag to pan, pinch to zoom; Box makes the next drag select, Rally the next tap.
 
 import { AIDS } from './aids.js';
+import { Fx, drawSwaying, gaitOf, pose, silhouette } from './anim.js';
 import { cutout } from './cutout.js';
 import { RIVAL_UNITS } from './levels.js';
 import { Rival } from './rival.js';
@@ -43,6 +44,8 @@ class Match {
     for (const d of sim.sides.flatMap((s) => s.roster)) this.image(d.art);
     this.image(`img/bases/${aidId}.jpg`); this.image('img/bases/rival.jpg');
     this.ground = this.paintGround();
+    this.fx = new Fx(this.ground, this.images);
+    this.gaits = new Map();
     this.fog = document.createElement('canvas');
 
     this.resize();
@@ -280,7 +283,8 @@ class Match {
     this.last = now;
     if (!this.paused) {
       this.acc += dt * this.speed;
-      while (this.acc >= DT) { this.rival.tick(DT); this.sim.step(DT); this.acc -= DT; }
+      while (this.acc >= DT) { this.rival.tick(DT); this.sim.step(DT); this.acc -= DT; this.fx.take(this.sim.effects, (x, y) => this.visibleAt(x, y)); }
+      this.fx.update(dt * this.speed);
       if (this.sim.winner != null) return this.finish();
     }
     const pan = 520 * dt / this.cam.z, k = this.keys;
@@ -321,7 +325,8 @@ class Match {
     const g = this.g, c = this.cam, dpr = this.dpr, sim = this.sim;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#0c0d0e'; g.fillRect(0, 0, this.vw, this.vh);
-    g.setTransform(c.z * dpr, 0, 0, c.z * dpr, -c.x * c.z * dpr, -c.y * c.z * dpr);
+    const shake = this.fx.shake ? [(Math.random() - 0.5) * this.fx.shake, (Math.random() - 0.5) * this.fx.shake] : [0, 0];
+    g.setTransform(c.z * dpr, 0, 0, c.z * dpr, (-c.x * c.z + shake[0]) * dpr, (-c.y * c.z + shake[1]) * dpr);
     g.drawImage(this.ground, 0, 0);
 
     for (const d of sim.deposits) this.drawDeposit(d);
@@ -330,8 +335,9 @@ class Match {
     const seen = sim.seen?.[0] ?? new Set();
     const shown = sim.entities.filter((e) => e.side === 0 || seen.has(e.id)).sort((a, b) => (a.y + (a.flying ? 1000 : 0)) - (b.y + (b.flying ? 1000 : 0)));
     for (const e of shown) this.drawShadow(e);
+    this.fx.drawBodies(g, c.z);
     for (const e of shown) this.drawEntity(e);
-    for (const ef of sim.effects) this.drawEffect(ef, seen);
+    this.fx.draw(g, c.z, [this.color, RIVAL]);
     for (const m of this.marks) {
       g.strokeStyle = m.kind === 'attack' || m.kind === 'fight' ? RIVAL : m.kind === 'rally' ? '#e6e2d8' : this.color;
       g.globalAlpha = m.ttl / 0.6; g.lineWidth = 2 / c.z;
@@ -379,61 +385,50 @@ class Match {
   }
 
   drawEntity(e) {
-    const g = this.g, z = this.cam.z, mine = e.side === 0, col = mine ? this.color : RIVAL, sel = this.selected.has(e.id);
-    const lift = e.flying ? 18 + Math.sin(this.sim.t * 3 + e.id) * 2 : 0;
+    const g = this.g, z = this.cam.z, mine = e.side === 0, col = mine ? this.color : RIVAL, sel = this.selected.has(e.id), t = this.sim.t;
+    const unit = e.kind === 'unit';
+    if (unit && !this.gaits.has(e.design)) this.gaits.set(e.design, gaitOf(e.design));
+    const p = unit ? pose(e, this.gaits.get(e.design), t) : { lift: 0, tilt: 0, sx: 1, sy: 1, dx: 0, dy: 0, flash: Math.max(0, 1 - (t - (e.hit ?? -9)) / 0.13) * 0.5 };
     // The team ring, under it: the one sure way to tell whose it is.
     g.strokeStyle = sel ? '#ffffff' : col; g.lineWidth = (sel ? 3 : 2) / z;
     g.beginPath(); g.ellipse(e.x, e.y + e.r * 0.35, e.r * 1.1, e.r * 0.48, 0, 0, Math.PI * 2); g.stroke();
     if (sel) { g.strokeStyle = col; g.lineWidth = 1.5 / z; g.beginPath(); g.ellipse(e.x, e.y + e.r * 0.35, e.r * 1.1 + 4 / z, e.r * 0.48 + 3 / z, 0, 0, Math.PI * 2); g.stroke(); }
 
-    const url = e.kind === 'hq' ? (mine ? `img/bases/${this.aidId}.jpg` : 'img/bases/rival.jpg') : e.design.art;
+    const url = unit ? e.design.art : mine ? `img/bases/${this.aidId}.jpg` : 'img/bases/rival.jpg';
     const im = this.images.get(url);
-    const boxH = e.kind === 'hq' ? e.r * 2.8 : e.r * (e.young ? 3 : 3.8), boxW = e.r * 4.4;
-    const hidden = this.sim.hidden(e);
-    g.globalAlpha = hidden ? 0.4 : 1;
-    let top = e.y + e.r * 0.45 - lift - boxH;
+    const boxH = unit ? e.r * (e.young ? 3 : 3.8) : e.r * 2.8, boxW = e.r * 4.4;
+    let h = boxH;
+    g.globalAlpha = this.sim.hidden(e) ? 0.4 : 1;
+    g.save();
+    g.translate(e.x + p.dx, e.y + e.r * 0.45 - p.lift + p.dy);
+    g.rotate(p.tilt * (e.face || 1));
     if (im) {
-      const k = Math.min(boxH / im.height, boxW / im.width), w = im.width * k, h = im.height * k;
-      top = e.y + e.r * 0.45 - lift - h;
-      g.save(); g.translate(e.x, 0); if (e.face < 0 && e.kind === 'unit') g.scale(-1, 1);
-      g.drawImage(im, -w / 2, top, w, h); g.restore();
+      const k = Math.min(boxH / im.height, boxW / im.width), w = im.width * k;
+      h = im.height * k;
+      g.scale((unit && e.face < 0 ? -1 : 1) * p.sx, p.sy);
+      drawSwaying(g, im, w, h, p.sway);
+      if (p.flash > 0) { g.globalAlpha = p.flash * 0.85; g.drawImage(silhouette(im), -w / 2, -h, w, h); }
     } else {
-      g.fillStyle = col; g.beginPath(); g.arc(e.x, e.y - lift, e.r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = col; g.beginPath(); g.arc(0, -e.r, e.r, 0, Math.PI * 2); g.fill();
     }
+    g.restore();
     g.globalAlpha = 1;
-    if (e.poison) { g.fillStyle = '#9fe060'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(e.x + Math.sin(this.sim.t * 4 + i * 2) * e.r, top + boxH * 0.4 + i * 4, 2 / z + 1, 0, Math.PI * 2); g.fill(); } }
+    if (unit && p.dust && this.sim.t - (e.moved ?? -1) < 0.12) this.fx.dust(e.x - (e.face || 1) * e.r * 0.8, e.y, e.r);
+    if (unit && p.footfall && e.r >= 14 && Math.random() < 0.3) this.fx.dust(e.x, e.y, e.r);
+
+    const top = e.y + e.r * 0.45 - p.lift - h * p.sy;
+    if (e.poison) { g.fillStyle = '#9fe060'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(e.x + Math.sin(t * 4 + i * 2) * e.r, top + h * 0.4 + i * 4, 2 / z + 1, 0, Math.PI * 2); g.fill(); } }
     if (e.sieged) {
       g.strokeStyle = col; g.lineWidth = 2 / z;
       for (const s of [-1, 1]) { g.beginPath(); g.moveTo(e.x + s * e.r * 1.3, e.y + e.r * 0.8); g.lineTo(e.x + s * e.r * 1.6, e.y + e.r * 1.1); g.stroke(); }
     }
     // Health, when it's hurt or picked.
-    if (e.hp < e.maxHp || sel || e.kind === 'hq') {
+    if (e.hp < e.maxHp || sel || !unit) {
       const w = Math.max(26, e.r * 2.2), x = e.x - w / 2, y = top - 8, k = Math.max(0, e.hp / e.maxHp);
       g.fillStyle = '#000a'; g.fillRect(x - 1, y - 1, w + 2, 6);
       g.fillStyle = k > 0.6 ? '#7fc35a' : k > 0.3 ? '#d6b44a' : '#d0503c'; g.fillRect(x, y, w * k, 4);
       if (e.maxShield) { g.fillStyle = '#6ab0e8'; g.fillRect(x, y - 3, w * (e.shield / e.maxShield), 2); }
     }
-  }
-
-  drawEffect(ef, seen) {
-    const g = this.g, z = this.cam.z, col = ef.side === 0 ? this.color : RIVAL;
-    if (ef.side !== 0 && ef.kind !== 'death' && !this.visibleAt(ef.x0 ?? ef.x, ef.y0 ?? ef.y) && !this.visibleAt(ef.x, ef.y)) return;
-    g.globalAlpha = Math.min(1, ef.ttl * 6);
-    if (ef.kind === 'shot') {
-      g.strokeStyle = col; g.lineWidth = (ef.big ? 3 : 1.6) / z;
-      g.beginPath(); g.moveTo(ef.x0, ef.y0 - 10); g.lineTo(ef.x, ef.y - 8); g.stroke();
-      if (ef.blast) { g.strokeStyle = '#ffb060'; g.lineWidth = 2 / z; g.beginPath(); g.arc(ef.x, ef.y, 45 * (1 - ef.ttl * 4), 0, Math.PI * 2); g.stroke(); }
-    } else if (ef.kind === 'bite') {
-      g.strokeStyle = '#fff'; g.lineWidth = 2 / z;
-      for (let i = 0; i < 3; i++) { const a = i * 2.1 + ef.ttl * 9; g.beginPath(); g.moveTo(ef.x, ef.y - 8); g.lineTo(ef.x + Math.cos(a) * 9, ef.y - 8 + Math.sin(a) * 9); g.stroke(); }
-    } else if (ef.kind === 'death') {
-      g.globalAlpha = ef.ttl / 0.6;
-      g.fillStyle = '#00000066'; g.beginPath(); g.ellipse(ef.x, ef.y, ef.r * (2 - ef.ttl), ef.r * (1 - ef.ttl * 0.5), 0, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = col; g.lineWidth = 2 / z; g.beginPath(); g.arc(ef.x, ef.y - ef.r, ef.r * (2.2 - ef.ttl * 2), 0, Math.PI * 2); g.stroke();
-    } else if (ef.kind === 'leap') {
-      g.strokeStyle = col; g.lineWidth = 2 / z; g.beginPath(); g.ellipse(ef.x, ef.y, 30 * (1 - ef.ttl), 14 * (1 - ef.ttl), 0, 0, Math.PI * 2); g.stroke();
-    }
-    g.globalAlpha = 1;
   }
 
   visibleAt(x, y) { return this.sim.entities.some((e) => e.side === 0 && Math.hypot(e.x - x, e.y - y) <= e.sight); }
