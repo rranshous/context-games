@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mantle</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="pick" hidden>
+  <h1>Mantle</h1>
+  <p class="lede">Your army starts with nothing. Every unit in it is one you design, with the one person you work with. Who will it be?</p>
+  <div id="aids"></div>
+</main>
+
+<main id="lab" hidden>
+  <header>
+    <h1>Mantle</h1>
+    <span id="where"></span>
+    <button id="switch" class="quiet">work with someone else</button>
+  </header>
+
+  <section id="talk">
+    <div id="who"></div>
+    <div id="log"></div>
+    <form id="say">
+      <textarea id="words" rows="2" placeholder="Describe a unit you want…"></textarea>
+      <button>Say</button>
+    </form>
+  </section>
+
+  <section id="bench">
+    <div id="card">
+      <div id="art"></div>
+      <h2 id="name"></h2>
+      <p id="description"></p>
+    </div>
+    <div id="sheet"></div>
+    <div id="bench-actions">
+      <button id="keep" disabled>Keep this design</button>
+      <button id="fresh" class="quiet">Start a new one</button>
+    </div>
+  </section>
+
+  <section id="roster">
+    <h3>Your designs</h3>
+    <div id="kept"></div>
+  </section>
+</main>
+<script type="module" src="js/lab.js"></script>
+</body>
+</html>

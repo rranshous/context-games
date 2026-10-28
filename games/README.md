@@ -84,6 +84,11 @@ Command a flock of swords that moves and attacks as a swarm. Boids flocking algo
 ### [Fastfall](./fastfall/)
 First-person freefall — jump from a hot air balloon and navigate platforms on the way down. 3D-like perspective on 2D canvas.
 
+## Strategy
+
+### [Mantle](./mantle/)
+A real-time strategy game where you design your own units. Pick who you work with, a biologist who grows war-beasts or an engineer who builds war machines, and describe what you want. They design it, the game prices it with a fixed formula so the same spec costs the same for everyone, and it's drawn. So far: the lab. Next: fights against the computer.
+
 ## Artificial Life
 
 ### [andnow](./andnow/)
