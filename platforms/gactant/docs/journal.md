@@ -2175,3 +2175,40 @@ Smoke is 61 checks now: thumbs served and replaced (the old file 404s), art kept
 Checked in the MCP's Chrome. It first gave `ERR_SSL_PROTOCOL_ERROR` again; closing and reopening the browser fixed it again. The lobby's five thumbs load from `https://art.gactant.com/t/p-…`. A fresh copy of Anithis-Skuntin read all eight of its pictures back (backyard, Teddy, Bruce, skunks, the family) and drew them, with no policy errors. Both test copies were abandoned afterwards.
 
 Still Robby's: turning on the CSAM Scanning Tool for the zone in the dashboard.
+
+## Part 17: tables (a design, before any code)
+
+Robby: "I'm interested in how a game might register a deterministic backend so that other copies of the game could participate in multiplayer, even forks which have changed... the ludants can all do multiplayer in the same 'game'. An easy example would be tic-tac-toe. The interface could be wildly diff but at the end of the day all the ludants are able to play the multiplayer tic-tac-toe."
+
+We talked it through before writing anything. Where it landed:
+
+**Words.** "Game" already means a ludant's own stage code, its interface, so it isn't free.
+- **Table:** a surface, the frame's window onto shared play. The first surface that's *shared*: every other one lives in one frame, but this one looks into the World, and many frames look into the same place. It's also the first whose behavior comes from content: chat is always chat, but a table is whatever its rules say.
+- **Rulebook:** a small, pure module: `init(seed, players)`, `join(state, player, request)`, `move(state, player, action)`, `view(state, player)`, `result(state)`. No drawing, no network, no clock, no randomness but its seed.
+- **Match:** one run of one rulebook: its places, its seed, its log, its result.
+- **Place:** a position in a match. Not "seat": a seat already means the person sitting with a ludant ("the seat is a person, not a role").
+
+**Where rulebooks live: outside the soma.** I leaned toward a soma section, so rules would be body and a fork that edited them would found a new table on its own. Robby's instinct went the other way, and it's cleaner: "an actant can load a draft rulebook into the shared surface, work on it there, and then lock it in and get the reference to it." So through the table, a ludant (or its person) can:
+1. **draft** a rulebook. The draft is in the World, private to its owner, and still changing, and the table can run practice matches on it;
+2. **lock** it: frozen and hashed, and the hash is its reference. A hash always means exactly those rules;
+3. **load** any locked rulebook by reference and read it;
+4. **open or join** a match of a locked rulebook.
+
+A fork inherits the reference (in its game code or its memory), not the rules. New rules are a new draft and a new hash, and whatever plays the old hash keeps its table.
+
+**The World runs the rules.** I had to say what "the server enforces the rules" means. No browser decides what's legal. A move goes to the World, which loads the match and the rulebook by hash and runs `move`. A refusal changes nothing. An accepted move is logged, and each place gets its own `view`. So a fork can draw anything and send anything, and only the rules decide. That's also what makes hidden information possible (each player's `view` is only theirs), and results that can be trusted. Lockstep (each browser runs the rules, the server only orders moves) is cheaper, but it trusts every client and hides nothing. Workers can't `eval`, so rulebooks run in **QuickJS compiled to WebAssembly** inside the World, with a cap on time and memory per call, and the same QuickJS runs them locally in Node.
+
+**Who joins is the rules' business.** Robby: "let's make that part of the logic of the rule book." The platform guarantees *who* (identity proven before the rules see it); `join` decides *whether* (two players and no more, a code the first player chose, whatever it likes). Tic-tac-toe's gives the first player X, the second O, and refuses a third.
+
+**Keys and signing.** Robby: "make sure that we are using our keys and signing techniques here to control participation in matches."
+- A place belongs to a **person playing through a ludant**, proven by their pass.
+- **Every action (a join or a move) is signed by the device's key**, over the match, the action's number, the hash of the log so far, and the action. The log is a hash chain of signed actions: anyone can replay it from the rulebook and the seed and check who did what in what order, and that nothing was changed or slipped in, by the server included. Results and leaderboards become provable, not claimed.
+- **The table signs, never the ludant.** A ludant's code runs in the sandbox and says "cell 4"; the table, in the frame, signs. A ludant can't move for anyone but its own person, and a person's key never meets code an AI wrote. A ludant may still move on its own initiative, as with any surface. Only an open frame can sign, so nobody plays while nobody's there.
+
+**Drafts are private** until locked; a locked rulebook is readable by anyone with its reference.
+
+**Leaderboards** then fall out of `result`, per rulebook hash, across every fork that plays it.
+
+**The demo:** a tic-tac-toe ludant drafts and locks a rulebook. A fork of it goes neon, a fork of that goes 3D, and maybe one is text only. Two explorer shards, in different forks, play a real match.
+
+**Order of work:** QuickJS running a rulebook (Node and the World), then the tic-tac-toe rulebook, then matches with signed logs, then the table surface, then the fork tree.
