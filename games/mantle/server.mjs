@@ -75,7 +75,7 @@ const routes = {
   'GET /api/designs': async () => readdirSync(join(DATA, 'designs')).filter((f) => f.endsWith('.json'))
     .map((f) => JSON.parse(readFileSync(join(DATA, 'designs', f), 'utf8'))).sort((a, b) => b.kept.localeCompare(a.kept)),
   'POST /api/designs': async (design) => {
-    const id = safe(design.id) || randomUUID();
+    const id = (design.id && safe(design.id)) || randomUUID();
     const kept = { ...design, id, kept: new Date().toISOString() };
     writeFileSync(join(DATA, 'designs', `${id}.json`), JSON.stringify(kept, null, 1));
     return kept;

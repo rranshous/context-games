@@ -118,3 +118,14 @@ Robby: "could i get an explaination when i mouse over one, also maybe make the U
   - In the shop, the monospace labels squeezed the stat bars down to a sliver. The bar cell now takes the spare width.
   - The white pockets under the repair drone were too small to clear. The size floor went from 0.15% to 0.05% of the image, and the whiteness floor from 244 to 240.
 
+
+### The roster that kept resetting
+
+Robby: "my roster seems to be resetting every time i add another unit."
+
+- **The cause:** a new design has no id until the server gives it one. But `safe(undefined)` gives the string `"undefined"`, which is truthy, so every design was saved as `data/designs/undefined.json`, over the one before. Only the newest survived.
+- **A second, quieter bug** sat behind it: the bench carried its id from one design to the next. If you kept a unit and then asked for a different one without clicking "Start a new one", keeping the new one would have replaced the old one.
+- **The fixes:**
+  - The server makes an id unless the design really has one.
+  - A design keeps its id only while its name stays the same. The same name means a revision, kept over the old one. A new name means a new unit.
+- **Recovering what was lost:** the log has every `propose_unit` call and every picture, matched by its look. Pathfinder, Dart, Patchwork and Acid Bulwark were rebuilt from it, and Anvil was renamed from `undefined.json`.

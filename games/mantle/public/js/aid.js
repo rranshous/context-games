@@ -125,7 +125,10 @@ Costs ${priced.cost} (${priced.lines.map((l) => `${l.what} ${l.cost}`).join(', '
     if (!look) return { error: 'a new unit needs a look, for its picture' };
     const redraw = !this.bench?.art || (input.look?.trim() && input.look.trim() !== this.bench.look) || this.bench.spec.size !== spec.size;
     const priced = price(spec, this.id);
-    this.bench = { id: this.bench?.id, name: input.name, description: input.description, look, spec, priced, art: redraw ? null : this.bench.art };
+    // Same name, same design (a revision, kept over the old one). A new name is a new unit,
+    // even if the bench wasn't cleared first.
+    const id = this.bench?.name === input.name ? this.bench.id : undefined;
+    this.bench = { id, name: input.name, description: input.description, look, spec, priced, art: redraw ? null : this.bench.art };
     if (redraw) this.draw(this.bench);
     this.onChange(this.bench);
     return { ok: true, cost: priced.cost, where_the_cost_comes_from: priced.lines, room: priced.supply, seconds: priced.seconds, redrawn: !!redraw };
