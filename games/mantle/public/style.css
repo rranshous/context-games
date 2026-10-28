@@ -76,7 +76,8 @@ body[data-aid="brackett"] { --room: url(img/ui/brackett/room.jpg); --bg: #15130e
 .topbar .where span { font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .actionbar { grid-area: act; display: flex; align-items: center; gap: 14px; min-width: 0; padding: 4px 8px; --panel-w: 16px; }
 .actionbar .shelf { flex: 1; min-width: 0; }
-.actionbar > .main { flex: none; min-width: 230px; }
+.actionbar > .main, .actionbar > #front { flex: none; min-width: 230px; }
+#front.plate { min-height: 50px; color: var(--dim); }
 
 /* ---------- the title ---------- */
 #title { place-items: center; text-align: center; padding: 24px 16px; }
