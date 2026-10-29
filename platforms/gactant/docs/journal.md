@@ -2289,3 +2289,12 @@ The kill went wrong again while restarting `wrangler dev`: walking the process t
 **`winners`.** I suggested results name people, not places. Robby didn't follow at first ("we need to make a change to better encode the winner?"), then: "lets take the contract you've used here". `result` was `{ winner: 'X', line }`, and only the rulebook knows that X was Alice in that match, so the platform couldn't count wins across matches. Now a result that's over may carry `winners: [player ids]` (`[]` for a draw), and standings count that. It's optional: the canvas has none. `rulebooks/tic-tac-toe.js` returns it now. Its hash changes, but nothing was deployed, and only the local demo forks play the old one.
 
 The two hand-written rulebooks sat in a top-level `rulebooks/` folder, which made them look like part of the platform. Robby asked what they were. The platform never loads them (rulebooks reach the server only by being drafted and locked); tic-tac-toe is the smoke test's fixture, and the canvas was pasted in by hand for the demo. Both moved to `tools/fixtures/`, each saying so at its top.
+
+## Part 19: standings
+
+Robby, briefly: imagine how leaderboards could work. Three shapes: a board per rulebook, ludants drawing it themselves, and later a board of the fork tree (which versions are played and won with most). "Yea, let's build for the first two."
+
+- **A board per rulebook** (`standings`, one document per rulebook hash). When an action ends a match (its result was null and now isn't) and the result has `winners`, everyone in the match gets a win, a loss, or a draw (`winners: []`). Ranked by wins, then fewest losses, then most played. It keeps up to 5,000 people, and the least recent go first. `GET rulebooks/<hash>/standings?n=20` returns the top and your own line. Smoke checks a win, a loss, and where you stand.
+- **The ludant draws it.** `table.standings(hash, n)`. The table's description says it's the same board for every ludant that plays the rulebook, kept by the server and impossible to fake, and that how it looks is the ludant's to choose. The seed's `table` tool knows the op.
+
+Not yet: asking a ludant to put the board in its game. The Playwright connection dropped before I could, and that's the real test of the second half.

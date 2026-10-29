@@ -173,6 +173,9 @@ try {
   const won = await act(pass, A, 'move', { cell: 2 }, { ludant: id });
   ok('X wins, and the result names the person who won', won.json.result?.winner === 'X' && won.json.result.winners?.[0] === me.id, JSON.stringify(won.json));
   ok('a move after the end is refused', (await act(stranger, S, 'move', { cell: 8 })).status === 422);
+  const board = (await call('GET', `rulebooks/${rb}/standings`, undefined, as(stranger))).json;
+  ok('standings count the match: a win and a loss', board.matches === 1 && board.players?.[0]?.id === me.id && board.players[0].wins === 1 && board.players[1]?.losses === 1, JSON.stringify(board));
+  ok('and say where you stand', board.you?.rank === 2 && board.you.losses === 1);
   const seen = (await call('GET', `matches/${match.id}`, undefined, as(stranger))).json;
   ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);
   ok('the rulebook lists its matches', (await call('GET', `rulebooks/${rb}/matches`)).json[0]?.id === match.id);

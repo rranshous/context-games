@@ -34,6 +34,9 @@
 //   POST drafts/<id>/remove              -> {}
 //   GET  rulebooks/<hash>                -> { id, name, source, by, at, from, weight }
 //   GET  rulebooks/<hash>/matches        -> [{ id, at, updated, n, over, players, view }]   newest first; view: an onlooker's
+//   GET  rulebooks/<hash>/standings?n=20 -> { rulebook, name, matches, players: [{ rank, id, name, wins, losses, draws,
+//                                             played, last }], you }   every match of it that ended with winners,
+//                                           whichever ludant it was played through; you: your line, if you're on it
 //   POST matches { rulebook, options? }  -> { id, n, head }                 a new match, nobody in it yet
 //   GET  matches/<id>?after=<n>          -> { id, rulebook, name, at, n, head, view, result, you, last, archived? }
 //                                           view: yours. With after, it waits (up to 50 seconds) until the
@@ -71,6 +74,8 @@ const WORLD_MATCHES_A_DAY = 2_000;
 const ARCHIVE_OVER_MS = 3600_000;   // a match that's over is archived after this
 const ARCHIVE_IDLE_DAYS = 30;       // any match nobody acted in for this long is archived
 const LISTED = 30;                  // matches listed for a rulebook
+const STANDING = 5_000;             // people a rulebook's standings keep (the least recent go first)
+const SHOWN = 100;                  // people standings show at most
 
 const enc = new TextEncoder();
 const sha = async (s) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(String(s)))), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -175,8 +180,41 @@ export function createTables({ store, people, httpError, owns, settings }) {
     steps(person, out.steps);
     add('actions', person); add('actions-minute', person, 1, minute()); add('actions', 'world');
     settings.count?.('table actions');
-    await store.put('match-index', id, indexed(await read('match-index', id), out));
+    const before = await read('match-index', id);
+    if (!before.result && out.result) await ended(before.rulebook, out.result, out.members);
+    await store.put('match-index', id, indexed(before, out));
     return { n: out.n, head: out.head, view: out.view, result: out.result, ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
+  }
+
+  // ---------- standings: per rulebook, from every match of it that ended ----------
+
+  /** A match just ended: count it, if its result names who won (winners: [player ids], []
+   *  for a draw). Everyone who took part and didn't win lost; nobody won, everybody drew. */
+  async function ended(rulebook, result, members) {
+    if (!Array.isArray(result?.winners)) return;
+    const s = (await store.get('standings', rulebook)) ?? { rulebook, matches: 0, players: {} };
+    const won = new Set(result.winners.map(String));
+    for (const [person, name] of Object.entries(members ?? {})) {
+      const p = s.players[person] ??= { name, wins: 0, losses: 0, draws: 0 };
+      p.name = name ?? p.name;
+      if (!won.size) p.draws++;
+      else if (won.has(person)) p.wins++;
+      else p.losses++;
+      p.last = now();
+    }
+    s.matches++;
+    s.updated = now();
+    const ids = Object.keys(s.players);
+    if (ids.length > STANDING) for (const id of ids.sort((a, b) => s.players[a].last.localeCompare(s.players[b].last)).slice(0, ids.length - STANDING)) delete s.players[id];
+    await store.put('standings', rulebook, s);
+    settings.count?.('table matches ended');
+  }
+
+  /** Most wins first; then the fewest losses; then the most played. */
+  function ranked(s) {
+    return Object.entries(s?.players ?? {}).map(([id, p]) => ({ id, ...p, played: p.wins + p.losses + p.draws }))
+      .sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.played - a.played || a.name?.localeCompare?.(b.name))
+      .map((p, i) => ({ rank: i + 1, ...p }));
   }
 
   /** A match moved to the archive: its log whole, its object gone, its summary kept. */
@@ -243,6 +281,12 @@ export function createTables({ store, people, httpError, owns, settings }) {
     if (a === 'rulebooks' && b && method === 'GET') {
       const rb = await read('rulebooks', b);
       if (!c) { const { owner, ...shown } = rb; return shown; }
+      if (c === 'standings') {
+        const all = ranked(await store.get('standings', rb.id));
+        const n = Math.min(SHOWN, Math.max(1, Number(query.get('n')) || 20));
+        const mine = from.person ? all.find((p) => p.id === from.person) ?? null : null;
+        return { rulebook: rb.id, name: rb.name, matches: (await store.get('standings', rb.id))?.matches ?? 0, players: all.slice(0, n), you: mine };
+      }
       if (c === 'matches') {
         return (await store.list('match-index')).filter((m) => m.rulebook === rb.id)
           .sort((x, y) => (y.updated ?? y.at).localeCompare(x.updated ?? x.at)).slice(0, LISTED).map(listed);
