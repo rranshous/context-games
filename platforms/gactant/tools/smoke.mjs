@@ -139,7 +139,7 @@ try {
   ok('admin lists owners by person', Array.isArray(owners.json) && owners.json.every((l) => l.owned && /Smoke|Stranger/.test(l.owner)));
   ok('a ludant a person owns can\'t be given away', (await call('POST', 'admin/own', { token: TOKEN, ludant: id, person: 'p-0000000000000000' })).status === 409);
   // Tables: a draft, private; tried; locked by hash; a match of signed actions.
-  const ttt = readFileSync(join(HERE, 'rulebooks/tic-tac-toe.js'), 'utf8');
+  const ttt = readFileSync(join(HERE, 'tools/fixtures/tic-tac-toe.js'), 'utf8');
   const draft = await call('POST', 'drafts', { name: 'tic-tac-toe', source: 'function init() { return {} }' }, as(pass));
   ok('a draft', draft.json.id, JSON.stringify(draft.json));
   ok('it says what it still needs', (await call('GET', `drafts/${draft.json.id}`, undefined, as(pass))).json.missing?.join() === 'join,move,view,result');

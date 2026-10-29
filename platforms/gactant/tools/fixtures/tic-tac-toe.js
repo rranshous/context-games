@@ -1,3 +1,6 @@
+// A test fixture: the smoke test (tools/smoke.mjs) drafts, locks and plays this rulebook.
+// The platform never loads it; real rulebooks are drafted and locked through a table.
+//
 // Tic-tac-toe: two places, X and O; X moves first. An action is { cell: 0-8 },
 // numbered left to right, top to bottom.
 

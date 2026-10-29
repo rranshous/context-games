@@ -1,3 +1,6 @@
+// An example rulebook, written by hand for the first shared-canvas demo (docs/journal.md,
+// Part 17). The platform never loads it; real rulebooks are drafted and locked through a table.
+//
 // A shared canvas: anyone may join, nobody takes turns, and it never ends. Each player
 // draws strokes in their own color; the canvas keeps the newest strokes.
 // An action is a stroke: { points: [[x, y], ...], color?, width? }, x and y from 0 to 1

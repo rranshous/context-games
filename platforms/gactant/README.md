@@ -252,7 +252,7 @@ Copies of a ludant change. A neon fork and a 3D fork of the same tic-tac-toe loo
 - **Live:** `GET matches/<id>?after=n` waits up to 25 seconds for the next action. The table follows its matches that way and emits `table.changed`. New seeds pass those events on to `game.table(e)`.
 - Actions are public (the log is), so anything secret goes in the state and is shown through `view`.
 
-`rulebooks/` has two: `tic-tac-toe.js`, and `shared-canvas.js` (any number of people drawing on one canvas, no turns, never over). The API is at the top of `tables.mjs`.
+Rulebooks reach the server only by being drafted and locked through a table; the platform ships none. `tools/fixtures/` has two hand-written ones: `tic-tac-toe.js`, which the smoke test drafts, locks and plays, and `shared-canvas.js` (any number of people drawing on one canvas, no turns, never over), an example. The API is at the top of `tables.mjs`.
 
 ## Controllers and the couch
 
