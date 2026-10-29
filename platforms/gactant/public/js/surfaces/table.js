@@ -40,6 +40,15 @@ export class Table {
     this.seen = new Map();       // match -> { view, n, head, result, you, rulebook, name }
     this.watching = new Set();
     this.polls = new Map();      // match -> AbortController
+    this.draftNames = new Map(); // draft id -> name, for saying what's being worked on
+  }
+
+  /** Working on rules shows in the chat while the ludant's awake ("testing multiplayer
+   *  rules for “tic-tac-toe”…"), as changing its game does. */
+  working(verb, id, name) {
+    if (name) this.draftNames.set(id, name);
+    const called = name ?? this.draftNames.get(id);
+    this.frame.actant?.busy?.(`${verb} multiplayer rules${called ? ` for “${called}”` : ''}`);
   }
 
   describe() {
@@ -58,11 +67,15 @@ export class Table {
   actions(who) {
     return {
       drafts: () => api('GET', 'drafts'),
-      draft: (o = {}) => api('POST', 'drafts', { name: o.name, source: o.source ?? '', from: o.from }),
-      readDraft: (id) => api('GET', `drafts/${id}`),
-      writeDraft: (id, o = {}) => api('PUT', `drafts/${id}`, { name: o.name, source: o.source }),
-      tryDraft: (id, o = {}) => api('POST', `drafts/${id}/try`, o),
-      lock: (id) => api('POST', `drafts/${id}/lock`, {}),
+      draft: async (o = {}) => {
+        const d = await api('POST', 'drafts', { name: o.name, source: o.source ?? '', from: o.from });
+        this.working('writing', d.id, o.name);
+        return d;
+      },
+      readDraft: async (id) => { const d = await api('GET', `drafts/${id}`); if (d?.name) this.draftNames.set(id, d.name); return d; },
+      writeDraft: (id, o = {}) => { this.working('writing', id, o.name); return api('PUT', `drafts/${id}`, { name: o.name, source: o.source }); },
+      tryDraft: (id, o = {}) => { this.working('testing', id); return api('POST', `drafts/${id}/try`, o); },
+      lock: (id) => { this.working('locking', id); return api('POST', `drafts/${id}/lock`, {}); },
       removeDraft: (id) => api('POST', `drafts/${id}/remove`, {}),
       rulebook: (hash) => api('GET', `rulebooks/${hash}`),
       matches: (hash) => api('GET', `rulebooks/${hash}/matches`),

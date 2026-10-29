@@ -153,16 +153,23 @@ export class Body {
     // Changing its code while awake: people should see it's changing, not just thinking,
     // and see the moment a new game lands (it starts over).
     if (['game', 'hooks', 'tools'].includes(changed) && this.state.thinking) {
-      this.changing = changed === 'game' ? 'its game' : 'itself';
-      this.frame.chat.showLife();
+      this.busy(changed === 'game' ? 'changing its game' : 'changing itself');
     }
     if (changed === 'game') this.frame.stage.rebuilt(by);
     this.frame.changed();
   }
 
+  /** What it's doing while awake, in a few words for the chat ("changing its game"):
+   *  the latest thing, until it goes back to sleep. */
+  busy(doing) {
+    if (!this.state.thinking) return;
+    this.doing = doing;
+    this.frame.chat.showLife();
+  }
+
   lived(state) {
     this.state = state;
-    if (!state.thinking) { this.changing = null; this.frame.stage.ludantDone(); }
+    if (!state.thinking) { this.doing = null; this.frame.stage.ludantDone(); }
     this.frame.status.setLife(state.life, state.detail);
   }
 

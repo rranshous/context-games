@@ -1,7 +1,8 @@
 // Choices: a question for the people here, with a few options to pick from, each with a
 // picture or just words. Picking is easier than typing, above all from a couch with a
 // controller. The options show over the stage; a pick arrives in the chat as the
-// person's own words (so any ludant hears it), and as an event.
+// person's own words (so any ludant hears it), and as an event. Someone answering in the
+// chat instead closes it: they've answered, and it shouldn't stay over their game.
 //
 // actions (as an actor)
 //   offer({ question, options: [{ label, image?, note? }] }) -> { offered }   2 to 6 options;
@@ -20,10 +21,11 @@ export class Choices {
   constructor(frame) {
     this.frame = frame;
     this.open = null;   // { question, options, by, at, stage? }
+    frame.bus.on('chat.posted', (e) => { if (this.open && e.who !== this.open.by) this.withdraw(); });
   }
 
   describe() {
-    return `choices: put a question to the people here with 2 to 6 options to pick from, each with a picture (an art name, or 'stage') or just words. They pick with a click, a tap or a controller, and their pick reaches you in the chat as their words. It's the easiest way for them to answer, above all from a couch, and the way to show options rather than describe them (say, three concept pictures of how you could look). Actions: offer({ question, options: [{ label, image, note }] }), withdraw().`;
+    return `choices: put a question to the people here with 2 to 6 options to pick from, each with a picture (an art name, or 'stage') or just words. They pick with a click, a tap or a controller, and their pick reaches you in the chat as their words. If they answer in the chat instead, the options close. It's the easiest way for them to answer, above all from a couch, and the way to show options rather than describe them (say, three concept pictures of how you could look). Actions: offer({ question, options: [{ label, image, note }] }), withdraw().`;
   }
 
   state() { return this.open ? `choices: open now, "${this.open.question}" (${this.open.options.map((o) => o.label).join(' / ')}).` : null; }

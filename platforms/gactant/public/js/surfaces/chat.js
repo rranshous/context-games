@@ -68,9 +68,9 @@ export class Chat {
     if (!this.head) return;
     const { life, detail } = this.frame.status;
     const name = this.frame.actant?.name ?? 'the ludant';
-    const changing = life === 'thinking' ? this.frame.actant?.changing : null;
+    const busy = life === 'thinking' ? this.frame.actant?.doing : null;
     const painting = [...(this.frame.art?.painting.values() ?? [])];
-    const doing = painting.length ? `painting ${painting.map((n) => `“${n}”`).join(', ')}` : changing ? `changing ${changing}` : null;
+    const doing = painting.length ? `painting ${painting.map((n) => `“${n}”`).join(', ')}` : busy;
     const words = doing ? `${doing}…` : { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
     this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
       detail ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
