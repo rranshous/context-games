@@ -411,6 +411,10 @@ The pictures' bucket, once: `npx wrangler r2 bucket create gactant-art`, then
 and `npx wrangler r2 bucket cors set gactant-art --file r2-cors.json`. Turn on the CSAM
 Scanning Tool for the gactant.com zone in the dashboard (it needs a contact email).
 
+The matches' archive, once: `npx wrangler r2 bucket create gactant-matches`. Matches live in
+their own Durable Object class, `Match` (migration `v2` in `wrangler.toml`, applied by the deploy).
+`node tools/sweep-matches.mjs` archives any Match object the World's index doesn't know.
+
 `npm run deploy` (`tools/deploy.mjs`):
 1. **Smoke test** (`tools/smoke.mjs`): a fresh local server with scratch data. It checks pages and policies, owning and refusing, saving, publishing, copying, art, tables (drafts, locking, signed matches, the log checked from outside), reports, events, ops and abandon. Nothing goes up if it fails.
 2. **`wrangler deploy`.**
