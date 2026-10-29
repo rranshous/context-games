@@ -171,7 +171,7 @@ try {
   ok('playing through a ludant that isn\'t yours is refused', (await act(pass, A, 'move', { cell: 0 }, { ludant: linkCopy.json.id })).status === 403);
   for (const [who, dev, cell] of [[pass, A, 0], [stranger, S, 3], [pass, A, 1], [stranger, S, 4]]) await act(who, dev, 'move', { cell });
   const won = await act(pass, A, 'move', { cell: 2 }, { ludant: id });
-  ok('X wins', won.json.result?.winner === 'X', JSON.stringify(won.json));
+  ok('X wins, and the result names the person who won', won.json.result?.winner === 'X' && won.json.result.winners?.[0] === me.id, JSON.stringify(won.json));
   ok('a move after the end is refused', (await act(stranger, S, 'move', { cell: 8 })).status === 422);
   const seen = (await call('GET', `matches/${match.id}`, undefined, as(stranger))).json;
   ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);

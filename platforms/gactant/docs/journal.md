@@ -2285,3 +2285,5 @@ And on feedback: "does the table give good feedback during the draft session?" I
 The kill went wrong again while restarting `wrangler dev`: walking the process tree from the dev server also hit the shell that had launched it (exit 144). Running the dev server as a background task, and stopping it as a task, avoids all of it.
 
 **Not done:** deploying, which needs the `v2` migration (the `Match` class) and the `gactant-matches` bucket, both ready. Lobbies and leaderboards come next.
+
+**`winners`.** I suggested results name people, not places. Robby didn't follow at first ("we need to make a change to better encode the winner?"), then: "lets take the contract you've used here". `result` was `{ winner: 'X', line }`, and only the rulebook knows that X was Alice in that match, so the platform couldn't count wins across matches. Now a result that's over may carry `winners: [player ids]` (`[]` for a draw), and standings count that. It's optional: the canvas has none. `rulebooks/tic-tac-toe.js` returns it now. Its hash changes, but nothing was deployed, and only the local demo forks play the old one.

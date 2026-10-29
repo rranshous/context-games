@@ -5,8 +5,12 @@
 //   join(state, player, request)     -> state          someone takes a place (throw to refuse)
 //   move(state, player, action)      -> state          someone acts (throw to refuse)
 //   view(state, player)              -> anything       what that player may see (player null: an onlooker)
-//   result(state)                    -> null | { winner?, draw?, ... }   over yet?
+//   result(state)                    -> null | { winners?: [player id], ... }   over yet?
 //
+// result is null while the match goes on. Once it's over, anything the rules like, plus,
+// for standings across matches (and across every fork that plays the same rulebook),
+// winners: the ids of the players who won ([] for a draw). Without it, a rulebook simply
+// has no standings: a shared canvas never ends, and needs none.
 // player is { id, name } (id: the person, the same in every match). Everything in and out
 // is JSON. It runs in QuickJS (WebAssembly), the same in Node and in a Worker (which can't
 // eval), and each call gets a fresh context: the rulebook keeps nothing between calls but

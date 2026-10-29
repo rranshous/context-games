@@ -35,7 +35,10 @@ function view(state, player) {
 }
 
 function result(state) {
-  for (const [a, b, c] of LINES) if (state.board[a] && state.board[a] === state.board[b] && state.board[a] === state.board[c]) return { winner: state.board[a], line: [a, b, c] };
-  if (state.board.every(Boolean)) return { draw: true };
+  for (const [a, b, c] of LINES) {
+    const mark = state.board[a];
+    if (mark && mark === state.board[b] && mark === state.board[c]) return { winner: mark, line: [a, b, c], winners: [state.places[mark].id] };
+  }
+  if (state.board.every(Boolean)) return { draw: true, winners: [] };
   return null;
 }
