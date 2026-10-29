@@ -488,7 +488,12 @@ export function createCore({ store, settings }) {
     let status = 200;
     // Who's asking: the person and device their pass names (people.mjs), if it's good.
     from = { ...from, ...((await people.whoIs(from.pass)) ?? {}) };
-    try { return await answer(method, parts, body, query, from); }
+    try {
+      // A pass we don't know (run out, or signed by a secret from before a restart): say so,
+      // rather than answer as if to a stranger, so the page renews it and asks again.
+      if (from.pass && !from.person) throw httpError(401, 'sign in first (your pass may have expired)');
+      return await answer(method, parts, body, query, from);
+    }
     catch (err) {
       status = typeof err.code === 'number' ? err.code : 500;
       if (status >= 500) await ops.trouble({ kind: 'server', where: `${method} ${parts.slice(0, 1).join('/')}${parts[2] ? `/:id/${parts[2]}` : parts[1] ? '/:id' : ''}`, message: err.message, sample: err.stack }).catch(() => {});

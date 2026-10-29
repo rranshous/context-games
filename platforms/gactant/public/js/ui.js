@@ -1,4 +1,4 @@
-import { become, join, pass } from './identity.js';
+import { become, join, pass, renew } from './identity.js';
 
 // Tiny DOM helper: el('div', { class: 'x', onclick: fn }, child, 'text', ...)
 export function el(tag, attrs = {}, ...children) {
@@ -15,10 +15,13 @@ export function el(tag, attrs = {}, ...children) {
 
 export const api = async (method, path, body) => {
   // Every request says who's asking, with this device's pass (identity.js), if it has one.
-  const p = await pass().catch(() => null);
-  const res = await fetch(`/api/${path}`, {
+  const ask = (p) => fetch(`/api/${path}`, {
     method, headers: { 'Content-Type': 'application/json', ...(p ? { 'X-Gactant-Pass': p } : {}) }, body: body === undefined ? undefined : JSON.stringify(body),
   });
+  const p = await pass().catch(() => null);
+  let res = await ask(p);
+  // A pass the server no longer knows: renew it once and ask again.
+  if (res.status === 401 && p) res = await ask(await renew().catch(() => null));
   const json = await res.json();
   if (!res.ok) throw Object.assign(new Error(json.error || `${method} ${path}: ${res.status}`), { status: res.status, body: json });
   return json;

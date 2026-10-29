@@ -110,6 +110,13 @@ export async function pass() {
   return renewing;
 }
 
+/** A new pass now, for one the server no longer knows (it answered 401). null if this
+ *  device isn't anyone's (any more). */
+export async function renew() {
+  try { localStorage.removeItem(PASS); } catch {}
+  return pass();
+}
+
 /** A signature by this device's key over text (base64url), for actions at a table: proof
  *  that this device, and so its person, took them. null where the device keeps a secret
  *  instead of a key; the server then records the action as unsigned. */
@@ -144,11 +151,14 @@ export async function forgetDevice() {
 
 /** Looking after themselves, signed in: people/me, pair, name, remove, recovery. */
 export async function mine(path, body) {
-  const p = await pass();
-  if (!p) throw Object.assign(new Error('this device isn\'t anyone\'s yet'), { status: 401 });
-  const res = await fetch(`/api/people/${path}`, path === 'me'
-    ? { headers: { 'X-Gactant-Pass': p } }
-    : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Gactant-Pass': p }, body: JSON.stringify(body ?? {}) });
+  const ask = async (p) => {
+    if (!p) throw Object.assign(new Error('this device isn\'t anyone\'s yet'), { status: 401 });
+    return fetch(`/api/people/${path}`, path === 'me'
+      ? { headers: { 'X-Gactant-Pass': p } }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Gactant-Pass': p }, body: JSON.stringify(body ?? {}) });
+  };
+  let res = await ask(await pass());
+  if (res.status === 401) res = await ask(await renew());
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(json.error || `people/${path}: ${res.status}`), { status: res.status, body: json });
   if (path === 'name') { const k = kept(); if (k) { k.name = json.name; try { localStorage.setItem(PASS, JSON.stringify(k)); localStorage.setItem('gactant-name', json.name); } catch {} } }

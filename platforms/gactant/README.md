@@ -287,7 +287,7 @@ the microphone, recognition. It saves its report for Claude to read
 
 There are no passwords and no email (`people.mjs`, `public/js/identity.js`).
 - **A person** is a name plus the devices they play on. Each device makes its own ECDSA P-256 key pair in the browser and keeps it in IndexedDB. The private half is non-extractable, so no script can read it out.
-- **Signing in:** a device signs a fresh challenge from the server and gets a **pass** for 24 hours. The server checks the pass by its own signature (`SESSION_SECRET`) and keeps no list of passes. Passes renew silently, and every request carries one (`X-Gactant-Pass`).
+- **Signing in:** a device signs a fresh challenge from the server and gets a **pass** for 24 hours. The server checks the pass by its own signature (`SESSION_SECRET`) and keeps no list of passes. Passes renew silently, and every request carries one (`X-Gactant-Pass`). A pass the server doesn't recognise (run out, forged, from a removed device, or signed before a local install restarted with a new secret) gets a 401, never a stranger's answer, and the page renews it once and asks again.
 - **A new device:** "add a device" on `/me.html` makes an 8-character code that works once, for 10 minutes. On the new device, "Already play on another device?" takes it.
 - **A lost device:** removing it from `/me.html` stops its passes at once.
 - **Every device lost:** the **recovery code**, twelve made-up words shown once when the person is made. The server keeps only its hash. Using it adds the device and gives a new code. A signed-in device can also make a new one.

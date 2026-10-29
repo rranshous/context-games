@@ -2297,4 +2297,17 @@ Robby, briefly: imagine how leaderboards could work. Three shapes: a board per r
 - **A board per rulebook** (`standings`, one document per rulebook hash). When an action ends a match (its result was null and now isn't) and the result has `winners`, everyone in the match gets a win, a loss, or a draw (`winners: []`). Ranked by wins, then fewest losses, then most played. It keeps up to 5,000 people, and the least recent go first. `GET rulebooks/<hash>/standings?n=20` returns the top and your own line. Smoke checks a win, a loss, and where you stand.
 - **The ludant draws it.** `table.standings(hash, n)`. The table's description says it's the same board for every ludant that plays the rulebook, kept by the server and impossible to fake, and that how it looks is the ludant's to choose. The seed's `table` tool knows the op.
 
-Not yet: asking a ludant to put the board in its game. The Playwright connection dropped before I could, and that's the real test of the second half.
+### Three boards, one standings
+
+After a session restart. I locked the updated tic-tac-toe through Alice's table (`afcc1784…`, the fixture without its fixture header) and asked each fork to switch to it and add a leaderboard, saying nothing about how:
+
+- **Vedina** (Alice): a plain "Leaderboard" column beside the board, top 5 by wins ($0.12). It said "the field names are a guess": the table's description said what standings *are* but not what `standings()` returns. Now it does: `{ matches, players: [{ rank, id, name, wins, losses, draws, played }], you }`.
+- **Neon** (Bob): a magenta-framed LEADERBOARD panel with W/L/D columns, his own row in cyan, under the synthwave sun ($0.18).
+- **Walnut** (Carol): a "Hall of Winners" plaque, a walnut frame with gold lettering, on a ledge behind the 3D board. It moved the camera to keep it in view ($0.20).
+
+Then three matches, moved through each person's table (the same signed path a click takes): Alice beat Bob, Carol beat Bob, and Bob and Carol drew. The server's board was Carol 1-0-1, Alice 1-0-0, Bob 0-2-1 (Carol ahead of Alice on more played), and all three games showed exactly that, each in its own look. One board, three faces, nothing per-fork.
+
+Noticed on the way:
+- **Each fork opened its match twice,** a few ms apart. Each game opens a match on start when it has none saved, and it restarted while being edited. Neon and Walnut then joined both. It's the ludants' code, and the open-match cap keeps it bounded, but a game written this way leaves strays. It's worth a line in the table's description at some point (look for your own open match before opening one).
+- **Stale passes after a restart.** A local install without `SESSION_SECRET` makes a new secret at start, so every page's pass went bad, yet looked fresh for up to a day. Public routes quietly answered as if to a stranger, so Alice's own ludant said "belongs to someone else". Now the server answers an unrecognised pass with 401, and `api()`/`mine()` renew once and retry. The smoke checks for a forged pass and a removed device's pass now expect a 401.
+- Vedina still has its old "What should I become first?" choices card over the stage (from Part 17).

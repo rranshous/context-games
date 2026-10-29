@@ -71,7 +71,7 @@ try {
   const stranger = (await call('POST', 'people', { name: 'Stranger', label: 'S', key: S.key, ...(await S.prove()) })).json.pass;
   ok('a stranger can\'t hold it', (await call('POST', `ludants/${id}/hold`, { token: 's', who: 'stranger' }, as(stranger))).json.notYours === true);
   ok('nor can anyone signed out', (await call('POST', `ludants/${id}/hold`, { token: 's', who: '?' })).json.notYours === true);
-  ok('a forged pass counts for nothing', (await call('POST', `ludants/${id}/hold`, { token: 's', who: '?' }, as(pass.slice(0, -10) + (pass.at(-10) === 'A' ? 'B' : 'A') + pass.slice(-9)))).json.notYours === true);
+  ok('a forged pass counts for nothing', (await call('POST', `ludants/${id}/hold`, { token: 's', who: '?' }, as(pass.slice(0, -10) + (pass.at(-10) === 'A' ? 'B' : 'A') + pass.slice(-9)))).status === 401);
   ok('its owner can', (await call('POST', `ludants/${id}/hold`, { token: 'w', who: 'smoke' }, as(pass))).json.held === true);
   const got = await call('GET', `ludants/${id}`, undefined, as(pass));
   ok('reading it never shows who owns it', got.status === 200 && !('owner' in got.json));
@@ -109,7 +109,7 @@ try {
   ok('and finds the ludant in its lobby', (await call('GET', 'ludants?mine=1', undefined, as(pass2))).json.some((l) => l.id === id));
   const d2 = joined.json.person.devices.find((d) => d.current).id;
   ok('a device can be removed', (await call('POST', 'people/remove', { device: d2 }, as(pass))).json.devices?.length === 1);
-  ok('its pass stops working at once', (await call('GET', `ludants?mine=1`, undefined, as(pass2))).json.length === 0);
+  ok('its pass stops working at once', (await call('GET', `ludants?mine=1`, undefined, as(pass2))).status === 401);
 
   // Every device lost: the recovery code.
   const A3 = await device();
