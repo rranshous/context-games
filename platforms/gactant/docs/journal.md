@@ -2376,3 +2376,9 @@ Smoke: a public install refuses an unsealed chat; the browser's recovery code an
 
 **Not sealed, said plainly:** the ludant itself, meaning game, code, **memory**, name and art. Copies, publications and the check need them, and memory often repeats what people said. The privacy page says so, and suggests saying in the chat only what you'd be fine with a ludant remembering.
 
+
+**Deployed** (version 4846fe14, with the title and plain-words changes). Robby: "go ahead and deploy to production". Then `admin/wipe-unsealed` ran once: 21 ludants had unsealed chats, sketches or saves, and a second run found none. The live privacy page and the new identity.js are being served. Everyone gets a new recovery code the first time a frame of theirs opens.
+
+### For later (Robby's aside)
+
+- **Max session lengths and such.** "for the journal: we want to talk about max session lengths and such." How long a sitting, or a single wake, should be allowed to run, and what happens when it reaches the limit. To talk through.
