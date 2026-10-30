@@ -2331,3 +2331,11 @@ After the second deploy Robby saw no thumbnails on the homepage, through several
 
 The README's tables section now has the three forks' pictures and what a ludant gets from the table, marked experimental.
 
+### Titles said but not kept
+
+Robby: "when shaping the ludant will sometimes say the game is called X but when I go to publish that asserted name is not prepopulated. does the actant have the means to define the title?" It does: the title section makes its name, and the publish box offers it. But the only guidance was the seed's origin line ("I can name my game myself once I know what it is"). Nothing said that a name painted on the stage or said in the chat isn't the title until it's written there. Vedina built and named tic-tac-toe and never titled itself. The naming line every ludant gets on each wake (`frame.js`, so existing ludants get it too) now says what the title section is for, and that a name only on the stage or in the chat isn't the title.
+
+Checked on Honta: "Let's call it Doodle Pond, and show it at the top of the stage" (nothing about titles). It painted the name and wrote its title, becoming Honta-Doodle-Pond ($0.09).
+
+Seen on the way: Honta's game kept sending strokes to its old canvas match, which had been archived as a stray, and got 410 every time without moving on. That's the ludant's code (a saved match id it never gives up on), but an archived match the game can't leave is a shape worth watching for. The canvas never ends, so after 30 idle days every canvas game will meet it.
+
