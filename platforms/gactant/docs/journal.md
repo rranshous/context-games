@@ -2339,3 +2339,13 @@ Checked on Honta: "Let's call it Doodle Pond, and show it at the top of the stag
 
 Seen on the way: Honta's game kept sending strokes to its old canvas match, which had been archived as a stray, and got 410 every time without moving on. That's the ludant's code (a saved match id it never gives up on), but an archived match the game can't leave is a shape worth watching for. The canvas never ends, so after 30 idle days every canvas game will meet it.
 
+### Our words, not theirs
+
+Robby, with a ludant's message: "ludant using impl terms to the user - do like the warning, don't love the terms. they are ambigious to the users, they are our internal terms." The message offered "Same frame (try this first)" and "Separate copies, linked through the shared-play table… the table caps each player at about 60 actions a minute, and rulebooks have no clock." The ludant learned those words from us: its whole context names the frame, the stage, surfaces, the table and rulebooks, and nothing said people don't know them. Option 1 was also wrong. A ludant opens only for its own person, on their devices, one window at a time, and a friend opening the link is offered a copy. Nobody had told it that.
+
+The frame's context (`frame.js`, every ludant) now has two short paragraphs:
+- **Talking with them:** the words in this text are names for its insides and this place's machinery, unknown to people. In the chat, talk about what they see and do (the game, the screen, the chat, the whiteboard, publishing, taking a copy, playing together online: "to them, that's all the table is"). A limit or catch is still worth telling, in their words.
+- **Who can open you:** only its person, on their devices, one window at a time; anyone else gets a copy; two people at two computers each have a copy and play together through the table; two on one screen can share it.
+
+Asked "My friend wants to play this with me from his house… could it work for a fast action game too?", Vedina still said "the same shared table" once. So "match" came off the list (it's ordinary English), and "the table" was tied to "playing together online". Neon, asked the same thing, gave the right steps (publish, send the link, he takes a copy, both open), a "shared referee on the server", and the catch for fast games in plain words, with no machinery named ($0.05 each).
+
