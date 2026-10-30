@@ -2349,3 +2349,8 @@ The frame's context (`frame.js`, every ludant) now has two short paragraphs:
 
 Asked "My friend wants to play this with me from his house… could it work for a fast action game too?", Vedina still said "the same shared table" once. So "match" came off the list (it's ordinary English), and "the table" was tied to "playing together online". Neon, asked the same thing, gave the right steps (publish, send the link, he takes a copy, both open), a "shared referee on the server", and the catch for fast games in plain words, with no machinery named ($0.05 each).
 
+### For later (Robby's asides)
+
+- **Does leaving the window interrupt a wake?** "i have the impression when i move focus from the browser and the JS freezes i'm interrupting the actant wake." Browsers throttle timers in a background tab, and the ludant's thinking runs in the page (the sandbox and its calls to OpenRouter). Worth checking what actually stalls: the fetch to the model shouldn't, but the sandbox's timers and the game's frame loop do, and so could anything a tool awaits on the stage.
+- **One grep tool instead of search-then-read.** "i see a lot of search then read a section. i wonder if we could have just a grep compatible tool and remove read, the models are really good at grepping." Something to try: a `grep` over the soma's sections (pattern, context lines, a section or all) in place of search_sections plus read_section.
+
