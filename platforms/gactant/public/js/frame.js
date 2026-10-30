@@ -13,7 +13,7 @@
 // the stage shows the pictures), the people's controls, inference, and keeping things.
 
 import { Bus } from './bus.js';
-import { who } from './identity.js';
+import { canSeal, contentKey, handOver, seal, unlock, unseal, who } from './identity.js';
 import { nameOf } from './names.js';
 import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Art } from './surfaces/art.js';
@@ -27,7 +27,7 @@ import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
-import { api, askName, el, forget, remember } from './ui.js';
+import { api, askName, el, forget, remember, showRecovery } from './ui.js';
 import { installExplorer } from './explorer.js';
 import { report, watchPage } from './telemetry.js';
 
@@ -316,8 +316,12 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   async save() {
     clearTimeout(this.saveTimer);
     if (this.lost) return;
-    const surfaces = Object.fromEntries(this.surfaces.filter((s) => s.toJSON).map((s) => [s.id, s.toJSON()]));
-    try { await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token }); }
+    let surfaces = Object.fromEntries(this.surfaces.filter((s) => s.toJSON).map((s) => [s.id, s.toJSON()]));
+    try {
+      // Everything but the stage's size is sealed with its person's key before it leaves.
+      if (this.sealing) { const { stage, ...rest } = surfaces; surfaces = { stage, sealed: await seal(rest, this.recordId) }; }
+      await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token });
+    }
     catch (err) {
       if (err.status === 409) this.lose(err.body?.heldBy);
       else this.inspector.note('fault', `saving failed: ${err.message}`);
@@ -703,6 +707,41 @@ function notYours(record, unclaimed = false) {
   return new Promise(() => {});   // the sitting doesn't start
 }
 
+/** Its chat, sketches and saves, unsealed with the person's key. A device that hasn't got
+ *  the key yet waits for one (from another of their devices, or the recovery code) before
+ *  the frame opens, since saving without it would lose them. Resolves with whether this
+ *  device seals (false only where it can't: plain http). */
+async function openPrivate(record) {
+  if (!await canSeal()) return false;
+  const fresh = (code) => new Promise((resolve) => {
+    const box = el('div', { class: 'cover' });
+    document.body.append(box);
+    showRecovery(box, code, () => { box.remove(); resolve(); }, true,
+      'What\'s said, sketched and saved with your ludants is now sealed on your devices before it\'s kept, so nobody else can read it, gactant included. Your recovery code unlocks it too, so here\'s a new one: the old one no longer works.');
+  });
+  let key = await contentKey({ fresh });
+  if (!key) key = await new Promise((resolve) => {
+    const said = el('p', { class: 'ask-fail' });
+    const input = el('input', { class: 'name-input', placeholder: 'your recovery code', autocomplete: 'off' });
+    const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
+      el('p', {}, el('strong', {}, 'This device hasn\'t got your key yet. '),
+        'What\'s said, sketched and saved with your ludants is sealed with a key only your devices have. Open gactant on another of your devices and it will pass the key over by itself, or type your recovery code.'),
+      input, el('button', { class: 'top-btn primary', onclick: async () => {
+        try { finish(await unlock(input.value.trim())); } catch (err) { said.textContent = err.message; }
+      } }, 'unlock'), said));
+    let timer;
+    const finish = (k) => { clearTimeout(timer); box.remove(); resolve(k); };
+    const poll = async () => { const k = await contentKey().catch(() => null); if (k) finish(k); else timer = setTimeout(poll, 4000); };
+    document.body.append(box);
+    timer = setTimeout(poll, 4000);
+  });
+  const { sealed, ...open } = record.surfaces ?? {};
+  // Over a local install, what was kept before sealing comes back as it was, and is sealed
+  // the next time it's saved.
+  if (sealed) record.surfaces = { ...open, ...(await unseal(sealed, record.id)) };
+  return true;
+}
+
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
@@ -727,9 +766,11 @@ async function boot() {
   // Someone else's: say so, before asking anything of them.
   if (!record.yours) return notYours(record, record.unclaimed);
   const seat = await askName();
+  const sealing = await openPrivate(record);
   askNav.enabled = false;
   remember(id);
   const frame = new Frame(record, seat);
+  frame.sealing = sealing;
   frame.config = config;
   frame.noticeName();
   frame.mount();
@@ -741,6 +782,10 @@ async function boot() {
   setInterval(() => frame.refreshKey(), 5 * 60 * 1000);
   setInterval(() => { if (document.visibilityState === 'visible') frame.sendThumb(); }, THUMB_MS);
   installExplorer(frame);
+  // Another of this person's devices may be waiting for the key: this one hands it over.
+  const hand = () => { if (document.visibilityState === 'visible') handOver().catch(() => {}); };
+  hand();
+  setInterval(hand, 60_000);
   // How the stage runs here, now and then while someone's looking (telemetry.js).
   report('sit', { ludant: record.id });
   frame.stage.sample();

@@ -76,11 +76,13 @@ try {
   const got = await call('GET', `ludants/${id}`, undefined, as(pass));
   ok('reading it never shows who owns it', got.status === 200 && !('owner' in got.json));
   const soma = { ...got.json.soma, sections: { ...got.json.soma.sections, title: 'smoke-test', game: 'function (stage) { return { frame() { stage.ctx.fillText("hello", 10, 10); } }; }' } };
-  const surfaces = { chat: { messages: [{ who: 'smoke', text: 'a secret' }] } };
+  // What's private is sealed in the browser; the server keeps the ciphertext and hands it back.
+  const surfaces = { stage: { width: 640, height: 360 }, sealed: { v: 1, iv: 'aaaa', data: 'a-secret-sealed' } };
+  ok('a public install won\'t keep a chat that isn\'t sealed', (await call('PUT', `ludants/${id}`, { token: 'w', soma, surfaces: { chat: { messages: [{ who: 'smoke', text: 'plain' }] } } }, as(pass))).status === 400);
   ok('saving with the hold works', (await call('PUT', `ludants/${id}`, { token: 'w', soma, surfaces }, as(pass))).status === 200);
   ok('a stranger can\'t save over it', (await call('PUT', `ludants/${id}`, { token: 'w', soma, surfaces: {} }, as(stranger))).status === 403);
-  ok('the owner reads the chat', JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(pass))).json.surfaces).includes('a secret'));
-  ok('a stranger doesn\'t', !JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(stranger))).json).includes('a secret'));
+  ok('the owner reads what was sealed', JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(pass))).json.surfaces).includes('a-secret-sealed'));
+  ok('a stranger doesn\'t', !JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(stranger))).json).includes('a-secret'));
   ok('and is told it isn\'t theirs', (await call('GET', `ludants/${id}`, undefined, as(stranger))).json.yours === false);
   ok('nor finds it in their lobby', !(await call('GET', 'ludants?mine=1', undefined, as(stranger))).json.some((l) => l.id === id));
   ok('arrive', (await call('POST', `ludants/${id}/arrive`, { token: 'w', who: 'smoke' }, as(pass))).status === 200);
@@ -105,7 +107,7 @@ try {
   ok('a second device joins with a code', joined.json.person?.id === me.id && joined.json.person.devices.length === 2, JSON.stringify(joined.json));
   ok('a code works once', (await call('POST', 'people/join', { label: 'again', key: (await device()).key, code, ...(await A2.prove()) })).status === 401);
   const pass2 = joined.json.pass;
-  ok('the second device reads the chat', JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(pass2))).json.surfaces).includes('a secret'));
+  ok('the second device reads what was sealed', JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(pass2))).json.surfaces).includes('a-secret-sealed'));
   ok('and finds the ludant in its lobby', (await call('GET', 'ludants?mine=1', undefined, as(pass2))).json.some((l) => l.id === id));
   const d2 = joined.json.person.devices.find((d) => d.current).id;
   ok('a device can be removed', (await call('POST', 'people/remove', { device: d2 }, as(pass))).json.devices?.length === 1);
@@ -116,6 +118,35 @@ try {
   const back = await call('POST', 'people/join', { label: 'smoke A3', key: A3.key, recovery: made.json.recovery.toUpperCase().replace(/-/g, ' '), ...(await A3.prove()) });
   ok('the recovery code brings them back, and gives a new one', back.json.person?.id === me.id && back.json.recovery && back.json.recovery !== made.json.recovery, JSON.stringify(back.json));
   ok('the old recovery code stops working', (await call('POST', 'people/join', { label: 'x', key: (await device()).key, recovery: made.json.recovery, ...(await A3.prove()) })).status === 401);
+
+  // Sealing: the person's key goes between their devices; the server only carries it, sealed.
+  const words = () => Array.from({ length: 12 }, () => 'bada').join('-').replace(/bada/g, () => ['ba', 'de', 'fi', 'go', 'hu'][Math.random() * 5 | 0] + ['ka', 'le', 'mi', 'no', 'pu'][Math.random() * 5 | 0]);
+  const vault = { iv: 'v-iv', data: 'v-wrapped-key' };
+  const K = await device();
+  const sealer = await call('POST', 'people', { name: 'Sealer', label: 'K1', key: K.key, ...(await K.prove()), recovery: words(), vault });
+  ok('a browser makes the recovery code and its vault; the server doesn\'t see the code again', sealer.status === 200 && !sealer.json.recovery && sealer.json.person.vault?.data === 'v-wrapped-key', JSON.stringify(sealer.json));
+  const kpass = sealer.json.pass;
+  ok('a recovery code that isn\'t twelve words is refused', (await call('POST', 'people/recovery', { recovery: 'abc', vault }, as(kpass))).status === 400);
+  ok('the server won\'t make a code that would lock the key away', (await call('POST', 'people/recovery', {}, as(kpass))).status === 409);
+  ok('nor take a first key twice', (await call('POST', 'people/recovery', { recovery: words(), vault, first: true }, as(kpass))).status === 409);
+  const { code: kcode } = (await call('POST', 'people/pair', {}, as(kpass))).json;
+  const K2 = await device();
+  const kbox = { kty: 'EC', crv: 'P-256', x: 'bx', y: 'by' };
+  const k2 = await call('POST', 'people/join', { label: 'K2', key: K2.key, code: kcode, box: kbox, ...(await K2.prove()) });
+  const k2id = k2.json.person.devices.find((d) => d.current).id;
+  const asked = (await call('GET', 'people/me', undefined, as(kpass))).json.devices.find((d) => d.id === k2id);
+  ok('a device joining with a code asks for the key', asked?.asking?.x === 'bx', JSON.stringify(asked));
+  const handed = { iv: 'h-iv', data: 'h-wrapped', from: { kty: 'EC', crv: 'P-256', x: 'fx', y: 'fy' } };
+  ok('another of their devices hands it over', (await call('POST', 'people/hand', { device: k2id, handed }, as(kpass))).json.done === true);
+  const k2me = (await call('GET', 'people/me', undefined, as(k2.json.pass))).json;
+  ok('and only the asking device is shown it', k2me.devices.find((d) => d.current)?.handed?.data === 'h-wrapped' && !JSON.stringify((await call('GET', 'people/me', undefined, as(kpass))).json).includes('h-wrapped'));
+  ok('which says it took it', !(await call('POST', 'people/took', {}, as(k2.json.pass))).json.devices.some((d) => d.asking || d.handed));
+  const K3 = await device();
+  const krec = words();
+  await call('POST', 'people/recovery', { recovery: krec, vault: { iv: 'v2-iv', data: 'v2-wrapped' } }, as(kpass));
+  const k3 = await call('POST', 'people/join', { label: 'K3', key: K3.key, recovery: krec, ...(await K3.prove()) });
+  ok('with the recovery code, a new device gets the vault to open, and makes the next code itself', k3.json.person?.vault?.data === 'v2-wrapped' && !k3.json.recovery, JSON.stringify(k3.json));
+  ok('a sealed person\'s ludants are sealed too: a wipe leaves only sealed ones', typeof (await call('POST', 'admin/wipe-unsealed', { token: TOKEN })).json.wiped === 'number');
   ok('over http, a public site won\'t take a secret instead of a key', (await call('POST', 'people', { name: 'X', secret: 'x'.repeat(40), ...(await A.prove()) })).status === 400);
 
   ok('a stranger can\'t publish it', (await call('POST', 'published', { ludant: id, by: 'stranger', token: 'w' }, as(stranger))).status === 403);

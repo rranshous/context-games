@@ -12,12 +12,23 @@
 //                kept); using it adds the device and gives a new code
 //   a lost phone a device of theirs can remove another; its passes stop working at once
 //
+// Private things (a ludant's chat, sketches, saves) are sealed in the browser with the
+// person's content key, so the server keeps only ciphertext (identity.js). The server never
+// sees that key. It keeps two things that let a person's devices share it:
+//   the vault    the key wrapped under a key derived from the recovery code, which the
+//                browser makes (so the server never learns what unlocks it; it keeps only a
+//                hash of the code, as before). A recovery code from a device that has the key
+//                comes with a new vault.
+//   handing over a device without the key offers a public key of its own (box); a device of
+//                theirs that has the key wraps it for that box (handed). Pairing a device
+//                does this, and so does a device that finds it hasn't got the key.
+//
 // Where browsers won't do this cryptography (a page over plain http, like a phone on the
 // LAN reaching a local install), a device can instead keep a random secret, which the
 // server keeps the hash of. Only an install that isn't public accepts those.
 //
-// Stored: people { id, name, created, devices: [{ id, key | secret, label, added, seen }],
-// recovery (hash), recoveryAt }; recoveries (by that hash) { person }; pairings (by the
+// Stored: people { id, name, created, devices: [{ id, key | secret, label, added, seen, box?,
+// handed? }], recovery (hash), recoveryAt, vault? }; recoveries (by that hash) { person }; pairings (by the
 // code's hash, for ten minutes) { person, until }.
 
 const PASS_MS = 24 * 3600_000;
@@ -38,6 +49,7 @@ const C = 'bdfghjklmnprstvz', V = 'aeiou';
 const word = () => { const r = crypto.getRandomValues(new Uint8Array(4)); return C[r[0] % 16] + V[r[1] % 5] + C[r[2] % 16] + V[r[3] % 5]; };
 const recoveryCode = () => Array.from({ length: 12 }, word).join('-');
 const tidyCode = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+const isRecoveryCode = (s) => /^([bdfghjklmnprstvz][aeiou]){2}(-([bdfghjklmnprstvz][aeiou]){2}){11}$/.test(tidyCode(s));
 // A device code: eight letters and digits that can't be mistaken for each other.
 const PAIR_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 const pairCode = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => PAIR_CHARS[b % PAIR_CHARS.length]).join('').replace(/^(.{4})/, '$1-');
@@ -72,9 +84,21 @@ export function createPeople({ store, settings, httpError, limit }) {
   };
   const put = async (p) => { cache.set(p.id, p); await store.put('people', p.id, p); };
   const shown = (p, device) => ({
-    id: p.id, name: p.name, created: p.created, recoveryAt: p.recoveryAt ?? null,
-    devices: p.devices.map((d) => ({ id: d.id, label: d.label, added: d.added, seen: d.seen, kind: d.key ? 'key' : 'secret', current: d.id === device })),
+    id: p.id, name: p.name, created: p.created, recoveryAt: p.recoveryAt ?? null, vault: p.vault ?? null,
+    devices: p.devices.map((d) => ({
+      id: d.id, label: d.label, added: d.added, seen: d.seen, kind: d.key ? 'key' : 'secret', current: d.id === device,
+      // Asking for the key: its box, for a device that has the key to wrap it for.
+      ...(d.box && !d.handed ? { asking: d.box } : {}),
+      ...(d.id === device && d.handed ? { handed: d.handed } : {}),
+    })),
   });
+
+  // What the browser sends: an EC P-256 public key (a box), and AES-GCM ciphertext (a vault,
+  // or a key handed over). Checked for shape and size only: the server can't open them.
+  const isBox = (k) => k?.kty === 'EC' && k.crv === 'P-256' && typeof k.x === 'string' && typeof k.y === 'string' && k.x.length < 100 && k.y.length < 100;
+  const isSealed = (v) => v && typeof v.iv === 'string' && typeof v.data === 'string' && v.iv.length < 40 && v.data.length < 200;
+  const boxOf = (k) => ({ kty: 'EC', crv: 'P-256', x: k.x, y: k.y });
+  const sealedOf = (v) => ({ iv: v.iv, data: v.data, ...(isBox(v.from) ? { from: boxOf(v.from) } : {}) });
 
   // ---------- proving a device ----------
 
@@ -121,11 +145,23 @@ export function createPeople({ store, settings, httpError, limit }) {
   }
 
   /** A new recovery code for them; the old one stops working. Kept as a hash, indexed by it. */
-  async function setRecovery(p, code) {
+  async function setRecovery(p, code, vault = null) {
     if (p.recovery) await store.remove('recoveries', p.recovery);
     p.recovery = await sha(`recovery.${tidyCode(code)}`);
     p.recoveryAt = new Date().toISOString();
+    if (vault) p.vault = sealedOf(vault);
     await store.put('recoveries', p.recovery, { person: p.id });
+  }
+  /** A recovery code the browser made, with the vault it made under it. Without them, the
+   *  server makes the code, but not for someone whose key it would lock away (a vault). */
+  function newRecovery(p, body) {
+    if (body.recovery != null || body.vault != null) {
+      if (!isRecoveryCode(body.recovery)) throw httpError(400, 'a recovery code is twelve words');
+      if (!isSealed(body.vault)) throw httpError(400, 'a new recovery code comes with the vault it unlocks');
+      return { code: tidyCode(body.recovery), vault: body.vault, made: false };
+    }
+    if (p.vault) throw httpError(409, 'your recovery code also unlocks your private things, so a new one is made on a device that has them');
+    return { code: recoveryCode(), vault: null, made: true };
   }
 
   // ---------- passes ----------
@@ -159,12 +195,12 @@ export function createPeople({ store, settings, httpError, limit }) {
       const name = String(body.name ?? '').trim().slice(0, 40);
       if (!name) throw httpError(400, 'a person needs a name');
       const device = await newDevice(body);
-      const code = recoveryCode();
       const p = { id: `p-${randomHex(8)}`, name, created: new Date().toISOString(), devices: [device] };
-      await setRecovery(p, code);
+      const r = newRecovery(p, body);
+      await setRecovery(p, r.code, r.vault);
       await put(p);
       counted();
-      return { ...(await pass(p, device)), recovery: code };
+      return { ...(await pass(p, device)), ...(r.made ? { recovery: r.code } : {}) };
     }
 
     // A device of theirs signs in (or renews its pass).
@@ -195,9 +231,12 @@ export function createPeople({ store, settings, httpError, limit }) {
       } else throw httpError(400, 'joining takes a code from another of your devices, or your recovery code');
       if (!p) throw httpError(404, 'that person is gone');
       if (p.devices.length >= MAX_DEVICES) throw httpError(409, `a person can have up to ${MAX_DEVICES} devices; remove one first`);
+      if (isBox(body.box)) fresh.box = boxOf(body.box);
       p.devices.push(fresh);
+      // A recovery code that's been used is replaced. Where it also unlocks the vault, the
+      // new device does that, once it has opened the vault with the old one (people/recovery).
       let recovery;
-      if (body.recovery) { recovery = recoveryCode(); await setRecovery(p, recovery); }
+      if (body.recovery && !p.vault) { recovery = recoveryCode(); await setRecovery(p, recovery); }
       await put(p);
       return { ...(await pass(p, fresh)), ...(recovery ? { recovery } : {}) };
     }
@@ -227,10 +266,34 @@ export function createPeople({ store, settings, httpError, limit }) {
       return shown(p, me.device);
     }
     if (b === 'recovery') {
-      const code = recoveryCode();
-      await setRecovery(p, code);
+      // first: the vault's very first key, from a device that found nobody had one yet.
+      if (body.first && p.vault) throw httpError(409, 'you already have a key; another of your devices can hand it over');
+      const r = newRecovery(p, body);
+      await setRecovery(p, r.code, r.vault);
       await put(p);
-      return { recovery: code };
+      return r.made ? { recovery: r.code } : { done: true };
+    }
+    // Handing the key over: a device asks (its box), another of theirs answers (handed).
+    if (b === 'box') {
+      if (!isBox(body.box)) throw httpError(400, 'a box is an EC P-256 public key');
+      const d = p.devices.find((x) => x.id === me.device);
+      d.box = boxOf(body.box); delete d.handed;
+      await put(p);
+      return shown(p, me.device);
+    }
+    if (b === 'hand') {
+      const d = p.devices.find((x) => x.id === body.device);
+      if (!d?.box) throw httpError(404, 'that device isn\'t asking for the key');
+      if (!isSealed(body.handed) || !isBox(body.handed.from)) throw httpError(400, 'a key handed over is sealed, with the box it came from');
+      d.handed = sealedOf(body.handed);
+      await put(p);
+      return { done: true };
+    }
+    if (b === 'took') {
+      const d = p.devices.find((x) => x.id === me.device);
+      delete d.box; delete d.handed;
+      await put(p);
+      return shown(p, me.device);
     }
     throw httpError(404, `no route people/${b}${c ? `/${c}` : ''}`);
   }

@@ -2354,3 +2354,25 @@ Asked "My friend wants to play this with me from his house… could it work for 
 - **Does leaving the window interrupt a wake?** "i have the impression when i move focus from the browser and the JS freezes i'm interrupting the actant wake." Browsers throttle timers in a background tab, and the ludant's thinking runs in the page (the sandbox and its calls to OpenRouter). Worth checking what actually stalls: the fetch to the model shouldn't, but the sandbox's timers and the game's frame loop do, and so could anything a tool awaits on the stage.
 - **One grep tool instead of search-then-read.** "i see a lot of search then read a section. i wonder if we could have just a grep compatible tool and remove read, the models are really good at grepping." Something to try: a `grep` over the soma's sections (pattern, context lines, a section or all) in place of search_sections plus read_section.
 
+## Part 20: sealed
+
+Robby couldn't show me a ludant's log, and wondered whether we should "do client side encryption so that we can't see the users chats (maybe my preference) or keep harness logs so we could recreate a session's messages". Then: "with the state of AI assisted cyber security i'm inclined to encrypt client side. i'd rather have as little readable info as possible under my responsibility to protect." He decided to leave the memory gap and say it plainly ("i def want this info as part of the privacy page"), and to wipe existing chats instead of migrating them.
+
+**The shape.** The server already kept a ludant's private surfaces as one blob it never read, so most of this is in the browser:
+- **One content key per person** (AES-GCM 256), held by each of their devices in IndexedDB, never by the server. A frame unseals `surfaces.sealed` after loading and seals everything but the stage's size before saving, with the ludant's id as additional data, so a blob can't be moved from one ludant to another. A public install refuses anything else.
+- **The vault:** the key wrapped under HKDF(recovery code). That meant recovery codes move to the browser: the server only ever got their hash, and now it gets the vault too. Joining with the code opens the vault, and the device makes the next code and vault (`people/recovery`). The server won't make a code itself for someone with a vault, since that would lock the key away.
+- **Handing over:** a device without the key offers an ECDH P-256 box. A device of theirs that has the key derives a shared key and wraps the content key for it. Pairing sends the box with the join, and `/me.html` hands it over while the code is showing. Lobbies and frames hand over too, on load and once a minute while they're visible. A frame that still lacks the key shows a cover (open another device, or type the recovery code) rather than opening, because saving without the key would lose what's sealed.
+- **People from before:** the first device that opens a frame makes the key (`first: true`, which the server refuses if another device beat it), and shows a new recovery code with an explanation.
+
+**Tried in a browser,** with 127.0.0.1, .2, .3 and .4 as four of Alice's devices (each its own origin, and all secure contexts):
+- Alice's first device made her key and showed a new code. Vedina's chat survived, and the file on disk held only `stage` and `sealed`.
+- Pairing .2: it joined "waiting for your key", and by the time its frame opened, .1's page had handed the key over.
+- .3 paired with no other device open: the cover. A wrong recovery code was refused ("doesn't open your private things"), and the right one opened it.
+- .4 from the recovery code alone: the vault opened, a new code was shown, and the old code's hash is gone.
+
+My slip on the way: the first try ran against the old server process, which ignored the vault and made its own code. Restarting fixed it, and I cleared that device's key so it started over.
+
+Smoke: a public install refuses an unsealed chat; the browser's recovery code and vault are kept and never echoed; malformed codes are refused; the server won't make a code over a vault, or a second first key; box, hand (shown only to the asking device) and took; recovery gives the vault and no server code; the wipe route.
+
+**Not sealed, said plainly:** the ludant itself, meaning game, code, **memory**, name and art. Copies, publications and the check need them, and memory often repeats what people said. The privacy page says so, and suggests saying in the chat only what you'd be fine with a ludant remembering.
+

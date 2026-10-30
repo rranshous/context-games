@@ -3,6 +3,7 @@
 // their own ludants first. Everything published is further down, as family trees, and
 // starting from nothing is last.
 
+import { handOver } from './identity.js';
 import { PadNav, Pads } from './pads.js';
 import { api, askName, el, forget, mine, myName } from './ui.js';
 import { watchPage } from './telemetry.js';
@@ -222,4 +223,6 @@ if (navigator.getGamepads) {
 }
 
 renderMe();
+// Another of this person's devices may be waiting for their key: hand it over.
+handOver().catch(() => {});
 render().catch((err) => document.getElementById('lobby').replaceChildren(el('p', { class: 'boot-fault' }, `couldn't load the lobby: ${err.message}`)));

@@ -83,11 +83,11 @@ export async function askName(why = 'Ludants know the people who sit with them b
 }
 
 /** A recovery code, shown once: the spare key, for if every device of theirs is lost. */
-export function showRecovery(box, code, then, fresh = false) {
+export function showRecovery(box, code, then, fresh = false, lead = 'If you ever lose every device you play on, this gets you and your ludants back, and unlocks what\'s private to you.') {
   const copy = el('button', { class: 'top-btn', onclick: async () => { try { await navigator.clipboard.writeText(code); copy.textContent = 'copied'; } catch { copy.textContent = 'select it and copy'; } } }, 'copy');
   box.replaceChildren(el('div', { class: 'cover-box' },
     el('p', {}, el('strong', {}, fresh ? 'Your new recovery code. ' : 'Your recovery code. '),
-      'If you ever lose every device you play on, this gets you and your ludants back. It\'s shown only now: keep it somewhere safe and private (on paper, or in a password manager). Anyone who has it can become you here.'),
+      `${lead} It's shown only now: keep it somewhere safe and private (on paper, or in a password manager). Anyone who has it can become you here.`),
     el('pre', { class: 'recovery-code' }, code),
     copy, el('button', { class: 'top-btn primary', onclick: then }, 'I\'ve kept it')));
 }

@@ -49,7 +49,9 @@
 //   POST ludants/<id>/copy { by }                -> { id }          your own copy of someone else's ludant, as it is now
 //   GET  ludants/<id>                            -> { id, soma, surfaces, lineage, visitors, checkpoints, restored, fresh, familyNames, yours }
 //                                                   surfaces (chat, whiteboard, store) and visitors only for its owner
-//   PUT  ludants/<id>   { soma, surfaces, token } -> {}            409 unless this window holds it
+//   PUT  ludants/<id>   { soma, surfaces, token } -> {}            409 unless this window holds it. On a public
+//                                                   install, surfaces are { stage, sealed }: everything private sealed
+//                                                   in the browser with its person's key (identity.js), never readable here
 //   POST ludants/<id>/hold { token, who, takeOver? } -> { held, tookFrom }   409 { heldBy, since } if another of the owner's
 //                                                   windows does; 403 { notYours } if the person asking doesn't own it
 //   Every other change (PUT, heartbeat, arrive, checkpoints, restore, abandon, assets, thumb,
@@ -126,6 +128,7 @@ const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its 
 // and nobody sitting down this long, they're cleared away. A seed is a pulsing dot; a copy can be taken again.
 const UNTOUCHED_SEED_MS = 7 * 86400_000;
 const UNTOUCHED_COPY_MS = 30 * 86400_000;
+const SEALED_SURFACES = new Set(['stage', 'sealed']);
 const TRUSTED_AFTER_MS = 24 * 3600_000;   // a checked publication with no reports earns the front page after this
 const MAX_ASSET = 1_100_000;     // bytes in one picture
 const MAX_ASSETS = 60;           // pictures per ludant
@@ -160,6 +163,9 @@ export function summarize(message) {
 export function createCore({ store, settings }) {
   const { model, key, log = () => {}, tail = () => [] } = settings;
   const isPublic = Boolean(settings.public);
+  // What a public install keeps of a ludant's surfaces: the stage's size, and the rest sealed.
+  // Anything else (from before sealing) isn't handed back.
+  const kept = (surfaces = {}) => isPublic ? Object.fromEntries(Object.entries(surfaces).filter(([k]) => SEALED_SURFACES.has(k))) : surfaces;
   const ops = createOps({ store, log: settings.opsLog });
   const people = createPeople({ store, settings, httpError, limit: (...a) => limit(...a) });
   // Games many ludants play together (tables.mjs); each match apart, in settings.matches.
@@ -540,6 +546,18 @@ export function createCore({ store, settings }) {
       await store.put('ludants', l.id, l);
       return { id: l.id, owner: l.owner };
     }
+    // Once, when sealing began: every ludant's private surfaces from before, gone for good.
+    if (a === 'admin' && b === 'wipe-unsealed' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      let wiped = 0;
+      for (const l of await store.list('ludants')) {
+        const surfaces = l.surfaces ?? {};
+        if (Object.keys(surfaces).every((k) => SEALED_SURFACES.has(k))) continue;
+        await store.put('ludants', l.id, { ...l, surfaces: Object.fromEntries(Object.entries(surfaces).filter(([k]) => SEALED_SURFACES.has(k))) });
+        wiped++;
+      }
+      return { wiped };
+    }
     if (a === 'admin' && b === 'ops' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length, storage: await store.size?.(), flagsOpen: (await store.list('flags')).filter((f) => f.status === 'open').length };
@@ -648,10 +666,11 @@ export function createCore({ store, settings }) {
         if (!owns(ludant, from)) {
           return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false, unclaimed: !ludant.owner };
         }
-        return { ...rest, familyNames, yours: true };
+        return { ...rest, surfaces: kept(rest.surfaces), familyNames, yours: true };
       }
       if (!c && method === 'PUT') {
         await requireHold(ludant, body, from);
+        if (isPublic && Object.keys(body.surfaces ?? {}).some((k) => !SEALED_SURFACES.has(k))) throw httpError(400, 'what\'s private is sealed before it\'s saved here; reload the page to get the version that does');
         const size = JSON.stringify(body.soma).length + JSON.stringify(body.surfaces).length;
         if (size > MAX_LUDANT) throw httpError(413, `too big to keep: ${size} characters of soma and surfaces (the limit is ${MAX_LUDANT})`);
         await store.put('ludants', b, { ...ludant, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: now() });
