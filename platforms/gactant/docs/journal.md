@@ -2324,3 +2324,10 @@ Robby: "It'd be nice if, in the chat or somewhere, i could see that the actant i
 He also asked why a new ludant opens with "what kind of game should I become". Nothing asks for it: the seed wakes a fresh ludant when someone first sits down, and it uses `offer_choices` (from Part 9's art and choices) to ask. The trouble was that answering in the chat left the card over the stage, because the seed has no tool to take it back (Vedina's had sat there since Part 17). Robby: "i think we should clear the card when the person answers in chat." Now someone other than whoever offered posting in the chat closes the open card, and the surface's description says so.
 
 Checked on Vedina: the card went the moment Alice answered; a practice run while it was awake showed "testing multiplayer rules for “tic-tac-toe”…"; then "changing its game…" as it made the X marks bolder; then asleep, line gone ($0.05).
+
+### Thumbnails that didn't load, then did
+
+After the second deploy Robby saw no thumbnails on the homepage, through several reloads. From here they all loaded: as a visitor not signed in, and with a stale pass stored (the first requests 401, the page renews and retries, and they load). The thumbs route gave art.gactant.com URLs, the images were cached hits, and the page's policy allows the domain. Then on another reload they loaded for him too. Not explained. The likeliest cause is his network's filter and the new art subdomain (the same filter that blocked gactant.com while it was new). If it comes back: open one thumbnail's URL straight, and look at the console.
+
+The README's tables section now has the three forks' pictures and what a ludant gets from the table, marked experimental.
+

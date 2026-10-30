@@ -236,9 +236,25 @@ pick from, then it repaints itself in the one you chose.
 *Little Catch, a fishing game drawn from a whiteboard sketch: offered four looks, picked
 ukiyo-e, and repainted with real sprites. Seven pictures, 38¢ for the whole sitting.*
 
-## Tables: playing together across forks
+## Tables: playing together across forks (experimental)
 
-Copies of a ludant change. A neon fork and a 3D fork of the same tic-tac-toe look nothing alike, but they can still play each other, because the **rules don't live in any ludant**. The `table` surface is each frame's window onto shared play (`tables.mjs` on the server, `surfaces/table.js` in the frame).
+Copies of a ludant change. A neon fork and a 3D fork of the same tic-tac-toe look nothing alike, but they can still play each other, because the **rules don't live in any ludant**. The `table` surface is each frame's window onto shared play (`tables.mjs` on the server, `surfaces/table.js` in the frame). It's new and still settling: the contract below may change, and when it does, old matches and rulebooks are wiped rather than migrated.
+
+Three people, three forks, one game. Alice seeded Vedina and asked for tic-tac-toe on a locked rulebook. Bob took a copy and asked for "a neon synthwave look… keep playing the exact same rulebook". Carol copied Bob's and asked for a wooden board in 3D. Each fork rebuilt only its look. Asked to "add a leaderboard", saying nothing about how, each drew the same standings its own way, and found the others' matches on its own:
+
+![Vedina: the plain one, with a leaderboard column](docs/shots/23-ttt-plain.png)
+
+![Vedina-Neon-Tic-Tac-Toe: a draw between Bob and Carol, under a synthwave sun](docs/shots/24-ttt-neon.png)
+
+![Vedina-Walnut-Tic-Tac-Toe: Carol's win, with a Hall of Winners plaque behind the board](docs/shots/25-ttt-walnut.png)
+
+*Alice beat Bob, Carol beat Bob, and Bob and Carol drew. The server's standings were Carol 1-0-1, Alice 1-0-0, Bob 0-2-1, and every fork shows exactly that. About 20¢ of thinking per fork to switch rulebooks and add the board.*
+
+**What a ludant gets.** The table is a surface like the chat or the art: its description tells the ludant what it can do, and its actions are done as the ludant, for the person sitting with it.
+- Writing rules: `draft({ name, source })`, `writeDraft`, `tryDraft(id, { steps })` (a practice run, with a report on every call), `lock(id)` (the hash), `rulebook(hash)`. While it's at this, the chat says so: "testing multiplayer rules for “tic-tac-toe”…".
+- Playing: `matches(hash)` (open ones, with an onlooker's view), `open(hash)`, `join(match)`, `move(match, action)`, `view(match)` (`{ view, n, result, you }`), `watch(match)`. Every action anyone takes arrives as `table.changed`, and a refusal as `table.refused` with the rules' own message; new seeds pass both to `game.table(e)`.
+- Keeping score: `standings(hash)`, and `budget()` for what's left of today's.
+- Practice runs and play draw on the person's daily budget (see *Limits*).
 
 - **A rulebook** is plain JavaScript defining `init(seed, options)`, `join(state, player, request)`, `move(state, player, action)`, `view(state, player)` and `result(state)`. `result` is null until the match is over, then anything the rules like plus `winners: [player ids]` (`[]` for a draw), which is what standings count; a rulebook without it has none. It's pure: JSON in and out, no clock, no network, no randomness except `random(n)` from its seed. Refusing is throwing, and the player sees the message.
 - **Drafts are private.** A ludant (or its person) writes one through the table, tries it with practice runs, and **locks** it. The hash of its source is then its name for good: anyone can read it by that hash, and it never changes. A fork that wants different rules locks a new rulebook and gets a new hash.
@@ -249,7 +265,7 @@ Copies of a ludant change. A neon fork and a 3D fork of the same tic-tac-toe loo
 - **Matches are archived.** A match that's over (after an hour), or idle for 30 days, goes to R2 (`gactant-matches`; locally `data/archive/`) as one file with its whole signed log; its object is deleted, and the index keeps its summary. It can still be read and checked. `node tools/sweep-matches.mjs` asks Cloudflare for every Match object holding data, so the World also archives any match its index never heard of: nothing lingers because a reference was lost.
 - **Who joins is the rules' business** (`join`). The platform guarantees *who* is asking; the rules decide *whether* they get a place.
 - **A match is a hash chain of signed actions.** Each join or move is signed by the device key of the person taking it, over the match, its number, the hash before it and the action. The table signs in the frame, never in the sandbox. Anyone can fetch the log (with the signers' public keys) and check it: the chain, every signature, and a replay through the rulebook. `node tools/check-match.mjs <match> [install]` does exactly that.
-- **Live:** `GET matches/<id>?after=n` waits up to 25 seconds for the next action. The table follows its matches that way and emits `table.changed`. New seeds pass those events on to `game.table(e)`.
+- **Live:** `GET matches/<id>?after=n` waits up to 50 seconds for the next action. The table follows its matches that way and emits `table.changed`. New seeds pass those events on to `game.table(e)`.
 - **Standings, per rulebook.** When a match ends with `winners`, everyone who took part gets a win, a loss or a draw on that rulebook's board (`GET rulebooks/<hash>/standings`; `table.standings(hash)`). It's one board for every fork that plays the rulebook, kept by the server from results it computed itself, so it can't be faked. The platform keeps the numbers; how they look is each ludant's to draw. Ranked by wins, then fewest losses, then most played; up to 5,000 people kept per rulebook.
 - Actions are public (the log is), so anything secret goes in the state and is shown through `view`.
 
