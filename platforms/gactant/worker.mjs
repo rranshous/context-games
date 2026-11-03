@@ -193,6 +193,26 @@ async function world(env, request) {
   try { return await ask(request); } catch { return ask(again); }
 }
 
+// A look that waits for the next action waits here, in the Worker, asking the match every
+// few seconds. An object is billed for every second something is pending in it (on Workers
+// Free, about 28 hours of objects a day for the whole account), and waits that sat in the
+// matches used it all up (2026-11-03); a Worker waiting on a fetch isn't billed at all.
+const LOOK_EVERY_MS = 3000, LOOK_FOR_MS = 25_000;
+async function lookAt(env, id, person, after) {
+  const match = env.MATCH.get(env.MATCH.idFromName(id));
+  const ask = (body) => match.fetch('https://match/look', { method: 'POST', body: JSON.stringify({ person, ...body }) });
+  if (after == null) return ask({});
+  const until = Date.now() + LOOK_FOR_MS;
+  while (Date.now() < until) {
+    const res = await ask({ after, wait: false });
+    if (!res.ok) return res;
+    const text = await res.text();
+    if (!text.includes('"same":true')) return new Response(text, res);
+    await new Promise((r) => setTimeout(r, LOOK_EVERY_MS));
+  }
+  return ask({});   // nothing new: how it is now, as a wait that ran out answers
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -230,7 +250,7 @@ export default {
       const look = request.method === 'GET' && url.pathname.match(/^\/api\/matches\/(m-[0-9a-f]{12})$/);
       if (look && env.SESSION_SECRET) {
         const who = await readPass(request.headers.get('x-gactant-pass'), env.SESSION_SECRET);
-        const res = await env.MATCH.get(env.MATCH.idFromName(look[1])).fetch('https://match/look', { method: 'POST', body: JSON.stringify({ person: who?.person ?? null, after: url.searchParams.get('after') }) });
+        const res = await lookAt(env, look[1], who?.person ?? null, url.searchParams.get('after'));
         if (res.status !== 404) return res;
       }
       return world(env, request);

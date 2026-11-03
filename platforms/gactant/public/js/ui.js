@@ -22,7 +22,8 @@ export const api = async (method, path, body) => {
   let res = await ask(p);
   // A pass the server no longer knows: renew it once and ask again.
   if (res.status === 401 && p) res = await ask(await renew().catch(() => null));
-  const json = await res.json();
+  // Not JSON: the server itself is in trouble (an error page from Cloudflare, say), not the request.
+  const json = await res.json().catch(() => { throw Object.assign(new Error(`gactant's server isn't answering properly right now (${res.status}); try again in a while`), { status: res.status }); });
   if (!res.ok) throw Object.assign(new Error(json.error || `${method} ${path}: ${res.status}`), { status: res.status, body: json });
   return json;
 };

@@ -13,8 +13,9 @@
 // Ops (a host calls match.op(name, body)):
 //   create { id, rulebook, name, source, seed, options }   -> summary
 //   act { kind, data, n, prev, signature, device, player, through } -> { ...summary, view, steps }
-//   look { person?, after? }    -> { id, rulebook, name, at, n, head, view, result, you, last }
-//                                  (after: waits up to WAIT_MS for more than `after` actions)
+//   look { person?, after?, wait? } -> { id, rulebook, name, at, n, head, view, result, you, last }
+//                                  (after: waits up to WAIT_MS for more than `after` actions;
+//                                  wait: false answers at once, { n, same: true } if nothing's new)
 //   log { from? }               -> { id, rulebook, seed, options, genesis, n, head, result, log, more }
 //   export                      -> the whole match, log included (to archive it)
 // A summary is what the World's index keeps: { n, head, updated, result, members, onlooker }
@@ -119,9 +120,12 @@ export function createMatch({ store, rules }) {
       });
     },
 
-    async look({ person, after }) {
+    async look({ person, after, wait = true }) {
       let m = await it();
-      if (after != null && m.n <= Number(after)) { await changed(); m = await it(); }
+      if (after != null && m.n <= Number(after)) {
+        if (!wait) return { n: m.n, same: true };
+        await changed(); m = await it();
+      }
       const latest = m.n ? await store.get('actions', pad(m.n - 1)) : null;
       const v = viewOf(m, playerFor(m, person));
       return {

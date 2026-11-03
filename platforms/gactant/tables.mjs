@@ -41,7 +41,8 @@
 //   GET  matches/<id>?after=<n>          -> { id, rulebook, name, at, n, head, view, result, you, last, archived? }
 //                                           view: yours. With after, it waits (up to 50 seconds) until the
 //                                           match has more than n actions. Hosted, the Worker takes this
-//                                           straight to the match.
+//                                           straight to the match, and does the waiting itself (up to 25
+//                                           seconds, asking every 3), since an object is billed while it waits.
 //   GET  matches/<id>/log?from=0         -> { id, rulebook, seed, options, genesis, n, head, result, log, keys, more }
 //                                           keys: each signing device's public key (JWK), by device id
 //   POST matches/<id>/act { kind: join|move, data, n, prev, signature?, ludant? }

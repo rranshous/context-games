@@ -193,7 +193,13 @@ try {
     if (r.status === 200) { n = r.json.n; head = r.json.head; }
     return r;
   };
+  // A look that waits: it answers when the next action comes, not before.
+  const waited = call('GET', `matches/${match.id}?after=0`, undefined, as(stranger)).then((r) => ({ ...r, at: Date.now() }));
+  await new Promise((r) => setTimeout(r, 1000));
+  const joinedAt = Date.now();
   ok('a signed join', (await act(pass, A, 'join', null)).json.view?.you === 'X');
+  const w = await waited;
+  ok('a waiting look answers with the next action', w.json.n === 1 && w.at >= joinedAt, JSON.stringify(w.json).slice(0, 200));
   ok('a join signed by another device is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n, prev: head, signature: await A.sign(signedText({ match: match.id, n, prev: head, kind: 'join', data: null })) }, as(stranger))).status === 401);
   ok('an action on an old head is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n: 0, prev: match.head, signature: await S.sign(signedText({ match: match.id, n: 0, prev: match.head, kind: 'join', data: null })) }, as(stranger))).status === 409);
   ok('the second player joins, as O', (await act(stranger, S, 'join', null)).json.view?.you === 'O');

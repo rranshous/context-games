@@ -2382,3 +2382,26 @@ Smoke: a public install refuses an unsealed chat; the browser's recovery code an
 ### For later (Robby's aside)
 
 - **Max session lengths and such.** "for the journal: we want to talk about max session lengths and such." How long a sitting, or a single wake, should be allowed to run, and what happens when it reaches the limit. To talk through.
+
+## Part 21: the matches waited on the bill
+
+gactant.com went dark today (around 16:00 UTC): every /api/ request was Cloudflare's "Error 1101", and the pages said "JSON.parse: unexpected character". The Mantle session (games-e9) found it in `wrangler tail`: `Exceeded allowed duration in Durable Objects free tier`. Workers Free gives an account 13,000 GB-s of objects a day, which is about 28 hours at 128 MB, shared with Mantle. It had run out every day since Oct 31; today it went earlier. Robby wants a fix that isn't the paid plan.
+
+That session guessed it was `infer()`, the OpenRouter call waiting inside the World. Grouping the GraphQL numbers by namespace said otherwise:
+
+| Nov 2 | requests | wall time |
+|---|---|---|
+| World | 11,515 | 227 s |
+| Match | 2,066 | 103,297 s |
+
+The World is nearly free. The **match looks** used it all: each `GET matches/<id>?after=n` waited up to 50 s inside the Match object for the next action, and an object is billed for every second something is pending in it. 2,066 looks of about 50 s each is one frame following a match all day. The browser already stops following while a tab is hidden, so that was a visible tab: probably a frame of Robby's left open.
+
+**The fix:** the waiting moves to the Worker, which isn't billed while it waits on a fetch.
+- `look` takes `wait: false` and answers `{ n, same: true }` at once when nothing's new.
+- The Worker asks every 3 s, for up to 25 s, then answers with how the match is now, as a wait that ran out did before.
+- The browser's side is unchanged. Under `server.mjs` the wait stays in the match, as before, since nothing bills it.
+- The cost: up to 3 s of extra delay seeing the other player's move. And a follower is now about 20 object requests a minute (about 29,000 a day if it never stops), against a free limit of 100,000 requests a day. That's fine for now, but a few people following all day would reach it.
+- `api()` now says "gactant's server isn't answering properly right now (500)" in place of the JSON.parse error.
+- Smoke: a waiting look answers with the next action, both under `wrangler dev` (through real Match objects) and on Node. Under `wrangler dev`, a look on a quiet match came back with it as it stands after 27 s.
+
+**For later:** WebSockets with the Hibernation API are the real answer: an object holding hibernated sockets isn't billed, and moves would be pushed rather than asked for. That needs a socket on both servers and a different follow loop in table.js, so it's not for today.
