@@ -18,6 +18,7 @@ import { nameOf } from './names.js';
 import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Art } from './surfaces/art.js';
 import { Table } from './surfaces/table.js';
+import { Admins } from './surfaces/admins.js';
 import { Choices } from './surfaces/choices.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
@@ -90,8 +91,9 @@ class Frame {
     this.inspector = new Inspector(this);
     this.art = new Art(this);
     this.choices = new Choices(this);
+    this.admins = new Admins(this);
     this.table = new Table(this);
-    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.art, this.choices, this.table, this.inspector];
+    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.art, this.choices, this.table, this.admins, this.inspector];
     for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
     this.actant = new Body(this, record.soma);   // the ludant as this side sees it
     this.saveTimer = null;

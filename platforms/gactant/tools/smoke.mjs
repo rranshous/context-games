@@ -87,6 +87,16 @@ try {
   ok('nor finds it in their lobby', !(await call('GET', 'ludants?mine=1', undefined, as(stranger))).json.some((l) => l.id === id));
   ok('arrive', (await call('POST', `ludants/${id}/arrive`, { token: 'w', who: 'smoke' }, as(pass))).status === 200);
   ok('a picture of it', (await call('POST', `ludants/${id}/thumb`, { token: 'w', image: 'data:image/jpeg;base64,AAAA' }, as(pass))).status === 200);
+  // A problem it reports, sent by its person.
+  const issue = { token: 'w', by: 'Smoke', title: 'matches never meet', wrong: 'two copies open separate matches', soma, table: { drafts: [], matches: [] }, doings: [{ at: 'x', kind: 'did', text: 'table {}' }] };
+  ok('a stranger can\'t send its report', (await call('POST', `ludants/${id}/issue`, issue, as(stranger))).status === 403);
+  ok('a report needs what went wrong', (await call('POST', `ludants/${id}/issue`, { ...issue, wrong: '' }, as(pass))).status === 400);
+  const filed = (await call('POST', `ludants/${id}/issue`, issue, as(pass))).json;
+  ok('its person sends its report', /^i-[0-9a-f]{8}$/.test(filed.id ?? ''), JSON.stringify(filed));
+  ok('the admins see it, in brief', (await call('POST', 'admin/issues', { token: TOKEN })).json.some?.((i) => i.id === filed.id && i.title === 'matches never meet' && !i.soma));
+  ok('and whole, with its soma', (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id })).json.soma?.sections != null);
+  ok('and can close it', (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id, status: 'done' })).json.status === 'done' && !(await call('POST', 'admin/issues', { token: TOKEN })).json.some((i) => i.id === filed.id));
+  ok('nobody else can read reports', (await call('POST', 'admin/issues', { token: 'nope' })).status === 403);
   const firstThumb = (await call('GET', `thumbs/l/${id}`)).json.url;
   ok('the picture is served from the art store', firstThumb?.startsWith('/art/t/') && (await fetch(`${base}${firstThumb}`)).status === 200, firstThumb);
   await call('POST', `ludants/${id}/thumb`, { token: 'w', image: 'data:image/jpeg;base64,BBBB' }, as(pass));

@@ -2405,3 +2405,20 @@ The World is nearly free. The **match looks** used it all: each `GET matches/<id
 - Smoke: a waiting look answers with the next action, both under `wrangler dev` (through real Match objects) and on Node. Under `wrangler dev`, a look on a quiet match came back with it as it stands after 27 s.
 
 **For later:** WebSockets with the Hibernation API are the real answer: an object holding hibernated sockets isn't billed, and moves would be pushed rather than asked for. That needs a socket on both servers and a different follow loop in table.js, so it's not for today.
+
+## Part 22: a ludant can tell us
+
+Robby's ludant kept failing to put two players in the same match, and I couldn't see why: its chat and log are sealed now. Robby: "it would be nice if the actants had a tool to submit to the administrators bug reports or crash report type things… we could have the current soma and match/table data attached as well." On the chat: "lets not attach the chat, even optionally. we don't need that." On the name: "tool names should lean in to the world / narrative the actant lives in… 'alert_admins_to_issue' or 'send_admins_a_report'… maybe 'report_issue_with_environment'".
+
+**`report_problem_to_gactant_admins`**, innate like `write_section`: every ludant has it, whatever its soma, and it can't break it. It takes a title, what it was trying, what went wrong and what it tried.
+- **Its person decides.** A card shows the report and what goes with it, with "send it" and "don't send". The tool waits for the answer: `{ sent, id }`, or `{ sent: false, why }` ("Alice chose not to send it", or nobody answered in 10 minutes). Since the chat and log are sealed, this is the one way any of it reaches us readable, so it has to be the person's act.
+- **What goes with it:** the soma as it is now, its rules drafts (with source), the matches it has seen (id, rulebook, n, whether it's in it, whether it's following), and the last 120 of the inspector's notes. Wakes and thoughts are left out, and so are notes of `say` and `read_chat`, which carry what was said. So no chat.
+- **Ours:** `POST ludants/<id>/issue` (the owner, holding it; 10 a day), kept as `issues`. `admin/issues` lists the open ones or gives one whole and sets its status. `node tools/issues.mjs [site] [id] [status]` writes one to `issues/<id>/` (gitignored), with `report.md`, `soma.json`, `table.json`, and the public rulebooks and match logs it names (hashes found in the soma too).
+- The surface (`surfaces/admins.js`) has no description of its own: the tool's description is where the ludant learns when to use it.
+- Privacy page: a bullet saying what a report sends, that it's sent only if you send it, and never the chat.
+
+Tried in a browser on Vedina (local): the card, "send it", and the report as stored. It held 43 notes and no chat, plus 4 matches and 2 rulebooks looked up. "Don't send" was tried too. Smoke covers the route: a stranger can't send, what went wrong is required, the admins can read and close a report, and a wrong token is refused. Not yet tried: a ludant choosing to use it on its own.
+
+### For later (Robby's aside)
+
+- **Ludants reporting people.** "we may want to extend the tool, or add other tools, so that ludants could report people who are trying to be abusive or ask it to do illegal things." This needs its own design, because the approval card turns upside down: the person who would approve the report is the person being reported. So it would have to go without their say. What it can carry is the open question. The chat is sealed and we can't read it, so a ludant's report would be the only account we'd get: its own words, perhaps quoting what was said. That means deciding what a ludant may send about someone without them seeing it, telling people so on the privacy page and in the rules, and what we do with a report like that (the ⚑ flags and `tools/moderate.mjs` are the nearest thing we have).

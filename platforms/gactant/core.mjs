@@ -60,6 +60,8 @@
 //   people (a new person), people/pass, people/join, people/pair, people/name, people/remove,
 //   people/recovery; GET people/me.
 //   POST ludants/<id>/heartbeat { token, seconds, spent } -> { held } 409 once another window took it
+//   POST ludants/<id>/issue { token, by, title, trying, wrong, tried, soma, table, doings } -> { id }
+//                                                   a problem the ludant reported and its person sent (surfaces/admins.js)
 //   POST ludants/<id>/release { token }          -> {}
 //   POST ludants/<id>/arrive { who }             -> { firstVisit, visits, checkpoint, people }
 //   GET  ludants/<id>/checkpoints                -> [{ n, label, by, at }]
@@ -94,6 +96,7 @@
 //   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
 //   POST admin/migrate-art { token, n? }         -> { moved, left }   art and thumbs kept as data URLs in the
 //                                                   store move to the art store, n owners at a time (once, 2026-10-28)
+//   POST admin/issues { token, n?, all?, id?, status? } -> the open reports in brief, or one whole (and its status set)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
 //   drafts, rulebooks, matches                   tables: games many ludants play together (tables.mjs has their API)
@@ -117,6 +120,8 @@ const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
 const MAX_THUMB = 45_000;        // bytes in a thumb
 const MAX_FLAG_IMAGE = 60_000;   // characters of data URL in a report's picture
 const MAX_REPORT = 60_000;       // characters of JSON in a check report
+const MAX_ISSUE = 1_200_000;    // characters of JSON in a ludant's report, its soma included
+const ISSUES_A_DAY = 10;         // reports a person may send in a day
 const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
 const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each costs a little)
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
@@ -575,6 +580,17 @@ export function createCore({ store, settings }) {
       await store.put('reports', id, { id, at: now(), report });
       return { id };
     }
+    // Problems ludants reported (tools/issues.mjs): the newest, in brief, or one whole by id.
+    if (a === 'admin' && b === 'issues' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (body.id) {
+        const issue = await read('issues', String(body.id));
+        if (body.status) { issue.status = String(body.status).slice(0, 40); await store.put('issues', issue.id, issue); }
+        return issue;
+      }
+      return (await store.list('issues')).filter((i) => body.all || i.status === 'open').sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(body.n) || 20)
+        .map(({ id, at, status, ludant, name, by, title, wrong }) => ({ id, at, status, ludant, name, by, title, wrong: wrong.slice(0, 300) }));
+    }
     if (a === 'admin' && b === 'reports' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       return (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(body.n) || 10);
@@ -715,6 +731,21 @@ export function createCore({ store, settings }) {
         ludant.assets = (ludant.assets ?? []).filter((m) => m.name !== name);
         await store.put('ludants', b, ludant);
         return { removed: name };
+      }
+      // A ludant telling the admins about a problem, sent by its person (surfaces/admins.js).
+      if (c === 'issue' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        const counted = limit('issue', from.person ?? from.ip, ISSUES_A_DAY, `that's ${ISSUES_A_DAY} reports today; more tomorrow`);
+        const text = (k, max) => String(body[k] ?? '').slice(0, max);
+        const issue = { id: `i-${hex(4)}`, at: now(), status: 'open', ludant: b, name: nameOf(ludant.soma), person: from.person ?? null, by: text('by', 40),
+          title: text('title', 120), trying: text('trying', 2000), wrong: text('wrong', 4000), tried: text('tried', 2000),
+          soma: body.soma ?? null, table: body.table ?? null, doings: Array.isArray(body.doings) ? body.doings : [] };
+        if (!issue.title || !issue.wrong) throw httpError(400, 'a report needs a title and what went wrong');
+        if (JSON.stringify(issue).length > MAX_ISSUE) throw httpError(413, 'that report is too big');
+        await store.put('issues', issue.id, issue);
+        counted();
+        settings.opsLog?.({ trouble: 'issue reported', where: b, issue: issue.id, title: issue.title });
+        return { id: issue.id };
       }
       if (c === 'thumb' && method === 'POST') {
         await requireHold(ludant, body, from);

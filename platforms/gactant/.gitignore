@@ -3,3 +3,4 @@ data/
 server.log
 !docs/shots/*.png
 .wrangler/
+issues/

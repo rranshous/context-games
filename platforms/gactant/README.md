@@ -99,7 +99,13 @@ whole. A code section too long to show whole is shown as an outline of where thi
 start in it, by line number, and the ludant reads and searches the rest with
 `read_section` and `search_sections`, the way coding agents work in a codebase. (Those
 two, with `write_section` and `edit_section`, are innate: always its own, whatever it does
-to its tools.) `experiments/soma-views` is where this was tried against showing the whole
+to its tools.) So is `report_problem_to_gactant_admins`: when something in its world
+doesn't work the way it was told (a surface, the table), it can write up what it was
+trying, what went wrong and what it tried. Its person sees the report and sends it or
+doesn't. With it go the soma, its rules drafts, the matches it's following and its
+recent tool calls and errors, never the chat. `node tools/issues.mjs` lists them, and
+`tools/issues.mjs <id>` writes one out to `issues/<id>/` with the rulebooks and match
+logs it names. `experiments/soma-views` is where this was tried against showing the whole
 soma once per wake: it did as well or better, for the same cost, on 112 conversations.
 
 At the moments a ludant tends to slip, the frame nudges it once. For example, if a person
