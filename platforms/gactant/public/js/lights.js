@@ -57,7 +57,8 @@ export class Lights {
       el('span', { class: `light life ${this.life}`, title: `${this.frame.actant?.name ?? ''}: ${this.detail || LIFE_WORDS[this.life] || this.life}` },
         el('i'), titled(soma?.sections?.title) || callName(soma) || '…',
         el('em', {}, `${titled(soma?.sections?.title) ? `${callName(soma)} ` : ''}${this.lifeWords()}`)),
-      this.detail ? el('span', { class: 'status-detail' }, this.detail) : null,
+      // (Without an AI connected, the words above already say so.)
+      this.detail && this.frame.payer?.() ? el('span', { class: 'status-detail' }, this.detail) : null,
       this.meter(),
     ].filter(Boolean));
   }

@@ -79,7 +79,7 @@ export class Chat {
     const doing = painting.length ? `painting ${painting.map((n) => `“${n}”`).join(', ')}` : busy;
     const words = doing ? `${doing}…` : (life === 'asleep' || life === 'resting') && !this.frame.payer?.() ? 'needs an AI to answer' : LIFE_WORDS[life] ?? life;
     this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
-      detail ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
+      detail && this.frame.payer?.() ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
     if (life === 'thinking' || painting.length) {
       this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, doing ?? 'thinking')));
       this.log.append(this.thinkingEl);
