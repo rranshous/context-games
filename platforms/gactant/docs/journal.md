@@ -2540,3 +2540,7 @@ Robby: "as long as it doesn't involve too much undue complexity i'd like the imp
 ### Looking before it's done
 
 Robby saw a ludant change a screen whose layout didn't work, and it never looked at the result. Most of the time they do. Two ways were weighed: showing a picture of the stage automatically in the result of every `game` edit, or a line in the seed. Robby: the automatic one is "too heavy handed and not likely to hit a sweet spot". So the seed's origin now says, in its own voice: "When I change how my game looks or plays, it isn't done until I've looked at it the way a person will and played a little of it (advancing it, pressing keys)." It's a goal, not a rule, and it's in the soma, so a ludant can make it its own or drop it. Only new ludants get it; ones already seeded keep their origin as it is.
+
+### A cut that passed for the whole
+
+Robby pasted a ludant reading its 225-line game three times: lines 1–225, then 110–225, then 196–225. `read_section` allows itself 16,000 characters and says "(cut off: ask for less)" when it stops early. But every tool result also went through a second cut at 6,000 characters, with no word, so the ludant got a header saying "lines 1–225 of 225" over about 110 lines, and went back for the rest. `read_section` and `search_sections` now skip that second cut, since they have their own. Any other result that's too long is still cut at 6,000, and now it says so, with the full length.

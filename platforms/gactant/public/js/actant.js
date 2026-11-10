@@ -324,7 +324,10 @@ export class Actant {
       }
       const text = typeof out === 'string' ? out : JSON.stringify(out ?? null);
       this.note('did', `${name} ${brief.length > 160 ? `${brief.slice(0, 160)}…` : brief}\n→ ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
-      return { text: text.slice(0, RESULT_CHARS), images };
+      // read_section and search_sections cap themselves (and say where they stopped); any
+      // other result too long is cut here, saying so, so a cut never passes for the whole.
+      const max = name === 'read_section' || name === 'search_sections' ? Infinity : RESULT_CHARS;
+      return { text: text.length > max ? `${text.slice(0, max)}\n… (cut off: the result was ${text.length} characters, and only the first ${max} are shown)` : text, images };
     } catch (err) {
       this.note('fault', `${name} ${brief.slice(0, 200)}\n→ ${err.message}`);
       return { text: JSON.stringify({ error: err.message }) };
