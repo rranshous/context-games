@@ -113,7 +113,7 @@ const core = createCore({
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.txt': 'text/plain', '.xml': 'application/xml' };
 
-function serveStatic(path, res) {
+function serveStatic(path, res, host = '') {
   if (path === '/') path = '/index.html';
   const f = normalize(join(PUBLIC, path));
   if (!f.startsWith(PUBLIC) || !existsSync(f)) { res.writeHead(404); res.end('not found'); return; }
@@ -122,7 +122,7 @@ function serveStatic(path, res) {
     // The sandbox's origin is opaque, so its module scripts load cross-origin. These are
     // the platform's public files, so anyone may.
     'Access-Control-Allow-Origin': '*',
-    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': SANDBOX_POLICY } : extname(f) === '.html' ? pageHeaders(process.env.GACTANT_SANDBOX || '') : {}),
+    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': SANDBOX_POLICY } : extname(f) === '.html' ? pageHeaders(process.env.GACTANT_SANDBOX || '', false, '', host) : {}),
   });
   res.end(readFileSync(f));
 }
@@ -137,7 +137,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': pic.type, 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*' });
     res.end(pic.bytes); return;
   }
-  if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res);
+  if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res, req.headers.host);
   if (!sameOrigin(req.headers.origin, req.headers.host)) return json(res, 403, { error: 'the API answers only this site\'s own pages' });
   try {
     let body = {};

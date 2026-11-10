@@ -1016,17 +1016,20 @@ export function sameOrigin(origin, host) {
 // their owner keys. So they run only the platform's own scripts, talk only to this site
 // and OpenRouter, embed only the sandbox, and can't be framed by anyone else. Hosted, they
 // also let in Cloudflare's Web Analytics beacon (which Cloudflare adds to each page itself).
-export function pageHeaders(sandboxOrigin = '', https = false, artBase = '') {
+export function pageHeaders(sandboxOrigin = '', https = false, artBase = '', host = '') {
   const analytics = https ? { script: ' https://static.cloudflareinsights.com', connect: ' https://cloudflareinsights.com' } : { script: '', connect: '' };
   // Pictures from their own domain when hosted (see the art store): shown, and read into canvases.
   const pictures = /^https?:\/\//.test(artBase) ? ` ${new URL(artBase).origin}` : '';
+  // Matches followed live, over a WebSocket to this site: named, since not every browser
+  // counts ws: and wss: as 'self'.
+  const sockets = host ? ` ${https ? 'wss' : 'ws'}://${host}` : '';
   return {
     'Content-Security-Policy': [
       "default-src 'self'",
       `script-src 'self'${analytics.script}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob:${pictures}`,
-      `connect-src 'self' https://openrouter.ai${analytics.connect}${pictures}`,
+      `connect-src 'self'${sockets} https://openrouter.ai${analytics.connect}${pictures}`,
       `frame-src ${sandboxOrigin || "'self'"}`,
       "worker-src 'self'",
       "object-src 'none'",

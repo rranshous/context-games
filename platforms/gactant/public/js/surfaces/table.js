@@ -198,6 +198,7 @@ export class Table {
           clearInterval(ping);
           stop.signal.removeEventListener('abort', close);
           if (this.sockets.get(match) === ws) this.sockets.delete(match);
+          if (!opened) console.warn(`[gactant] couldn't follow ${match} live (${e.code}${e.reason ? ` ${e.reason}` : ''}); asking the server instead for a minute`);
           resolve(e.code === 4410 ? 'over' : opened ? 'dropped' : 'failed');
         };
       });
