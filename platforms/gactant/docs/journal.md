@@ -2651,3 +2651,4 @@ Not done, and Robby's to decide:
 - free thinks for newcomers
 
 Also not done: touch-control hints inside games ("←/→ sail" on a phone) are each ludant's to write. A line in the body contract about phones might help.
+- Upright on a phone, playing: the game sits just above the controls, like a handheld, with a marquee in the room above it (the title, "Fishtest is ready"). The ludant's words surface under the marquee. Before, the game floated mid-screen with black bands, which two reviewers called out.

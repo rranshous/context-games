@@ -14,7 +14,7 @@
 
 import { Bus } from './bus.js';
 import { canSeal, contentKey, handOver, seal, unlock, unseal, who } from './identity.js';
-import { callName, nameOf } from './names.js';
+import { callName, nameOf, titled } from './names.js';
 import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Art } from './surfaces/art.js';
 import { Table } from './surfaces/table.js';
@@ -23,7 +23,7 @@ import { Choices } from './surfaces/choices.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
-import { Lights } from './lights.js';
+import { LIFE_WORDS, Lights } from './lights.js';
 import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
@@ -503,7 +503,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.main = main;
     // In play mode only the stage shows, so the ludant's chat messages surface over it.
     this.toasts = el('div', { class: 'toasts' });
-    main.querySelector('.stage-pane').append(this.toasts);
+    this.marquee = el('div', { class: 'marquee' });
+    main.querySelector('.stage-pane').append(this.marquee, this.toasts);
+    this.showMarquee();
     // On a phone, play mode fills the screen, with its own way out (there's no top bar).
     this.fullBtn = el('button', { class: 'full-btn', title: 'full screen', onclick: () => this.goFullscreen() }, '⛶');
     main.querySelector('.stage-pane').append(el('div', { class: 'full-bar' }, this.fullBtn,
@@ -626,7 +628,17 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.stage.fit();
   }
 
+  /** Upright on a phone, playing, there's room above the game: what it is, and whether the
+   *  one you talk to is ready. (CSS shows it only there.) */
+  showMarquee() {
+    if (!this.marquee) return;
+    const soma = this.actant.soma, title = titled(soma.sections?.title);
+    this.marquee.replaceChildren(el('strong', {}, title || callName(soma)),
+      el('span', {}, `${title ? `${callName(soma)} is ` : ''}${LIFE_WORDS[this.status.life] ?? this.status.life}`));
+  }
+
   toast(who, text) {
+    if (who === this.actant.name) who = callName(this.actant.soma);
     const t = el('div', { class: 'toast' }, el('span', { class: 'toast-who' }, who), el('span', {}, text));
     t.addEventListener('click', () => t.remove());
     this.toasts.append(t);

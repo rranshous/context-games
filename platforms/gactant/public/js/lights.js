@@ -40,6 +40,7 @@ export class Lights {
   mount(root) { this.root = root; this.render(); }
 
   render() {
+    this.frame.showMarquee?.();
     if (!this.root) return;
     const soma = this.frame.actant?.soma;
     this.root.replaceChildren(...[

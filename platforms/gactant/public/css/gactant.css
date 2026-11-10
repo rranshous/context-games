@@ -365,6 +365,15 @@ body.fullplay .talk-float { bottom: auto; left: auto; transform: none; top: max(
 .hint-float { position: absolute; left: 8px; right: 8px; top: 54px; z-index: 7; flex-wrap: wrap; border: 1px solid #4a3a1a; border-radius: 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
 .hint-float span { flex: 1 0 100%; }
 body.fullplay .hint-bar.hint-float { display: flex; }
+/* upright, the game sits just above the controls, like a handheld: eyes and thumbs together */
+@media (orientation: portrait) {
+  body.fullplay .stage-wrap { align-items: flex-end; padding-bottom: 14px; }
+  body.fullplay .marquee { display: flex; }
+  body.fullplay .toasts { top: 150px; bottom: auto; }
+}
+.marquee { display: none; position: absolute; top: 76px; left: 18px; right: 18px; z-index: 4; flex-direction: column; gap: 2px; pointer-events: none; }
+.marquee strong { font: 700 26px/1.15 var(--sans); }
+.marquee span { color: var(--ink-2); font-size: 14px; }
 /* sideways, the pad floats over the game's lower corners */
 @media (orientation: landscape) {
   body.fullplay .pad { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); pointer-events: none; z-index: 4; }
