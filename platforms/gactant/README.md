@@ -111,7 +111,12 @@ open (the heartbeat says so), its frame writes the reply into its soma, in a sec
 woken with it whatever its hooks say, its person sees it in a banner, and it deals with
 the letter by editing or clearing the section. It answers back with the same tool and
 `about` (the report's id), and the thread goes on there. Copies and publications go
-without the letters. `experiments/soma-views` is where this was tried against showing the whole
+without the letters. And `report_person_to_gactant_admins` is for someone abusing it
+(asking for anything illegal, real threats, harassment, pushing it to break the rules
+after it said no). There's no card for that, since the person who'd approve it is the one
+reported. It goes straight to the ⚑ reports with the last 30 chat messages and a picture
+of the stage, and the person is shown that it was sent and what it wrote.
+`tools/moderate.mjs` lists it with the chat. `experiments/soma-views` is where this was tried against showing the whole
 soma once per wake: it did as well or better, for the same cost, on 112 conversations.
 
 At the moments a ludant tends to slip, the frame nudges it once. For example, if a person

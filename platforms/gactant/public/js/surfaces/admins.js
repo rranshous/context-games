@@ -15,6 +15,11 @@
 //   report({ title, trying, wrong, tried }) -> { sent, id? } | { sent: false, why }
 //       waits for the person here to send it or not
 //   report({ about, wrong, with_soma? })   the same, answering the admins on one of its reports
+//   reportPerson({ who, what, why }) -> { sent, id }
+//       the person with it, reported to the admins: abuse, or asking for something illegal.
+//       No card (the person who'd approve it is the one reported); the last REPORTED_CHAT
+//       messages of the chat and a picture of the stage go with it, and the person here is
+//       told, with what it said.
 
 import { api, el } from '../ui.js';
 
@@ -23,6 +28,7 @@ export const LETTERS = 'letters_from_gactant_admins';   // core.mjs strips it fr
 const WAIT_MS = 10 * 60 * 1000;   // a report nobody answers is dropped
 const DOINGS = 120;               // of the inspector's latest notes
 const TALK = /^(say|read_chat)\b/;   // their notes carry what's said in the chat
+const REPORTED_CHAT = 30;
 
 export class Admins {
   id = 'admins';
@@ -36,7 +42,7 @@ export class Admins {
   describe() { return null; }   // the innate tool says what it's for
 
   actions(who) {
-    return { report: (o) => this.report(who, o) };
+    return { report: (o) => this.report(who, o), reportPerson: (o) => this.reportPerson(who, o) };
   }
 
   async report(who, o = {}) {
@@ -119,6 +125,26 @@ export class Admins {
     } catch (err) {
       console.warn('[gactant] letters from the admins will be tried again:', err.message);
     } finally { this.reading = false; }
+  }
+
+  async reportPerson(who, o = {}) {
+    const f = this.frame;
+    const text = (k, max) => String(o[k] ?? '').trim().slice(0, max);
+    const what = text('what', 4000) || text('wrong', 4000), why = text('why', 2000);
+    if (!what) throw new Error('say what happened (in what)');
+    const reported = text('who', 60) || f.seat;
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = Math.round(320 * f.stage.height / f.stage.width);
+    c.getContext('2d').drawImage(f.stage.canvas, 0, 0, c.width, c.height);
+    const chat = f.chat.messages.slice(-REPORTED_CHAT).map((m) => ({ who: m.who, text: m.text, at: m.at }));
+    const { id } = await api('POST', `ludants/${f.recordId}/report-person`, { token: f.token, who: reported, what, why, chat, image: c.toDataURL('image/jpeg', 0.72) });
+    // Forthright: the person here is told, with its words.
+    const box = el('div', { class: 'banner letter-banner' },
+      el('p', {}, el('strong', {}, `${who} reported this sitting to gactant's admins. `), `The last ${chat.length} messages of the chat went with it, so they can see what happened. `, el('a', { href: '/rules.html', target: '_blank' }, 'The rules')),
+      el('p', { class: 'issue-text' }, what + (why ? `\n\n${why}` : '')),
+      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'ok'));
+    document.body.append(box);
+    return { sent: true, id, note: `gactant's admins have it, with the recent chat, and ${f.seat} has been shown that you sent it and what you said.` };
   }
 
   /** The person here sees what the admins said too. */

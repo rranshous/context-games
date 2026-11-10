@@ -38,7 +38,10 @@ if (!action || action === 'all') {
     if (f.image) { const [, type, b64] = f.image.match(/^data:image\/(\w+);base64,(.*)$/) ?? []; if (b64) { pic = join(dir, `${f.id}.${type === 'jpeg' ? 'jpg' : type}`); writeFileSync(pic, Buffer.from(b64, 'base64')); } }
     console.log(`${f.id}  ${f.at.slice(0, 16)}  [${f.status}] ${f.reason}  by ${f.by}`);
     console.log(`   ludant ${f.ludant ?? '-'}  publication ${f.published ?? '-'}${pic ? `  picture ${pic}` : ''}`);
-    if (f.note) console.log(`   "${f.note}"`);
+    if (f.from === 'ludant') {
+      console.log(`   ${f.by} reported ${f.who || 'the person with it'}${f.personName ? ` (${f.personName}, ${f.person})` : f.person ? ` (${f.person})` : ''}:\n   "${f.note}"${f.why ? `\n   why: "${f.why}"` : ''}`);
+      for (const m of f.chat ?? []) console.log(`     ${m.who}: ${m.text.replace(/\s+/g, ' ').slice(0, 300)}`);
+    } else if (f.note) console.log(`   "${f.note}"`);
   }
 } else {
   const key = { hide: 'published', restore: 'published', approve: 'published', remove: 'ludant', dismiss: 'flag' }[action];

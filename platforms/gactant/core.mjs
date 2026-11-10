@@ -63,6 +63,8 @@
 //   POST ludants/<id>/issue { token, by, title, trying, wrong, tried, soma, table, doings } -> { id }
 //                                                   a problem the ludant reported and its person sent (surfaces/admins.js)
 //                                                   about: one of its reports, to answer the admins there
+//   POST ludants/<id>/report-person { token, who, what, why, chat, image } -> { id }   the ludant reports the person
+//                                                   with it (with the recent chat); a ⚑ report from a ludant
 //   GET  ludants/<id>/mail                       -> [{ id, issue, title, at, text }]   letters waiting (its owner)
 //   POST ludants/<id>/mail { token, took }       -> { mail }   the ones its frame has written into its soma
 //   POST ludants/<id>/release { token }          -> {}
@@ -126,6 +128,8 @@ const MAX_FLAG_IMAGE = 60_000;   // characters of data URL in a report's picture
 const MAX_REPORT = 60_000;       // characters of JSON in a check report
 const MAX_ISSUE = 1_200_000;    // characters of JSON in a ludant's report, its soma included
 const ISSUES_A_DAY = 10;         // reports a person may send in a day
+const PERSON_REPORTS_A_DAY = 3;  // reports about people one ludant may send in a day
+const REPORTED_CHAT = 30;        // chat messages that go with one
 const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
 const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each costs a little)
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
@@ -751,6 +755,25 @@ export function createCore({ store, settings }) {
         ludant.assets = (ludant.assets ?? []).filter((m) => m.name !== name);
         await store.put('ludants', b, ludant);
         return { removed: name };
+      }
+      // A ludant reporting the person with it: no card to approve (that would be the person
+      // reported), the recent chat goes with it, and the person is told it was sent
+      // (surfaces/admins.js). It joins the ⚑ reports, for tools/moderate.mjs.
+      if (c === 'report-person' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        const counted = limit('report-person', b, PERSON_REPORTS_A_DAY, `that's ${PERSON_REPORTS_A_DAY} reports about people from this ludant today`);
+        const what = String(body.what ?? '').trim().slice(0, 4000);
+        if (!what) throw httpError(400, 'say what happened');
+        const chat = (Array.isArray(body.chat) ? body.chat : []).slice(-REPORTED_CHAT).map((m) => ({ who: String(m?.who ?? '').slice(0, 60), text: String(m?.text ?? '').slice(0, 2000), at: m?.at ?? null }));
+        const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
+        const id = `f-${hex(4)}`;
+        const named = from.person ? (await store.get('people', from.person))?.name ?? null : null;
+        await store.put('flags', id, { id, at: now(), status: 'open', reason: 'person', from: 'ludant', note: what, why: String(body.why ?? '').slice(0, 2000),
+          by: nameOf(ludant.soma), ludant: b, published: null, person: from.person ?? null, personName: named, who: String(body.who ?? '').slice(0, 60), chat, image });
+        counted();
+        ops.count('flag person');
+        settings.opsLog?.({ flag: 'person', ludant: b });
+        return { id };
       }
       // Letters from the admins waiting for it; took: the ones its frame has written into its soma.
       if (c === 'mail' && method === 'GET') { if (!owns(ludant, from)) throw notYours(ludant); return ludant.mail ?? []; }

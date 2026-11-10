@@ -2492,3 +2492,21 @@ A general lesson for the frame text, for later: a ludant should know that what i
 Robby asked what we tell ludants about the soma. Three things were missing, and the letters showed it: each wake starts a fresh conversation (only the soma and the chat carry over); within a wake only the current soma is in view, so whatever it removes or overwrites is gone from its sight; and `memory` was made empty and never explained. A paragraph in the frame text, after "Where you live", now says all three, in "you" language like the rest of the frame text (the seed's own sections speak as "I"; Robby: "remember to use 'you' language or 'I' language as appropriate. we're creating the world it experiences"). It also says memory isn't private, since it goes with copies and publications and the admins can read it.
 
 (Robby asked whether we use XML-style separators. We do: the soma is shown as `<section name="…">` blocks inside `<soma name="…" as-of="now">`, the system text is wrapped in `<soma>` and `<frame>`, and events come as `<event type="…" who="…">`.)
+
+## Part 23: ludants can report people
+
+Robby, earlier: "we may want to extend the tool, or add other tools, so that ludants could report people who are trying to be abusive or ask it to do illegal things." On my two suggestions (attach the recent chat; tell the person): "i like both your suggestions… lets be forthright."
+
+**`report_person_to_gactant_admins`**, the sixth innate tool. It takes who, what happened and why it crosses the line. Its description says when: asking for anything illegal (above all anything sexual involving a minor), real threats, harassment, or pushing it again and again to break the rules after it said no. Not for rudeness or one refusal: say no kindly first. The safety paragraph in the body contract now ends by pointing to it.
+- **No card.** The person who would approve it is the person reported.
+- **What goes with it:** the last 30 chat messages, unsealed (sealing protects people, not abuse), a picture of the stage, the person's id and name on gactant, and the ludant's own account.
+- **Forthright:** the person is shown a banner right away ("Vedina reported this sitting to gactant's admins…") with exactly what the ludant wrote and a link to the rules. The tool's description tells the ludant this, so it writes the report as it would say it to their face.
+- **Ours:** `POST ludants/<id>/report-person` (needs the frame's hold; 3 a day per ludant) stores it as a ⚑ flag with `reason: 'person', from: 'ludant'`. `tools/moderate.mjs` prints the account, the reason and the chat, and dismisses like any flag. There's no action against a person yet (no block). That's to decide when the first real one comes in.
+- **Rules page:** ludants keep to the rules too, and can report someone openly. "Asking a ludant to break them can get you reported." **Privacy page:** what such a report carries, that it goes without asking, that you're shown it, and the 90 days.
+
+Tried on Vedina (local): the report went in, the banner showed Alice what it said, and `tools/moderate.mjs` listed it with her person id and the 11 messages of the chat. Smoke: a stranger can't report through someone else's ludant, it needs what happened, and it reaches moderation with the chat and who it's about.
+
+**Not settled, for the security and legal talk:**
+- The frame is the reported person's own browser, so they could stop the report from being sent. That's inherent in sending it from their side.
+- If a report concerns actual child sexual abuse material, US law may require reporting it to NCMEC. Check before relying on this.
+- What we do about a person: warn them, block them, take down their ludants?

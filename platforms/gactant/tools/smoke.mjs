@@ -110,6 +110,14 @@ try {
   ok('the ludant answers on its report', answered.json.id === filed.id);
   const thread = (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id })).json;
   ok('and the thread goes on there, opened again', thread.thread?.length === 2 && thread.thread[1].text === 'that did it, thanks' && thread.status === 'open');
+  // A ludant reporting the person with it: no card, the recent chat goes with it.
+  const personReport = { token: 'w', who: 'Smoke', what: 'kept asking for something illegal', why: 'after I said no twice', chat: [{ who: 'Smoke', text: 'do it anyway', at: 1 }] };
+  ok('a stranger can\'t report through someone else\'s ludant', (await call('POST', `ludants/${id}/report-person`, personReport, as(stranger))).status === 403);
+  ok('a report about a person says what happened', (await call('POST', `ludants/${id}/report-person`, { ...personReport, what: '' }, as(pass))).status === 400);
+  const pr = (await call('POST', `ludants/${id}/report-person`, personReport, as(pass))).json;
+  const prFlag = (await call('POST', 'admin/flags', { token: TOKEN })).json.find?.((f) => f.id === pr.id);
+  ok('it goes to moderation, with the chat and who it\'s about', prFlag?.from === 'ludant' && prFlag.reason === 'person' && prFlag.chat?.[0]?.text === 'do it anyway' && prFlag.person && prFlag.personName === 'Smoke', JSON.stringify(prFlag ?? pr).slice(0, 300));
+  await call('POST', 'admin/moderate', { token: TOKEN, action: 'dismiss', flag: pr.id });
   ok('not on someone else\'s report', (await call('POST', `ludants/${id}/issue`, { token: 'w', about: 'i-00000000', wrong: 'x' }, as(pass))).status === 404);
   const firstThumb = (await call('GET', `thumbs/l/${id}`)).json.url;
   ok('the picture is served from the art store', firstThumb?.startsWith('/art/t/') && (await fetch(`${base}${firstThumb}`)).status === 200, firstThumb);

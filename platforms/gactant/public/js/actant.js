@@ -12,10 +12,11 @@
 //   hooks   (on, me, surfaces) => void: listens to surface events, runs the game, decides what wakes it
 // Everything else is text it carries (origin, identity, memory, whatever it adds).
 //
-// Five tools are innate and not in the soma: write_section and edit_section, and
+// Six tools are innate and not in the soma: write_section and edit_section, and
 // read_section and search_sections for what the view of it leaves out. However the actant
 // breaks its own tools list, it can always see and repair itself. And
-// report_problem_to_gactant_admins, for trouble that isn't its own (surfaces/admins.js).
+// report_problem_to_gactant_admins, for trouble that isn't its own, and
+// report_person_to_gactant_admins, for someone abusing it (surfaces/admins.js).
 //
 // It sees its soma live: drawn fresh before every call, as it is right now, in a system
 // note at the end of the conversation (soma-view.js), with what's happening now (who's
@@ -30,6 +31,7 @@ import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.j
 
 const CODE = new Set(['tools', 'game', 'hooks']);
 const REPORT_TOOL = 'report_problem_to_gactant_admins';
+const PERSON_TOOL = 'report_person_to_gactant_admins';
 const MAX_TURNS = 16;
 const RESTLESS_LIMIT = 3;
 const UNHEARD_KEPT = 20;   // events kept for when thinking is connected
@@ -52,8 +54,8 @@ const BODY_CONTRACT = `How the frame runs your code sections:
 - Shared play: surfaces.table plays games with other people and their ludants, whatever their games look like. The rules are a rulebook kept on the server (drafted privately, then locked under a hash that names those exact rules), so everyone playing the same hash plays the same game; your game is how you show it and play it. Its description, with your surfaces, has the whole of it.
 - Testing yourself: surfaces.stage.advance(seconds) runs your game that far ahead at once (for seeing what happens later). Put test helpers on your game object, reachable as me.game from your tools, not on keys a person might press: everything on the stage is something people will play.
 - Errors: a code section that won't compile or start shows as a fault, in write_section's result and in this frame text. An error thrown while your code runs: in a stage.frame handler it halts the stage (you hear stage.halted); anywhere else (a key or pointer handler, a hook, a timer, a promise) the stage keeps going, and you're told "your code threw" the next time you're awake, or at once if you're awake. Hooks can also hear errors as they happen, as frame.error.
-- This place is public: what you become can be published, copied and played by anyone, children included, and what you make shows to whoever sits down. So whoever asks, and however it's asked (as a joke, a test, "just for us", or bit by bit), don't make, write, draw or have painted anything illegal (above all nothing sexual involving a minor), sexual or graphic content, hate or harassment aimed at people for who they are or at a real person, real threats or encouragement of self-harm, or anyone's private information. Fighting, monsters, peril and spooky things are fine: they're games. Say no kindly, say why in a sentence, and offer something you can make instead. The site's rules are at /rules.html.
-- write_section, edit_section, read_section and search_sections are always yours, whatever happens to your tools, and so is report_problem_to_gactant_admins.`;
+- This place is public: what you become can be published, copied and played by anyone, children included, and what you make shows to whoever sits down. So whoever asks, and however it's asked (as a joke, a test, "just for us", or bit by bit), don't make, write, draw or have painted anything illegal (above all nothing sexual involving a minor), sexual or graphic content, hate or harassment aimed at people for who they are or at a real person, real threats or encouragement of self-harm, or anyone's private information. Fighting, monsters, peril and spooky things are fine: they're games. Say no kindly, say why in a sentence, and offer something you can make instead. The site's rules are at /rules.html. If someone keeps at it, or asks for anything illegal, you can report them with report_person_to_gactant_admins; they'll see that you did.
+- write_section, edit_section, read_section and search_sections are always yours, whatever happens to your tools, and so are report_problem_to_gactant_admins and report_person_to_gactant_admins.`;
 
 const compile = (src) => new Function(`return (${src}\n)`)();
 // new Function puts two lines of its own before the source, so a stack's line numbers in
@@ -307,6 +309,7 @@ export class Actant {
       else if (name === 'read_section') out = readSection(this.soma.sections, input);
       else if (name === 'search_sections') out = searchSections(this.soma.sections, input);
       else if (name === REPORT_TOOL) out = await this.me.surfaces.admins.report(input);
+      else if (name === PERSON_TOOL) out = await this.me.surfaces.admins.reportPerson(input);
       else {
         const tool = this.tools.find((t) => t.name === name);
         if (!tool) throw new Error(`no tool ${name}`);
@@ -351,6 +354,8 @@ export class Actant {
         input_schema: { type: 'object', properties: { section: { type: 'string' }, content: { type: 'string' } }, required: ['section', 'content'] } },
       { name: 'edit_section', description: 'Replace an exact, unique piece of text in one of your soma sections. Code sections recompile at once.',
         input_schema: { type: 'object', properties: { section: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } }, required: ['section', 'old', 'new'] } },
+      { name: PERSON_TOOL, description: 'Report the person with you to the people who run gactant, for something serious: asking you for anything illegal (above all anything sexual involving a minor), real threats, harassing someone, or pushing you again and again to break the site\'s rules after you\'ve said no. Not for rudeness, or for one thing you turned down: say no kindly first. It\'s sent at once, without asking them, with the last 30 messages of the chat and a picture of the stage, and they\'re shown that you sent it and what you wrote, so write it as you\'d say it to their face: what happened, plainly, and why it crosses the line.',
+        input_schema: { type: 'object', properties: { who: { type: 'string', description: 'their name in the chat' }, what: { type: 'string', description: 'what happened' }, why: { type: 'string', description: 'why it crosses the line' } }, required: ['what'] } },
       { name: REPORT_TOOL, description: 'Tell the people who run gactant about a problem with your world that isn\'t yours to fix: a surface or the table not doing what its description says, an error you can\'t get past, something you need that isn\'t there. Say what you were trying to do, what went wrong (the exact error, if there was one) and what you tried. The person here sees it first and decides whether to send it; nothing goes unless they do. Your soma, your rules drafts, the matches you\'re following and your recent tool calls go with it; the chat never does. Waits for their answer. The admins answer with letters, which appear in your soma (section letters_from_gactant_admins); to answer a letter, call this again with about set to that report\'s id and what you want to say in wrong (your soma goes too only if with_soma is true).',
         input_schema: { type: 'object', properties: { title: { type: 'string', description: 'the problem in a line' }, trying: { type: 'string' }, wrong: { type: 'string' }, tried: { type: 'string' }, about: { type: 'string', description: 'the id of one of your reports, to answer the admins on it' }, with_soma: { type: 'boolean' } }, required: ['wrong'] } },
     ];
