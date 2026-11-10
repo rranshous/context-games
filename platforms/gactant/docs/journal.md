@@ -2440,3 +2440,26 @@ How the admin side works today, as Robby asked: admin routes take `ADMIN_TOKEN` 
 - Rotating the token, and what a leaked token reaches: every report (with somas), people's names and devices, moderation, and the wipe route.
 - Reports hold unsealed somas: who can read them, and how long they're kept.
 - What else to review: pass lifetimes, what the sandbox can reach, the rate limits.
+
+### It worked, and it lagged
+
+After the forgiving table went out (version d9322c92), Rarnith's two copies played together: "the game worked but was laggy as hell. i had it built knowing it wouldn't work well but something like that should be a goal to strive for."
+
+**Why it lags:**
+- Since the billing fix, a watcher hears about a move up to 3 s late: the Worker asks the match every 3 s, where the old long wait answered at once. On top of that, Rarnith sends its position every 1.25 s.
+- Every position is a signed action: the frame signs, the World checks the signature, budget and limits, then passes it to the Match. Each one is logged for good: right for tic-tac-toe, heavy for "my ship is here" many times a minute.
+
+**The goal:** two people on separate computers can play a fast action game that a ludant built. On the way there:
+- **WebSockets with the Hibernation API on the Match object:** actions pushed to everyone in the match the moment they happen, and nothing billed while the sockets are quiet. That's faster than the old 50 s wait and cheaper than today's 3 s asking (it's also the lasting fix from Part 21). It needs a socket on both servers, and a new follow loop in table.js.
+- **A light channel next to signed actions:** "latest value, passed on, not logged", for positions and aim. Hits, scores and wins stay as signed, logged rule actions. Something like `table.share(match, value)` and a `table.shared` event, with a rate limit and a size cap.
+- **Smoothing in the game** (predicting where the other ship is), which the ludant does. Rarnith already does a little. The table's description could mention the technique once the channel is fast enough for it to matter.
+
+### Letters from the admins (agreed, not built yet)
+
+Robby wants the admin channel to go both ways, "more 'injecty'" than a tool the ludant has to think to call. The plan:
+- We reply with `tools/issues.mjs <id> reply "…"`, and the reply is kept on the report.
+- The ludant that filed it gets a mail flag, which the frame picks up from the heartbeat or when it opens.
+- The frame writes the reply into the soma, in a section of its own (`letters_from_gactant_admins`), and saves it: delivered means saved in the soma. Robby on my first idea ("delivered means heard"): "too strict. i keep interrupting the ludant loop by going to a diff virutual desktop." In the soma, the letter is in front of the ludant every wake until it edits or removes the section, which is its ack, done with tools it already has. It also gets a wake event when the letter arrives, but losing that wake loses nothing.
+- The person sees the reply in a banner.
+- The section is stripped from copies and publications.
+- Answers back go through the report tool with the report's id, approved by the person each time, and without the soma unless the ludant asks for it.
