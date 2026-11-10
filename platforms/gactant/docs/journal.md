@@ -2544,3 +2544,13 @@ Robby saw a ludant change a screen whose layout didn't work, and it never looked
 ### A cut that passed for the whole
 
 Robby pasted a ludant reading its 225-line game three times: lines 1–225, then 110–225, then 196–225. `read_section` allows itself 16,000 characters and says "(cut off: ask for less)" when it stops early. But every tool result also went through a second cut at 6,000 characters, with no word, so the ludant got a header saying "lines 1–225 of 225" over about 110 lines, and went back for the rest. `read_section` and `search_sections` now skip that second cut, since they have their own. Any other result that's too long is still cut at 6,000, and now it says so, with the full length.
+
+## Part 25: the home page shows what's new
+
+Robby: "It makes me sad that my new games don't show up on the home page." Two things kept them off. Someone new only saw publications that had passed the check and then gone a day with no reports. And someone back (Robby) never saw his own ludants' publications in "Play something new", so he couldn't see what a visitor would. The ranking (copies, plus hours played, plus a freshness bonus that faded over about six days) kept older games that had been played on top.
+
+With hardly any users yet, the day's wait hedged against something that isn't the risk now. What he wants is to point people at the home page to show what he's made lately. So:
+
+- **Trusted** is now: a person cleared it, or it passed the publish check (or the install has no check) and has no open report. That holds from the moment it's published. The check and the scanning are unchanged: a flagged publication is still hidden until a person looks. A report now takes it off the front rows until it's reviewed.
+- **Two front rows, the same for everyone, your own included.** **New** is the latest snapshot of each ludant (one republished three times shows once), newest first, with "published … ago". **Popular** is the most played (copies, plus three per hour played) of what isn't in New, leaving out what someone back already has or made.
+- "Every published ludant" stays below as the full list, in families.

@@ -187,7 +187,7 @@ try {
   const pub = await call('POST', 'published', { ludant: id, by: 'smoke', token: 'w' }, as(pass));
   ok('publish', pub.status === 200 && pub.json.id, JSON.stringify(pub.json));
   const list = await call('GET', 'published');
-  ok('it\'s listed (untrusted)', list.json.some?.((p) => p.id === pub.json.id && p.trusted === false));
+  ok('it\'s listed, and up front at once (this install has no publish check, and nobody has reported it)', list.json.some?.((p) => p.id === pub.json.id && p.trusted === true));
   const copy = await call('POST', `published/${pub.json.id}/copy`, { by: 'player' }, as(stranger));
   ok('a copy of the publication goes without the letters', copy.status === 200 && !('letters_from_gactant_admins' in (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json.soma.sections));
   ok('a copy draws with the same art file', (await call('GET', `ludants/${copy.json.id}/assets`, undefined, as(stranger))).json[0]?.url === made1.json.url);
@@ -198,6 +198,7 @@ try {
   ok('so does a copy by its link', !('letters_from_gactant_admins' in (await call('GET', `ludants/${linkCopy.json.id}`, undefined, as(stranger))).json.soma.sections));
   ok('the copy starts without the chat', !JSON.stringify((await call('GET', `ludants/${linkCopy.json.id}`, undefined, as(stranger))).json).includes('a secret'));
   ok('a report goes in', (await call('POST', 'flags', { published: pub.json.id, reason: 'other', by: 'smoke' }, as(stranger))).json.id);
+  ok('a report takes it off the front until a person looks', (await call('GET', 'published')).json.find?.((p) => p.id === pub.json.id)?.trusted === false);
   ok('events go in', (await call('POST', 'events', { browser: 'smoke', events: [{ kind: 'sit' }] })).status === 200);
   const ops = await call('POST', 'admin/ops', { token: TOKEN });
   ok('ops reads back, with the report and storage', ops.json.flagsOpen === 1 && ops.json.storage?.kinds?.ludants?.docs === 3, JSON.stringify({ flagsOpen: ops.json.flagsOpen, storage: ops.json.storage }));

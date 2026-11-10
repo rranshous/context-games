@@ -142,7 +142,6 @@ const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its 
 const UNTOUCHED_SEED_MS = 7 * 86400_000;
 const UNTOUCHED_COPY_MS = 30 * 86400_000;
 const SEALED_SURFACES = new Set(['stage', 'sealed']);
-const TRUSTED_AFTER_MS = 24 * 3600_000;   // a checked publication with no reports earns the front page after this
 const MAX_ASSET = 1_100_000;     // bytes in one picture
 const MAX_ASSETS = 60;           // pictures per ludant
 const assetName = (n) => { if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(n))) throw httpError(400, `art names are lowercase words joined by -, up to 40 characters: ${n}`); return n; };
@@ -892,10 +891,11 @@ export function createCore({ store, settings }) {
     // publication, and that copy can be published again.
     if (a === 'published') {
       if (!b && method === 'GET') {
-        // Trusted: a person cleared it, or it passed the check and has been up a day with no
-        // reports. The lobby features only these to strangers.
+        // Trusted: a person cleared it, or it passed the publish check (on an install with
+        // one) and nobody has reported it. The lobby's front rows show only these, to
+        // everyone, as soon as they're up; a report takes one off until a person looks.
         const reported = new Set((await store.list('flags')).filter((f) => f.status !== 'dismissed').map((f) => f.published));
-        const trusted = (p) => Boolean(p.cleared) || (p.checked === 'clean' && !reported.has(p.id) && Date.now() - Date.parse(p.at) > TRUSTED_AFTER_MS);
+        const trusted = (p) => Boolean(p.cleared) || (!reported.has(p.id) && (p.checked === 'clean' || !settings.check));
         return (await store.list('published')).filter((p) => !p.hidden).map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }

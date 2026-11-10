@@ -21,10 +21,8 @@ const hours = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h.toFixed(h < 10 
 const costLine = (cost) => (cost ? `about $${cost.rate.toFixed(2)} an hour to play` : null);
 
 /** What's worth trying first: played and copied the most, with a little room for the new. */
-function score(p) {
-  const days = (Date.now() - new Date(p.at).getTime()) / 86400000;
-  return (p.copies ?? 0) + 3 * (p.cost?.hours ?? 0) + Math.max(0, 2 - days / 3);
-}
+/** How much it's been played: copies taken, and hours spent playing. */
+const played = (p) => (p.copies ?? 0) + 3 * (p.cost?.hours ?? 0);
 
 /** A picture of its stage, fetched when it scrolls near, or a placeholder in the meantime. */
 function thumb(kind, id, name) {
@@ -40,9 +38,10 @@ function thumb(kind, id, name) {
   return box;
 }
 
-function pubCard(p, big = false) {
+function pubCard(p, big = false, fresh = false) {
   const facts = [
     p.by ? `by ${p.by}` : null,
+    fresh ? `published ${ago(p.at)}` : null,
     p.cost ? `played ${hours(p.cost.hours)}` : p.copies ? `${p.copies} ${p.copies === 1 ? 'player' : 'players'}` : 'new',
     costLine(p.cost),
   ].filter(Boolean).join(' · ');
@@ -174,11 +173,20 @@ async function render() {
   const have = new Set(yours.map((l) => l.lineage?.from?.published).filter(Boolean));
   const mineIds = new Set(yours.map((l) => l.id));
   const pubsOf = (id) => published.filter((p) => p.ludant === id).sort((a, b) => a.at.localeCompare(b.at));
-  // Someone new meets only publications that have earned it (a person cleared them, or they
-  // passed the publish check and a day went by with no reports); someone back sees them all.
-  const featured = published.filter((p) => !have.has(p.id) && !mineIds.has(p.ludant) && (yours.length > 0 || p.trusted)).sort((a, b) => score(b) - score(a)).slice(0, FEATURED);
-  const parts = [];
   const returning = yours.length > 0;
+  // The front rows are the same for everyone, your own included, so the page you'd point
+  // someone to is the page they'll see: only publications that passed the publish check
+  // with no open report (or a person cleared). New is the latest snapshot of each ludant,
+  // newest first. Popular is the most played of the rest, leaving out, for someone back,
+  // what they already have.
+  const trusted = published.filter((p) => p.trusted);
+  const latest = new Map();
+  for (const p of trusted) if (!latest.has(p.ludant) || p.at > latest.get(p.ludant).at) latest.set(p.ludant, p);
+  const fresh = [...latest.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, FEATURED);
+  const inFresh = new Set(fresh.map((p) => p.id));
+  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) > 0 && !have.has(p.id) && !mineIds.has(p.ludant))
+    .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
+  const parts = [];
 
   if (!returning) {
     parts.push(el('section', { class: 'intro' },
@@ -186,11 +194,14 @@ async function render() {
       el('p', {}, 'These are ludants: games that are also AIs. A ludant can change itself while you play it: faster, stranger, kinder to your little brother. Each one you play is your own copy, and you can share what it becomes.')));
   }
   if (returning) parts.push(section('Your ludants', 'The ones you shape, what they were published as, and the copies you play.', yourTrees(yours, published)));
-  if (featured.length) {
-    parts.push(section(returning ? 'Play something new' : 'Jump in', returning ? null : 'Click one to play. Ludants think with an AI model, whenever their own body decides to. That costs a few cents at a time, on your own OpenRouter account, and a meter shows what your sitting has cost.',
-      el('div', { class: 'cards-grid' }, ...featured.map((p) => pubCard(p, !returning)))));
+  if (fresh.length) {
+    parts.push(section('New', returning ? 'Just published, newest first.' : 'Just published, newest first. Click one to play. Ludants think with an AI model, whenever their own body decides to. That costs a few cents at a time, on your own OpenRouter account, and a meter shows what your sitting has cost.',
+      el('div', { class: 'cards-grid' }, ...fresh.map((p) => pubCard(p, !returning, true)))));
   }
-  if (published.length > featured.length || returning) {
+  if (popular.length) {
+    parts.push(section('Popular', 'The most played.', el('div', { class: 'cards-grid' }, ...popular.map((p) => pubCard(p, !returning)))));
+  }
+  if (published.length > fresh.length + popular.length || returning) {
     parts.push(section('Every published ludant', 'Ludants are published by whoever plays them. A copy that changes can be published again, so they grow into families.',
       el('ul', { class: 'trees' }, ...families(published, mineIds))));
   }
