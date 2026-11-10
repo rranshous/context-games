@@ -23,7 +23,7 @@ import { Choices } from './surfaces/choices.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
-import { LIFE_WORDS, Lights } from './lights.js';
+import { Lights } from './lights.js';
 import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
@@ -103,6 +103,7 @@ class Frame {
     // the LAN reaches this over plain http.)
     this.token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
     this.lost = null;                   // set once another window takes the ludant
+    this.tabs = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gactant-tabs') : null;
   }
 
   /** Hold the ludant so only this window saves it. Another window may be holding it:
@@ -114,8 +115,9 @@ class Frame {
       if (err.status === 403 && err.body?.notYours) return this.notYours(err.body.unclaimed);
       if (err.status !== 409) throw err;
       // A window that has missed its heartbeats is gone (closed without saying so, as phones
-      // often close tabs): take over without asking. One still beating gets asked.
-      if (err.body?.quietFor > HEARTBEAT_MS * 1.6) {
+      // often close tabs), and so is one on this device that no tab here answers for: take
+      // over without asking. One still open somewhere gets asked.
+      if (err.body?.quietFor > HEARTBEAT_MS * 1.6 || (err.body?.sameDevice && !await this.openHere())) {
         await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat, takeOver: true });
         return this.beat();
       }
@@ -126,8 +128,23 @@ class Frame {
     this.beat();
   }
 
+  /** Whether another tab in this browser has this ludant open: they answer each other. */
+  openHere() {
+    return new Promise((resolve) => {
+      if (!this.tabs) return resolve(false);
+      const ask = `${Date.now()}-${Math.random()}`;
+      const done = (v) => { clearTimeout(timer); this.tabs.removeEventListener('message', heard); resolve(v); };
+      const heard = (e) => { if (e.data?.open === this.recordId && e.data.ask === ask) done(true); };
+      const timer = setTimeout(() => done(false), 400);
+      this.tabs.addEventListener('message', heard);
+      this.tabs.postMessage({ who: this.recordId, ask });
+    });
+  }
+
   /** Holding it: a heartbeat every few seconds, and letting go when the page goes. */
   beat() {
+    // Other tabs here may ask whether this one has it open (openHere).
+    this.tabs?.addEventListener('message', (e) => { if (e.data?.who === this.recordId && !this.lost) this.tabs.postMessage({ open: this.recordId, ask: e.data.ask }); });
     // Heartbeats also carry what the sitting has cost since the last one and how long it's
     // been watched, so the server can say what a ludant costs per hour of play.
     let lastBeat = Date.now(), reported = 0;
@@ -231,7 +248,7 @@ class Frame {
       const box = el('div', { class: 'banner' },
         el('p', {}, el('strong', {}, `To answer you or change, ${callName(this.actant.soma)} needs to think. `), 'You can play without that. Ludants think with an AI model, on your own OpenRouter account: it costs real money, usually a few cents at a time. Once you connect, a meter at the top shows what this sitting has cost, and it hears what you said.'),
         el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
-        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; this.chat.notice(`${callName(this.actant.soma)} won't answer until someone here connects an AI. What you said waits for then.`); reject(new Error(NO_THINKING)); } }, 'just play'));
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; this.chat.notice(`${callName(this.actant.soma)} won't answer until an AI is connected here (the amber button at the top). What you said waits for then.`); reject(new Error(NO_THINKING)); } }, 'just play'));
       document.body.append(box);
     });
     return this.asking;
@@ -634,7 +651,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     if (!this.marquee) return;
     const soma = this.actant.soma, title = titled(soma.sections?.title);
     this.marquee.replaceChildren(el('strong', {}, title || callName(soma)),
-      el('span', {}, `${title ? `${callName(soma)} is ` : ''}${LIFE_WORDS[this.status.life] ?? this.status.life}`));
+      el('span', {}, `${title ? `${callName(soma)} ` : ''}${this.status.lifeWords()}`));
   }
 
   toast(who, text) {
@@ -674,8 +691,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       );
     };
     root.append(
-      el('button', { class: 'top-btn', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
-      el('button', { class: 'top-btn', onclick: async () => {
+      el('button', { class: 'top-btn more', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
+      el('button', { class: 'top-btn more', onclick: async () => {
         const given = this.actant.soma.given;
         const title = prompt(`Publish under the name ${given}-<title>. Each name belongs to one snapshot, so a new publication needs a new title. Title:`, this.actant.soma.sections.title ?? '');
         if (!title?.trim()) return;
@@ -688,7 +705,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       } }, 'publish'),
       el('a', { class: 'top-btn', href: '/', title: 'more games, and your own' }, 'home'),
       this.playBtn = el('button', { class: 'top-btn', title: 'just the game, or the game with its chat and whiteboard', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show chat' : 'just the game'),
-      el('button', { class: 'top-btn', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
+      el('button', { class: 'top-btn more', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
         // Inside is beside the game, not over it: playing hides it, so opening it stops playing.
         if (this.playing) { this.setPlaying(false); main.classList.remove('folded'); }
         else main.classList.toggle('folded');
@@ -696,8 +713,10 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
         try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}
         if (!f) main.querySelector('.insp-pane').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } }, 'inside'),
-      el('button', { class: 'top-btn', title: 'report something that doesn\'t belong here', 'aria-label': 'report', onclick: () => this.askReport() }, '⚑'),
+      el('button', { class: 'top-btn more', title: 'report something that doesn\'t belong here', 'aria-label': 'report', onclick: () => this.askReport() }, '⚑'),
       history,
+      // On a narrow screen, the less everyday ones fold behind this.
+      el('button', { class: 'top-btn more-btn', title: 'more: history, publish, inside, report', 'aria-label': 'more', onclick: () => root.classList.toggle('more-open') }, '⋯'),
     );
   }
 

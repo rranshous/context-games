@@ -34,5 +34,6 @@ async function gameCard(id) {
     pic?.url ? el('img', { src: pic.url, alt: pub.title }) : null,
     el('strong', {}, pub.title || pub.name),
     pub.by ? el('span', { class: 'game-card-by' }, `by ${pub.by}`) : null,
-    el('p', {}, 'This game is alive: it\'s also an AI. Play it, tell it what you\'d change, and it changes itself.'));
+    el('p', {}, 'This game is alive: it\'s also an AI. Play it, tell it what you\'d change, and it changes itself.'),
+    el('p', { class: 'game-card-fine' }, 'Playing needs no account. For it to talk back and change, you connect your own AI account (OpenRouter): usually a few cents a change.'));
 }

@@ -21,6 +21,7 @@
 //   whiteboard.looked { who }   someone took a look (so the others know their sketch was seen)
 
 import { el } from '../ui.js';
+import { callName } from '../names.js';
 
 const W = 100, H = 60, SCALE = 10;
 const PALETTE = ['#20242c', '#d9483b', '#e8a33d', '#3f9d5a', '#3b7dd8', '#8a55c9', '#ffffff'];
@@ -239,7 +240,7 @@ export class Whiteboard {
         el('button', { class: 'wb-btn', onclick: () => this.pass(this.baton, seat, '') }, 'take it back'));
     } else {
       const note = el('input', { class: 'wb-note', placeholder: 'note (optional)' });
-      this.batonEl.append(note, el('button', { class: 'wb-btn', onclick: () => this.pass(seat, other, note.value) }, `your turn, ${other} →`));
+      this.batonEl.append(note, el('button', { class: 'wb-btn', onclick: () => this.pass(seat, other, note.value) }, `hand it to ${other === this.frame.actant?.name ? callName(this.frame.actant.soma) : other} →`));
     }
   }
 

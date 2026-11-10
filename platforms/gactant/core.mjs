@@ -720,8 +720,8 @@ export function createCore({ store, settings }) {
         // one can change it in the meantime, so no one can take it by opening it first.
         if (!owns(ludant, from)) throw notYours(ludant);
         const h = holdState(b);
-        if (h && h.token !== body.token && !body.takeOver) throw httpError(409, `${h.who} is holding this ludant in another window`, { heldBy: h.who, since: h.since, quietFor: Date.now() - h.seen });
-        holds.set(b, { token: body.token, who: String(body.who || 'someone').slice(0, 40), since: h?.token === body.token ? h.since : now(), seen: Date.now() });
+        if (h && h.token !== body.token && !body.takeOver) throw httpError(409, `${h.who} is holding this ludant in another window`, { heldBy: h.who, since: h.since, quietFor: Date.now() - h.seen, sameDevice: Boolean(h.device && h.device === from.device) });
+        holds.set(b, { token: body.token, who: String(body.who || 'someone').slice(0, 40), since: h?.token === body.token ? h.since : now(), seen: Date.now(), device: from.device ?? null });
         return { held: true, tookFrom: h && h.token !== body.token ? h.who : null };
       }
       if (c === 'heartbeat' && method === 'POST') {

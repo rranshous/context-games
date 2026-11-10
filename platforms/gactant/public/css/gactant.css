@@ -34,6 +34,8 @@ input:focus, textarea:focus { outline: 1px solid var(--amber); border-color: var
 a.top-btn { color: inherit; text-decoration: none; display: inline-flex; align-items: center; }
 .top-btn.primary { background: var(--amber); color: #1a1408; border-color: var(--amber); font-weight: 600; }
 .top-actions { position: relative; }
+.more-btn { display: none; }
+.game-card-fine { font-size: 13px; color: var(--ink-3) !important; margin-top: 2px !important; }
 .history { display: none; position: absolute; right: 0; top: 36px; z-index: 10; width: 440px; max-height: 60vh; overflow-y: auto; background: var(--pane); border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 .history.on { display: block; }
 .history-head { color: var(--ink-3); font: 12px var(--mono); padding: 2px 4px 8px; }
@@ -128,7 +130,7 @@ body.frame-page > .top { flex: none; }
 .insp-tab.on { border-color: var(--line); background: var(--pane-2); color: var(--ink); }
 .insp-tab.fresh::after { content: " •"; color: var(--amber); }
 .insp-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.insp-edit { flex: 1; margin: 6px; resize: none; font: 12px/1.5 var(--mono); white-space: pre; }
+.insp-edit { flex: 1; margin: 6px; resize: none; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .insp-bar { display: flex; justify-content: space-between; align-items: center; padding: 0 8px 8px; color: var(--ink-3); font: 12px var(--mono); }
 .insp-store { flex: 1; margin: 6px; padding: 8px; overflow: auto; font: 12px/1.5 var(--mono); color: var(--ink-2); background: var(--pane-2); border-radius: 6px; }
 .insp-fault { margin: 6px 6px 0; padding: 6px 8px; border: 1px solid var(--red); border-radius: 6px; color: #f3b3ab; font: 12px var(--mono); }
@@ -149,7 +151,7 @@ body.frame-page > .top { flex: none; }
 .game-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; margin-bottom: 6px; }
 .game-card strong { font-size: 20px; }
 .game-card-by { color: var(--ink-3); font-size: 13px; }
-.game-card p { margin: 6px 0 0 !important; color: var(--ink-2); }
+.game-card p { flex: none !important; margin: 6px 0 0 !important; color: var(--ink-2); }
 .frame.playing, .frame.playing.folded { grid-template-columns: 1fr; grid-template-rows: 1fr; grid-template-areas: "stage"; }
 .frame.playing .wb-pane, .frame.playing .chat-pane, .frame.playing .insp-pane { display: none; }
 .top-btn.on { border-color: var(--green); color: var(--green); }
@@ -235,6 +237,8 @@ body.frame-page > .top { flex: none; }
   .top { height: auto; min-height: 44px; flex-wrap: wrap; padding: 6px 10px; gap: 8px; }
   .status { flex: 1 1 100%; order: 3; }
   .top-actions { margin-left: auto; flex-wrap: wrap; }
+  .top-actions:not(.more-open) .top-btn.more { display: none; }
+  .top-actions .more-btn { display: inline-flex; }
   .history { width: calc(100vw - 20px); right: -4px; }
   .wb-note { width: 120px; }
   .tagline { display: none; }

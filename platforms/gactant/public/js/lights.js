@@ -39,6 +39,13 @@ export class Lights {
 
   mount(root) { this.root = root; this.render(); }
 
+  /** Its life in words, as a sentence's end ("is ready"). Ready means it would answer, so
+   *  until an AI is connected here it says that instead. */
+  lifeWords() {
+    if ((this.life === 'asleep' || this.life === 'resting') && !this.frame.payer?.()) return 'needs an AI to answer';
+    return `is ${LIFE_WORDS[this.life] ?? this.life}`;
+  }
+
   render() {
     this.frame.showMarquee?.();
     if (!this.root) return;
@@ -49,7 +56,7 @@ export class Lights {
       // Fishtest is ready"); its full name on hover.
       el('span', { class: `light life ${this.life}`, title: `${this.frame.actant?.name ?? ''}: ${this.detail || LIFE_WORDS[this.life] || this.life}` },
         el('i'), titled(soma?.sections?.title) || callName(soma) || '…',
-        el('em', {}, `${titled(soma?.sections?.title) ? `${callName(soma)} is ` : ''}${LIFE_WORDS[this.life] ?? this.life}`)),
+        el('em', {}, `${titled(soma?.sections?.title) ? `${callName(soma)} ` : ''}${this.lifeWords()}`)),
       this.detail ? el('span', { class: 'status-detail' }, this.detail) : null,
       this.meter(),
     ].filter(Boolean));
@@ -66,7 +73,8 @@ export class Lights {
     // it looks like it.
     const button = el('button', { class: payer ? `spend ${warm}` : 'spend connect', title: payer ? 'what thinking has cost this sitting' : 'it talks and changes itself by thinking with an AI model, on your own OpenRouter account' },
       payer ? `$${this.spent.toFixed(2)}${rate ? ` · $${rate.toFixed(2)}/h` : ''}${room < 2 ? ` · $${Math.max(0, room).toFixed(2)} left` : ''}` : 'connect an AI');
-    button.addEventListener('click', () => this.openMeter());
+    // Nobody connected: the button connects. Once someone has, it opens what it's cost.
+    button.addEventListener('click', () => (payer ? this.openMeter() : this.frame.connectThinking()));
     return button;
   }
 

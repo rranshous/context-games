@@ -2652,3 +2652,31 @@ Not done, and Robby's to decide:
 
 Also not done: touch-control hints inside games ("←/→ sail" on a phone) are each ludant's to write. A line in the body contract about phones might help.
 - Upright on a phone, playing: the game sits just above the controls, like a handheld, with a marquee in the room above it (the title, "Fishtest is ready"). The ludant's words surface under the marquee. Before, the game floated mid-screen with black bands, which two reviewers called out.
+
+**Round three's reviews** (two blind: a phone from a cousin's text about Hop Turbo, and a hobbyist game maker skeptical of AI hype, on a desktop):
+- *Landed:* both got it in seconds. The skeptic: "The real cost figure did more to win over the skeptic in me than any adjective". Verdict: "intriguing, unproven". The phone reviewer would text back "lol cute, but I can't actually make it change without paying".
+- *Still hit:*
+  - the window lock on quick returns (3 of 7)
+  - "ready" while nothing could answer
+  - "connect an AI" opening a cost essay, not the connection
+  - the busy top bar on a phone
+  - the whiteboard opening with the chat
+  - code in "inside" clipped
+  - "no accounts" on the privacy page, which then describes something like one
+- *The skeptic's best idea:* history as lineage, showing the changes that made a game, with before and after pictures: "the proof a skeptic wants".
+
+**Round four:**
+- *The hold remembers its device.* Coming back on the same device, the page asks this browser's other tabs (a BroadcastChannel) whether one still has the ludant open. If none answers within 400 ms, it takes over quietly. The question only comes when it really is open somewhere: another tab here, or another device that's still beating. Checked: three quick returns, no question.
+- *Honest status:* without an AI connected, it reads "Elodon needs an AI to answer", not "ready" or "waiting".
+- *"connect an AI"* connects. The cost popover is for once something's being spent.
+- *The link card says up front:* "Playing needs no account. For it to talk back and change, you connect your own AI account (OpenRouter): usually a few cents a change."
+- *On a narrow screen,* history, publish, inside and ⚑ fold behind "⋯".
+- *Smaller fixes:*
+  - the whiteboard's button says "hand it to Elodon →"
+  - the code in "inside" wraps
+  - privacy opens "asks for no email and no password, shows no ads, and sets no tracking cookies"
+
+Not done:
+- history as lineage, with pictures (worth doing: it's the proof)
+- the whiteboard folded until wanted
+- free first changes
