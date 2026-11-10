@@ -103,7 +103,7 @@ export class Admins {
       let text = f.actant.soma.sections?.[LETTERS] ?? '';
       const fresh = mail.filter((m) => !text.includes(`(${m.id})`));
       if (fresh.length) {
-        if (!text.trim()) text = 'Letters from the people who run gactant, answering reports I sent them. To answer one, use report_problem_to_gactant_admins with about set to the report\'s id. When I\'ve dealt with a letter, I edit it out of this section, or remove the section.';
+        if (!text.trim()) text = 'Letters from the people who run gactant, answering reports I sent them. To answer one, use report_problem_to_gactant_admins with about set to the report\'s id. A letter stays here until I take it out, and once it\'s out I can\'t see it any more, so I only take one out after I\'ve done what it asks and kept anything I\'ll need from it in my memory.';
         for (const m of fresh) {
           text += `\n\n--- ${new Date(m.at).toISOString().slice(0, 16).replace('T', ' ')} UTC, about your report "${m.title}" (${m.issue}) (${m.id}):\n${m.text}`;
         }
