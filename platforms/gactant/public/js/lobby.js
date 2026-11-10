@@ -4,6 +4,7 @@
 // starting from nothing is last.
 
 import { handOver, newRecovery } from './identity.js';
+import { titled } from './names.js';
 import { PadNav, Pads } from './pads.js';
 import { api, askName, el, forget, mine, myName, recoveryDue, showRecovery } from './ui.js';
 import { watchPage } from './telemetry.js';
@@ -22,9 +23,6 @@ const hours = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h.toFixed(h < 10 
 const costLine = (cost) => (cost ? `about $${cost.rate.toFixed(2)} an hour to play` : null);
 
 /** What's worth trying first: played and copied the most, with a little room for the new. */
-/** A title as people would write it: one typed as a slug ("lazy-drive") reads "Lazy Drive". */
-const titled = (t) => (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t ?? '') ? t.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : t);
-
 /** How much it's been played: copies taken, and hours spent playing. */
 const played = (p) => (p.copies ?? 0) + 3 * (p.cost?.hours ?? 0);
 
@@ -93,7 +91,7 @@ function families(published, yours = new Set()) {
     return el('li', { class: 'tree-node' },
       el('a', { class: 'tree-card', href: `/play.html?p=${p.id}` },
         how ? el('span', { class: `tree-how ${how}` }, how === 'then' ? 'then' : `copy, changed by ${p.by ?? 'someone'}`) : null,
-        el('strong', {}, p.name, yours.has(p.ludant) ? el('span', { class: 'yours' }, ' yours') : null),
+        el('strong', {}, titled(p.title) || p.name, yours.has(p.ludant) ? el('span', { class: 'yours' }, ' yours') : null),
         el('span', {}, [p.by ? `by ${p.by}` : null, `${p.copies} ${p.copies === 1 ? 'copy' : 'copies'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · ')),
         p.note ? el('span', { class: 'pub-note' }, `“${p.note}”`) : null),
       kids.length ? el('ul', { class: 'tree' }, ...kids.map(node)) : null);
@@ -101,7 +99,7 @@ function families(published, yours = new Set()) {
   const groups = new Map();
   for (const p of byTime) if (!parent.has(p.id)) groups.set(p.given, [...(groups.get(p.given) ?? []), p]);
   return [...groups].reverse().map(([given, roots]) => el('li', { class: 'family' },
-    el('div', { class: 'family-name' }, `the ${given} family`),
+    el('div', { class: 'family-name' }, `${given}'s family`),
     el('ul', { class: 'tree root' }, ...roots.map(node))));
 }
 
@@ -194,7 +192,10 @@ async function render() {
     .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
   const parts = [];
 
-  if (!returning) {
+  // The explanation stays until someone has made a ludant of their own: a copy or two
+  // doesn't mean they've got what this is.
+  const maker = yours.some((l) => !l.lineage?.from);
+  if (!maker) {
     const step = (n, title, text) => el('li', { class: 'step' }, el('span', { class: 'step-n' }, n), el('strong', {}, title), el('span', {}, text));
     // A real change, recorded: what was asked, and the game before and after.
     const demo = el('figure', { class: 'demo' },

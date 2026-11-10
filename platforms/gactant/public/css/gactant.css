@@ -119,6 +119,7 @@ body.frame-page > .top { flex: none; }
 .chat-chip { background: var(--pane-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; color: var(--ink); }
 .chat-chip:hover { border-color: var(--amber); }
 .chat-starter-fine { font-size: 12px; color: var(--ink-3); }
+.chat-notice { align-self: center; max-width: 90%; padding: 6px 12px; border-radius: 999px; background: var(--pane-2); color: var(--ink-2); font-size: 12px; text-align: center; }
 .link-btn.inline { flex: none; display: inline; color: var(--amber); }
 
 /* inspector */
@@ -172,7 +173,7 @@ body.frame-page > .top { flex: none; }
 .step span:last-child { color: var(--ink-2); }
 .step-n { width: 26px; height: 26px; border-radius: 50%; background: var(--amber); color: #1a1408; font: 700 14px/26px var(--sans); text-align: center; margin-bottom: 4px; }
 .intro-fine { margin: 0; color: var(--ink-3); font-size: 13px; max-width: 75ch; }
-@media (max-width: 700px) { .steps { grid-template-columns: 1fr; gap: 6px; } .step { display: grid; grid-template-columns: 26px 1fr; column-gap: 12px; align-items: center; padding: 10px 12px; } .step-n { margin: 0; } .step span:last-child { display: none; } }
+@media (max-width: 700px) { .steps { grid-template-columns: 1fr; gap: 4px; margin: 14px 0 12px; } .step { display: grid; grid-template-columns: 26px 1fr; column-gap: 12px; align-items: center; padding: 2px 0; background: none; border: 0; } .step-n { margin: 0; } .step span:last-child { display: none; } }
 /* the hero's demo: a real change, before and after */
 .intro-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px; align-items: center; }
 @media (max-width: 860px) { .intro-top { grid-template-columns: 1fr; gap: 18px; } }
@@ -229,8 +230,8 @@ body.frame-page > .top { flex: none; }
   body.frame-page { height: auto; min-height: 100vh; }
   .frame.playing, .frame.playing.folded { grid-template-rows: auto; height: auto; }
   .frame.playing .stage-wrap { min-height: 55vh; }
-  .frame:not(.playing), .frame.folded:not(.playing) { height: auto; grid-template-columns: 1fr; grid-template-rows: auto 55vh 50vh 60vh; grid-template-areas: "stage" "chat" "wb" "insp"; }
-  .stage-wrap { min-height: 42vh; }
+  .frame:not(.playing), .frame.folded:not(.playing) { height: auto; grid-template-columns: 1fr; grid-template-rows: auto 48vh 50vh 60vh; grid-template-areas: "stage" "chat" "wb" "insp"; }
+  .stage-wrap { min-height: 32vh; }
   .top { height: auto; min-height: 44px; flex-wrap: wrap; padding: 6px 10px; gap: 8px; }
   .status { flex: 1 1 100%; order: 3; }
   .top-actions { margin-left: auto; flex-wrap: wrap; }
@@ -261,6 +262,7 @@ iframe.sandbox { position: absolute; width: 0; height: 0; border: 0; visibility:
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--line); min-height: 34px; }
 .chat-head-detail { color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-head .light { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
+.chat-head .chat-head-detail { flex: 1 10 0; min-width: 0; }
 .chat-thinking .chat-text { color: var(--ink-3); font-style: italic; }
 .dots::after { content: ''; animation: dots 1.4s steps(4) infinite; }
 @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
@@ -383,6 +385,9 @@ body.fullplay .hint-bar.hint-float { display: flex; }
 .issue-with { color: var(--ink-2); font-size: 0.85em; }
 .rules { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
 .rules li { margin: 6px 0; }
+.rules a { color: var(--amber); }
+.in-short { padding: 4px 18px 10px; margin: 18px 0; background: var(--pane); border: 1px solid var(--line); border-radius: 12px; }
+.in-short h2 { margin-top: 14px !important; }
 .lobby-foot { color: var(--ink-3); font-size: 12px; }
 .lobby-foot a { color: var(--ink-2); }
 .rules h2 { font: 600 15px var(--mono); color: var(--amber); margin: 26px 0 6px; }

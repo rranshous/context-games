@@ -7,6 +7,7 @@
 // one. It's gone; the chat is where a ludant says what it's up to.)
 
 import { el } from './ui.js';
+import { callName, titled } from './names.js';
 
 // How its life reads to people: plain words. (resting is thinking that's held back: it woke
 // itself too often, or nobody here has connected an AI for it to think with.)
@@ -40,10 +41,14 @@ export class Lights {
 
   render() {
     if (!this.root) return;
+    const soma = this.frame.actant?.soma;
     this.root.replaceChildren(...[
       el('span', { class: 'light people', title: 'sitting here' }, el('i'), [...this.frame.people].join(' · ')),
-      el('span', { class: `light life ${this.life}`, title: this.detail || this.life },
-        el('i'), this.frame.actant?.name ?? '…', el('em', {}, LIFE_WORDS[this.life] ?? this.life)),
+      // The game by its title, and the one you talk to by its given name ("Little Catch ·
+      // Fishtest is ready"); its full name on hover.
+      el('span', { class: `light life ${this.life}`, title: `${this.frame.actant?.name ?? ''}: ${this.detail || LIFE_WORDS[this.life] || this.life}` },
+        el('i'), titled(soma?.sections?.title) || callName(soma) || '…',
+        el('em', {}, `${titled(soma?.sections?.title) ? `${callName(soma)} is ` : ''}${LIFE_WORDS[this.life] ?? this.life}`)),
       this.detail ? el('span', { class: 'status-detail' }, this.detail) : null,
       this.meter(),
     ].filter(Boolean));
@@ -75,10 +80,10 @@ export class Lights {
     const every = el('input', { class: 'meter-every', type: 'number', min: '0', step: '0.25', value: String(this.checkInEvery()) });
     every.addEventListener('change', () => { try { localStorage.setItem('gactant-check-in', String(Math.max(0, Number(every.value) || 0))); } catch {} });
     const pop = el('div', { class: 'meter-pop' },
-      el('p', {}, `This sitting: $${this.spent.toFixed(3)} over ${mins} min${rate ? `, about $${rate.toFixed(2)} an hour` : ''}. A ludant thinks with an AI model whenever its own body decides to, so the cost depends on the ludant. It's told this meter too.`),
+      el('p', {}, `This sitting: $${this.spent.toFixed(3)} over ${mins} min${rate ? `, about $${rate.toFixed(2)} an hour` : ''}. A ludant thinks with an AI model when something wakes it: mostly someone talking to it, though its own code can wake it too. So the cost depends on the ludant, and on how much you ask of it. It sees this meter too. Nothing is spent until someone here connects an account, and OpenRouter lets you put a spending limit on the key.`),
       el('p', {}, payer === 'own' ? 'Paid by your own OpenRouter account.' : payer === 'server' ? 'Paid by this install\'s key (a local setup).' : 'Nothing is connected, so it can\'t think yet.'),
       keyLine ? el('p', {}, keyLine) : null,
-      el('label', { class: 'meter-row' }, 'check in with me every $', every),
+      el('label', { class: 'meter-row', title: 'a reminder of what it has cost so far; it doesn\'t stop anything' }, 'remind me each time this sitting passes another $', every),
       el('div', { class: 'meter-row' },
         payer === 'own'
           ? el('button', { class: 'wb-btn', onclick: () => { frame.disconnectThinking(); pop.remove(); } }, 'disconnect OpenRouter')

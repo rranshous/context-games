@@ -2608,3 +2608,46 @@ Robby: "this site is visual and layout wise not very good", and what he's after 
 - The Xbox tip shows only on an Xbox.
 
 Left for Robby (asked, not decided): a few free thinks on the site's key for newcomers, so they see a change without paying.
+
+**Round two's reviews** (three blind: a phone from a group chat, a laptop from a coworker's link to Lazy Drive, and a parent on a tablet checking it for a 10-year-old):
+- *Landed:* every one got the idea from the home page within seconds; the recorded change did the work. The parent found the rules and privacy pages "better than I expected", and "just play" felt "respectful, not pushy".
+- *What all three hit:*
+  - the stale "open in another window" lock on coming back. Real: phones often close tabs without the page's goodbye, and the hold lasts 20 s.
+  - the game's two names ("Little Catch" on the card, "Fishtest-Little-Catch" inside)
+  - a message sitting unanswered under "ready"
+  - "inside" doing nothing in play mode
+  - the chat pushing the game out of view on a phone
+- *The parent:*
+  - nobody named as running the site, no contact, no age guidance
+  - "check in with me every $1" unexplained
+  - a new ludant's chat suggesting "make it harder" for a game that doesn't exist yet
+
+**Round three:**
+- *The hold:* a 409 now says how long the holding window has been quiet. One that's missed its heartbeats (over 8 s) is gone, and is taken over without asking. One still beating still gets "bring it here".
+- *Names:* people see the game by its title and the ludant by its given name.
+  - the top bar reads "Lazy Drive Extreme Edition · Wovan is waiting"
+  - the chat says "talk to Wovan…", and its messages are signed Wovan
+  - the hint says "It's Wovan: an AI, and this game is its body", which defines a ludant without the word
+  - `names.js`: `titled()`, `callName()`
+  - the full name stays where it's kept, and shows on hover
+- *The chat:*
+  - suggestions fill the box rather than sending
+  - a ludant with no title yet suggests what it could become ("a fishing game", "surprise me"), and its hint says it's an AI that becomes a game
+  - after "just play", a notice: "Wovan won't answer until someone here connects an AI. What you said waits for then."
+- *"inside"* leaves play mode and scrolls to what it opened.
+- *"talk to it"* on a narrow screen scrolls to the game with the chat right under it (and the stage beside the chat is shorter there), so a change can be watched.
+- *The cost popover:*
+  - says what wakes a ludant (mostly someone talking to it)
+  - says nothing is spent until someone connects
+  - says OpenRouter lets you put a limit on the key
+  - "remind me each time this sitting passes another $", noting it doesn't stop anything
+- *The home page:* the explanation stays for anyone who hasn't seeded a ludant of their own. Family trees show titles, and "Wovan's family".
+- *Privacy:* an "In short" box at the top. The rules and privacy pages link "Home" in amber.
+- *On a phone,* the steps are plain lines, not boxes that look tappable.
+
+Not done, and Robby's to decide:
+- who's named as running gactant, and a contact
+- age guidance
+- free thinks for newcomers
+
+Also not done: touch-control hints inside games ("←/→ sail" on a phone) are each ludant's to write. A line in the body contract about phones might help.

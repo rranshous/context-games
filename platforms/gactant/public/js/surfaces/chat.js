@@ -5,6 +5,7 @@
 
 import { el } from '../ui.js';
 import { LIFE_WORDS } from '../lights.js';
+import { callName } from '../names.js';
 
 const KEEP = 200;
 
@@ -45,7 +46,7 @@ export class Chat {
 
   mount(root) {
     this.log = el('div', { class: 'chat-log' });
-    const input = el('textarea', { class: 'chat-input', rows: 2, placeholder: `talk to ${this.frame.actant?.name ?? 'the ludant'}…` });
+    const input = this.input = el('textarea', { class: 'chat-input', rows: 2, placeholder: `talk to ${callName(this.frame.actant?.soma) ?? 'the ludant'}…` });
     const send = () => {
       if (input.value.trim()) this.post(this.frame.seat, input.value);
       input.value = '';
@@ -72,7 +73,7 @@ export class Chat {
   showLife() {
     if (!this.head) return;
     const { life, detail } = this.frame.status;
-    const name = this.frame.actant?.name ?? 'the ludant';
+    const name = callName(this.frame.actant?.soma) ?? 'the ludant';
     const busy = life === 'thinking' ? this.frame.actant?.doing : null;
     const painting = [...(this.frame.art?.painting.values() ?? [])];
     const doing = painting.length ? `painting ${painting.map((n) => `“${n}”`).join(', ')}` : busy;
@@ -89,14 +90,29 @@ export class Chat {
   /** Before anything has been said: what you might say, and, if nobody here has connected
    *  an AI, what its answering takes. */
   starter() {
-    const name = this.frame.actant?.name ?? 'it';
-    const ask = (text) => el('button', { class: 'chat-chip', onclick: () => this.post(this.frame.seat, text) }, text);
+    const soma = this.frame.actant?.soma, name = callName(soma) ?? 'it';
+    // A suggestion goes into the box, to send as it is or change first.
+    const ask = (text) => el('button', { class: 'chat-chip', onclick: () => { this.input.value = text; this.input.focus(); } }, text);
+    // Nothing yet (no title: it hasn't become a game): what it could become.
+    const fresh = !soma?.sections?.title?.trim();
     return el('div', { class: 'chat-starter' },
-      el('p', {}, `Tell ${name} what you'd change, in your own words. It answers here, and changes itself while you play.`),
-      el('div', { class: 'chat-chips' }, ask('make it harder'), ask('change the colors'), ask('add something new'), ask('what are you?')),
+      fresh
+        ? el('p', {}, `${name} isn't a game yet. Tell it what you'd like to play, and it builds itself into that.`)
+        : el('p', {}, `Tell ${name} what you'd change, in your own words. It answers here, and changes itself while you play.`),
+      fresh
+        ? el('div', { class: 'chat-chips' }, ask('a fishing game'), ask('a racing game'), ask('something spooky'), ask('surprise me'))
+        : el('div', { class: 'chat-chips' }, ask('make it harder'), ask('change the colors'), ask('add something new'), ask('what are you?')),
       this.frame.payer?.() ? null : el('p', { class: 'chat-starter-fine' },
         'To answer, it thinks with an AI model on your own OpenRouter account, usually a few cents at a time. ',
         el('button', { class: 'link-btn inline', onclick: () => this.frame.connectThinking() }, 'connect an AI')));
+  }
+
+  /** A line from the frame, not a message: kept out of the conversation. */
+  notice(text) {
+    if (!this.log) return;
+    this.log.querySelector('.chat-notice')?.remove();
+    this.log.append(el('div', { class: 'chat-notice' }, text));
+    this.log.scrollTop = this.log.scrollHeight;
   }
 
   render(m) {
@@ -104,7 +120,7 @@ export class Chat {
     this.log.querySelector('.chat-starter')?.remove();
     const mine = m.who === this.frame.seat;
     this.log.append(el('div', { class: `chat-msg ${mine ? 'mine' : 'theirs'}` },
-      el('span', { class: 'chat-who' }, m.who), el('div', { class: 'chat-text' }, m.text)));
+      el('span', { class: 'chat-who' }, m.who === this.frame.actant?.name ? callName(this.frame.actant.soma) : m.who), el('div', { class: 'chat-text' }, m.text)));
     if (this.thinkingEl?.isConnected) this.log.append(this.thinkingEl);   // keep it last
     this.log.scrollTop = this.log.scrollHeight;
   }

@@ -34,3 +34,12 @@ export function nameOf(soma) {
   const t = titleSlug(soma?.sections?.title);
   return t ? `${soma.given}-${t}` : soma?.given ?? '?';
 }
+
+/** How people see a ludant: its game's title as people would write it ("lazy-drive" reads
+ *  "Lazy Drive"), and its given name, the one you talk to. Its full name stays what it's
+ *  called everywhere it's kept. */
+export function titled(t) {
+  t = String(t ?? '').trim();
+  return /^[a-z0-9]+(-[a-z0-9]+)+$/.test(t) ? t.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : t;
+}
+export const callName = (soma) => soma?.given ?? nameOf(soma);

@@ -14,7 +14,7 @@
 
 import { Bus } from './bus.js';
 import { canSeal, contentKey, handOver, seal, unlock, unseal, who } from './identity.js';
-import { nameOf } from './names.js';
+import { callName, nameOf } from './names.js';
 import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Art } from './surfaces/art.js';
 import { Table } from './surfaces/table.js';
@@ -113,10 +113,21 @@ class Frame {
     } catch (err) {
       if (err.status === 403 && err.body?.notYours) return this.notYours(err.body.unclaimed);
       if (err.status !== 409) throw err;
+      // A window that has missed its heartbeats is gone (closed without saying so, as phones
+      // often close tabs): take over without asking. One still beating gets asked.
+      if (err.body?.quietFor > HEARTBEAT_MS * 1.6) {
+        await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat, takeOver: true });
+        return this.beat();
+      }
       const since = err.body?.since ? new Date(err.body.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
       await this.ask(`${this.actant.name} is open in another window${err.body?.heldBy ? ` (${err.body.heldBy}${since ? `, since ${since}` : ''})` : ''}. A ludant lives in one window at a time.`, 'bring it here');
       await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat, takeOver: true });
     }
+    this.beat();
+  }
+
+  /** Holding it: a heartbeat every few seconds, and letting go when the page goes. */
+  beat() {
     // Heartbeats also carry what the sitting has cost since the last one and how long it's
     // been watched, so the server can say what a ludant costs per hour of play.
     let lastBeat = Date.now(), reported = 0;
@@ -218,9 +229,9 @@ class Frame {
     if (!ask) return Promise.reject(new Error(NO_THINKING));
     this.asking ??= new Promise((resolve, reject) => {
       const box = el('div', { class: 'banner' },
-        el('p', {}, el('strong', {}, `To answer you or change, ${this.actant.name} needs to think. `), 'You can play it without that. Ludants think with an AI model, on your own OpenRouter account: it costs real money, usually a few cents at a time, and the meter at the top shows what this sitting has cost. Connect, and it hears what you said.'),
+        el('p', {}, el('strong', {}, `To answer you or change, ${callName(this.actant.soma)} needs to think. `), 'You can play without that. Ludants think with an AI model, on your own OpenRouter account: it costs real money, usually a few cents at a time. Once you connect, a meter at the top shows what this sitting has cost, and it hears what you said.'),
         el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
-        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(NO_THINKING)); } }, 'just play'));
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; this.chat.notice(`${callName(this.actant.soma)} won't answer until someone here connects an AI. What you said waits for then.`); reject(new Error(NO_THINKING)); } }, 'just play'));
       document.body.append(box);
     });
     return this.asking;
@@ -498,7 +509,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     main.querySelector('.stage-pane').append(el('div', { class: 'full-bar' }, this.fullBtn,
       el('button', { class: 'full-btn', title: 'show all', onclick: () => this.setPlaying(false) }, '✕')));
     // Playing, the chat is out of sight: the way to it stays on the stage.
-    main.querySelector('.stage-pane').append(el('button', { class: 'talk-float', title: `talk to ${this.actant.name}`, onclick: () => this.talk() }, '💬 talk to it'));
+    main.querySelector('.stage-pane').append(el('button', { class: 'talk-float', title: `talk to ${callName(this.actant.soma)}`, onclick: () => this.talk() }, '💬 talk to it'));
     document.addEventListener('fullscreenchange', () => { this.fullBtn.hidden = Boolean(document.fullscreenElement); this.stage.fit(); });
     this.fullBtn.hidden = !document.documentElement.requestFullscreen;
     document.body.classList.toggle('fullplay', this.playing && this.stage.touch);
@@ -567,7 +578,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     try { if (localStorage.getItem('gactant-hinted')) return; } catch { return; }
     const done = () => { bar.remove(); try { localStorage.setItem('gactant-hinted', '1'); } catch {} };
     const bar = el('div', { class: `hint-bar${this.stage.touch ? ' hint-float' : ''}` },
-      el('span', {}, el('strong', {}, 'This game is alive. '), `${this.actant.name} is also an AI. Play it, then tell it what you'd change, and it changes itself.`),
+      this.actant.soma.sections?.title?.trim()
+        ? el('span', {}, el('strong', {}, 'This game is alive. '), `It's ${callName(this.actant.soma)}: an AI, and this game is its body. Play, then tell ${callName(this.actant.soma)} what you'd change, and it changes itself.`)
+        : el('span', {}, el('strong', {}, `This is ${callName(this.actant.soma)}. `), 'It\'s an AI that becomes a game: tell it what you\'d like to play, and it builds itself into that.'),
       el('button', { class: 'wb-btn primary', onclick: () => { done(); this.talk(); } }, 'talk to it'),
       el('button', { class: 'wb-btn', onclick: done }, 'got it'));
     // On a phone, play mode has no room above the stage: it floats over the game.
@@ -579,7 +592,10 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   talk() {
     if (this.playing) this.setPlaying(false);
     const input = this.main.querySelector('.chat-input');
-    input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // On a narrow screen the chat is under the game: start from the game, so a change can
+    // be watched, with the chat right below it.
+    if (matchMedia('(max-width: 900px)').matches) this.main.querySelector('.stage-pane').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    else input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     input?.focus({ preventScroll: true });
   }
 
@@ -661,8 +677,12 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       el('a', { class: 'top-btn', href: '/', title: 'more games, and your own' }, 'home'),
       this.playBtn = el('button', { class: 'top-btn', title: 'just the game, or the game with its chat and whiteboard', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show chat' : 'just the game'),
       el('button', { class: 'top-btn', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
-        const f = main.classList.toggle('folded');
+        // Inside is beside the game, not over it: playing hides it, so opening it stops playing.
+        if (this.playing) { this.setPlaying(false); main.classList.remove('folded'); }
+        else main.classList.toggle('folded');
+        const f = main.classList.contains('folded');
         try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}
+        if (!f) main.querySelector('.insp-pane').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } }, 'inside'),
       el('button', { class: 'top-btn', title: 'report something that doesn\'t belong here', 'aria-label': 'report', onclick: () => this.askReport() }, '⚑'),
       history,
