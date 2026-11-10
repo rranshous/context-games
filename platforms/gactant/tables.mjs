@@ -68,7 +68,8 @@ const MATCHES_A_DAY = 30;           // matches opened
 const ACTIONS_A_DAY = 3_000;
 const ACTIONS_A_MINUTE = 60;
 const STEPS_A_DAY = 50_000;         // steps of rules run for them, practice included
-const OPEN_AT_ONCE = 10;            // matches they're in that aren't over
+const OPEN_AT_ONCE = 10;            // matches they're in that aren't over and were played in lately
+const OPEN_LATELY_MS = 60 * 60_000;  // one nobody acted in for this long doesn't count (some rules never end a match)
 // The whole install in a day, so tables can't take the rest of the site down with them.
 const WORLD_ACTIONS_A_DAY = 20_000;
 const WORLD_MATCHES_A_DAY = 2_000;
@@ -141,7 +142,8 @@ export function createTables({ store, people, httpError, owns, settings }) {
   });
   const listed = (idx) => ({ id: idx.id, at: idx.at, updated: idx.updated, n: idx.n, over: Boolean(idx.result), players: Object.values(idx.members ?? {}), view: idx.onlooker ?? null, ...(idx.archived ? { archived: true } : {}) });
   async function openAtOnce(person) {
-    return (await store.list('match-index')).filter((m) => m.members?.[person] !== undefined && !m.result && !m.archived).length;
+    const lately = Date.now() - OPEN_LATELY_MS;
+    return (await store.list('match-index')).filter((m) => m.members?.[person] !== undefined && !m.result && !m.archived && Date.parse(m.updated ?? m.at) > lately).length;
   }
 
   async function act(id, body, from) {
@@ -159,7 +161,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     within('actions', 'world', WORLD_ACTIONS_A_DAY, 'tables are resting for today: the whole site has played as much as it can; tomorrow');
     enoughSteps(person);
     if (kind === 'join' && idx.members?.[person] === undefined && await openAtOnce(person) >= OPEN_AT_ONCE) {
-      throw httpError(429, `you're in ${OPEN_AT_ONCE} matches that aren't over; finish or leave one first`, { budget: budget(person) });
+      throw httpError(429, `you're in ${OPEN_AT_ONCE} matches that aren't over and were played in within the last hour; finish one, or come back to a new one in a while`, { budget: budget(person) });
     }
     // The signature, by the device the pass names, before the match hears of it.
     const key = await people.deviceKey(person, from.device);
