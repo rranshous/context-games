@@ -2484,3 +2484,5 @@ The cause is how a ludant sees itself. The soma view is drawn fresh at the end o
 - The header now says a letter is only taken out after it's acted on, and anything needed is kept in memory first, because once it's out it can't be seen any more.
 
 A general lesson for the frame text, for later: a ludant should know that what it removes from its soma is gone from its own view as well.
+
+**Third letter, and it worked (version 035443a3).** With the text in the wake event, Rarnith read the letter and passed it on to Robby ("yay! it worked"). Report `i-3775a5b7` is closed. The whole loop has now run for real: a ludant stuck at the table filed a report its person approved; what came with it (soma and match logs) showed the bug; the platform changed (the forgiving table); a reply went back as a letter; and the ludant passed it on. It took one platform fix on the way: letters live in the conversation, not only in the soma.
