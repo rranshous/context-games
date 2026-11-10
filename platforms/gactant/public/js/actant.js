@@ -284,7 +284,7 @@ export class Actant {
         // Not a fault: the game plays on, and it hears all this once it can think.
         this.unheard = woke.slice(-UNHEARD_KEPT);
         this.note('wake', 'frame: nobody here has connected thinking, so this waits until someone does');
-        this.life('resting', 'can\'t think until someone here connects OpenRouter');
+        this.life('resting', 'it needs an AI to answer: connect OpenRouter');
         return;
       }
       this.note('fault', `thinking failed: ${err.message}`);

@@ -170,7 +170,10 @@ export class Body {
   lived(state) {
     this.state = state;
     if (!state.thinking) { this.doing = null; this.frame.stage.ludantDone(); }
-    this.frame.status.setLife(state.life, state.detail);
+    // It starts to think before it finds nobody here has connected an AI: until someone has,
+    // that's waiting, not thinking.
+    if (state.life === 'thinking' && !this.frame.payer?.()) this.frame.status.setLife('resting', 'it needs an AI to answer: connect OpenRouter');
+    else this.frame.status.setLife(state.life, state.detail);
   }
 
   writeSection(name, content, by) { return this.frame.sandbox.call('write', name, content, by); }

@@ -36,7 +36,7 @@ export function myName() {
 /** Who's here, the first time it's needed: a name, which makes them a person on gactant
  *  with this device (identity.js), or a code from another of their devices. Resolves with
  *  their name once this device is theirs. */
-export async function askName(why = 'Ludants know the people who sit with them by name.') {
+export async function askName(why = 'Ludants know the people who sit with them by name.', card = null) {
   if (myName() && await pass().catch(() => null)) return myName();
   return new Promise((resolve) => {
     const box = el('div', { class: 'cover' });
@@ -47,13 +47,15 @@ export async function askName(why = 'Ludants know the people who sit with them b
       const done = async () => {
         const name = input.value.trim();
         if (!name) { input.focus(); return; }
-        try { const { recovery } = await become(name); showRecovery(box, recovery, () => { box.remove(); resolve(name); }); }
+        // The recovery code waits: someone who just wants to try a game hasn't got anything
+        // to recover yet. The lobby offers a fresh one later (recoveryDue).
+        try { await become(name); recoveryDue(true); box.remove(); resolve(name); }
         catch (err) { fail(said, err); }
       };
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
-      box.replaceChildren(el('div', { class: 'cover-box' },
+      box.replaceChildren(el('div', { class: `cover-box${card ? ' with-card' : ''}` }, card,
         el('p', {}, el('strong', {}, 'What should we call you? '), why),
-        input, el('button', { class: 'top-btn primary', onclick: done }, 'that\'s me'), said,
+        input, el('button', { class: 'top-btn primary', onclick: done }, card ? 'play' : 'that\'s me'), said,
         el('button', { class: 'link-btn', onclick: asCode }, 'Already play on another device? Use a code from it')));
       input.focus();
     };
@@ -81,6 +83,15 @@ export async function askName(why = 'Ludants know the people who sit with them b
     asName();
     document.body.append(box);
   });
+}
+
+/** Whether this device's person was made without being shown a recovery code yet. */
+export function recoveryDue(set) {
+  try {
+    if (set === undefined) return localStorage.getItem('gactant-recovery-due') === '1';
+    if (set) localStorage.setItem('gactant-recovery-due', '1'); else localStorage.removeItem('gactant-recovery-due');
+  } catch {}
+  return false;
 }
 
 /** A recovery code, shown once: the spare key, for if every device of theirs is lost. */

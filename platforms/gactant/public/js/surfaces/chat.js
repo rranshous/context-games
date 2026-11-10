@@ -4,6 +4,7 @@
 // events                  chat.posted { who, text }
 
 import { el } from '../ui.js';
+import { LIFE_WORDS } from '../lights.js';
 
 const KEEP = 200;
 
@@ -45,11 +46,14 @@ export class Chat {
   mount(root) {
     this.log = el('div', { class: 'chat-log' });
     const input = el('textarea', { class: 'chat-input', rows: 2, placeholder: `talk to ${this.frame.actant?.name ?? 'the ludant'}…` });
+    const send = () => {
+      if (input.value.trim()) this.post(this.frame.seat, input.value);
+      input.value = '';
+    };
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (input.value.trim()) this.post(this.frame.seat, input.value);
-        input.value = '';
+        send();
         // Typed with a controller (on a console's keyboard): let go once it's sent.
         if (input.dataset.padTyping) { delete input.dataset.padTyping; input.blur(); }
       }
@@ -58,8 +62,9 @@ export class Chat {
     // to be happening.
     this.head = el('div', { class: 'chat-head' });
     this.thinkingEl = el('div', { class: 'chat-msg theirs chat-thinking' });
-    root.append(this.head, this.log, input);
+    root.append(this.head, this.log, el('div', { class: 'chat-send-row' }, input, el('button', { class: 'chat-send', title: 'send', onclick: () => { send(); input.focus(); } }, 'send')));
     for (const m of this.messages) this.render(m);
+    if (!this.messages.length) this.log.append(this.starter());
     this.showLife();
   }
 
@@ -71,7 +76,7 @@ export class Chat {
     const busy = life === 'thinking' ? this.frame.actant?.doing : null;
     const painting = [...(this.frame.art?.painting.values() ?? [])];
     const doing = painting.length ? `painting ${painting.map((n) => `“${n}”`).join(', ')}` : busy;
-    const words = doing ? `${doing}…` : { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
+    const words = doing ? `${doing}…` : LIFE_WORDS[life] ?? life;
     this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
       detail ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
     if (life === 'thinking' || painting.length) {
@@ -81,8 +86,22 @@ export class Chat {
     } else this.thinkingEl.remove();
   }
 
+  /** Before anything has been said: what you might say, and, if nobody here has connected
+   *  an AI, what its answering takes. */
+  starter() {
+    const name = this.frame.actant?.name ?? 'it';
+    const ask = (text) => el('button', { class: 'chat-chip', onclick: () => this.post(this.frame.seat, text) }, text);
+    return el('div', { class: 'chat-starter' },
+      el('p', {}, `Tell ${name} what you'd change, in your own words. It answers here, and changes itself while you play.`),
+      el('div', { class: 'chat-chips' }, ask('make it harder'), ask('change the colors'), ask('add something new'), ask('what are you?')),
+      this.frame.payer?.() ? null : el('p', { class: 'chat-starter-fine' },
+        'To answer, it thinks with an AI model on your own OpenRouter account, usually a few cents at a time. ',
+        el('button', { class: 'link-btn inline', onclick: () => this.frame.connectThinking() }, 'connect an AI')));
+  }
+
   render(m) {
     if (!this.log) return;
+    this.log.querySelector('.chat-starter')?.remove();
     const mine = m.who === this.frame.seat;
     this.log.append(el('div', { class: `chat-msg ${mine ? 'mine' : 'theirs'}` },
       el('span', { class: 'chat-who' }, m.who), el('div', { class: 'chat-text' }, m.text)));

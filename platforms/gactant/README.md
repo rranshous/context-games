@@ -70,7 +70,10 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 | **inspector** | the soma, a log of what it did, the store | (for people: a window inside) |
 
 Above them, the frame's own **lights** (not a surface): who's here, whether the ludant is
-asleep or thinking (shown in the chat's header too), and the cost meter.
+ready, thinking or waiting (shown in the chat's header too), and the cost meter. Until
+someone here connects an AI, the meter is an amber "connect an AI" button. While playing
+(the stage alone), a "talk to it" button stays on the stage and opens the chat. An empty
+chat suggests what to say, and says what answering takes.
 
 **The ludant** is a soma: named sections.
 
@@ -311,7 +314,7 @@ The frame's pages work with a controller too:
   controller while it's open.
 - Play links open in play mode.
 - On Xbox, Edge gives pages controllers only in **controller mode** (from its menu);
-  otherwise a controller drives a pointer. The lobby says so until a controller shows up.
+  otherwise a controller drives a pointer. On an Xbox, the lobby says so until a controller shows up.
 
 `/check.html` is a guided device check: controllers, every button and stick, speech,
 the microphone, recognition. It saves its report for Claude to read
@@ -324,7 +327,7 @@ There are no passwords and no email (`people.mjs`, `public/js/identity.js`).
 - **Signing in:** a device signs a fresh challenge from the server and gets a **pass** for 24 hours. The server checks the pass by its own signature (`SESSION_SECRET`) and keeps no list of passes. Passes renew silently, and every request carries one (`X-Gactant-Pass`). A pass the server doesn't recognise (run out, forged, from a removed device, or signed before a local install restarted with a new secret) gets a 401, never a stranger's answer, and the page renews it once and asks again.
 - **A new device:** "add a device" on `/me.html` makes an 8-character code that works once, for 10 minutes. On the new device, "Already play on another device?" takes it.
 - **A lost device:** removing it from `/me.html` stops its passes at once.
-- **Every device lost:** the **recovery code**, twelve made-up words shown once when the person is made. The server keeps only its hash. Using it adds the device and gives a new code. A signed-in device can also make a new one.
+- **Every device lost:** the **recovery code**, twelve made-up words. Someone new isn't shown one on arrival (they came to try a game): the lobby offers to make one once they have ludants, and `/me.html` can any time. Each code is shown once. The server keeps only its hash. Using it adds the device and gives a new code. A signed-in device can also make a new one.
 - **What's private is sealed in the browser.** A ludant's chat, sketches, game saves and inspector log are encrypted (AES-GCM, bound to the ludant's id) before they're saved, with the person's **content key**. Every device of theirs holds that key, and the server never does: a public install refuses surfaces that aren't `{ stage, sealed }`. The key moves two ways, both sealed:
   - **the vault:** the key wrapped under a key derived (HKDF) from the recovery code. So the browser makes recovery codes, and the server keeps only their hash and the vault. Using the code opens the vault, and the new code comes with a new vault.
   - **handing over:** a device without the key offers an ECDH public key (`people/box`, or with a pairing code as it joins). A device that has the key wraps it for that box (`people/hand`), from `/me.html` while a code is showing, or from any lobby or frame of theirs. A device that's still waiting shows a cover: open another device, or type the recovery code.
@@ -350,9 +353,9 @@ sideways, and ✕ to come back.
 
 | URL | what |
 |---|---|
-| `/` | lobby: your name, publications as family trees, every ludant here, seed a new one |
+| `/` | home: what a ludant is (with a recorded real change, `img/demo-*.jpg`), your ludants, New and Popular, every publication as family trees, seed a new one |
 | `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
-| `/play.html?p=<publication>` | take a copy (remembered per browser) and sit with it |
+| `/play.html?p=<publication>` | take a copy (remembered per browser) and sit with it, in play mode; someone new sees its picture and title with the name ask |
 
 ## For Claude: the explorer seat and shards
 

@@ -1,7 +1,7 @@
 // gactant, run locally: Node, files on disk, no dependencies. The API itself is core.mjs;
 // this keeps the files, serves the pages, and listens. (worker.mjs is the hosted twin.)
 //
-//   node server.mjs [--port 7780]
+//   node server.mjs [--port 7780] [--data <dir>] [--env <file> | --env none]
 //
 // .env (next to this file), all optional
 //   OPENROUTER_API_KEY=...        thinking for anyone who hasn't connected their own OpenRouter
@@ -29,7 +29,9 @@ const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.i
 const DATA = arg('--data') ?? join(HERE, 'data');   // --data <dir>: another place (tools/smoke.mjs uses a scratch one)
 const PORT = Number(arg('--port')) || 7780;
 
-loadEnv(join(HERE, '.env'));
+// --env: settings from another file, or none at all (e.g. to see the site as a visitor does,
+// with no OpenRouter key of the server's to think on).
+if (arg('--env') !== 'none') loadEnv(arg('--env') ?? join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
 for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'issues', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'drafts', 'rulebooks', 'matches', 'actions', 'match-index', 'archive', 'standings', 'log', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });

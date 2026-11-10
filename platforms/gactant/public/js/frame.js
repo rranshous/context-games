@@ -497,6 +497,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.fullBtn = el('button', { class: 'full-btn', title: 'full screen', onclick: () => this.goFullscreen() }, '⛶');
     main.querySelector('.stage-pane').append(el('div', { class: 'full-bar' }, this.fullBtn,
       el('button', { class: 'full-btn', title: 'show all', onclick: () => this.setPlaying(false) }, '✕')));
+    // Playing, the chat is out of sight: the way to it stays on the stage.
+    main.querySelector('.stage-pane').append(el('button', { class: 'talk-float', title: `talk to ${this.actant.name}`, onclick: () => this.talk() }, '💬 talk to it'));
     document.addEventListener('fullscreenchange', () => { this.fullBtn.hidden = Boolean(document.fullscreenElement); this.stage.fit(); });
     this.fullBtn.hidden = !document.documentElement.requestFullscreen;
     document.body.classList.toggle('fullplay', this.playing && this.stage.touch);
@@ -563,10 +565,22 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   /** The first sitting in this browser gets one line about what's going on. */
   hint() {
     try { if (localStorage.getItem('gactant-hinted')) return; } catch { return; }
-    const bar = el('div', { class: 'hint-bar' },
-      el('span', {}, `${this.actant.name} is a game that's also alive. Play it, and talk to it in the chat: ask it to change something and it will change itself.`),
-      el('button', { class: 'wb-btn', onclick: () => { bar.remove(); try { localStorage.setItem('gactant-hinted', '1'); } catch {} } }, 'got it'));
-    this.main.before(bar);
+    const done = () => { bar.remove(); try { localStorage.setItem('gactant-hinted', '1'); } catch {} };
+    const bar = el('div', { class: `hint-bar${this.stage.touch ? ' hint-float' : ''}` },
+      el('span', {}, el('strong', {}, 'This game is alive. '), `${this.actant.name} is also an AI. Play it, then tell it what you'd change, and it changes itself.`),
+      el('button', { class: 'wb-btn primary', onclick: () => { done(); this.talk(); } }, 'talk to it'),
+      el('button', { class: 'wb-btn', onclick: done }, 'got it'));
+    // On a phone, play mode has no room above the stage: it floats over the game.
+    if (this.stage.touch) this.main.querySelector('.stage-pane').append(bar);
+    else this.main.before(bar);
+  }
+
+  /** From playing to talking with it: the chat shows, ready to type in. */
+  talk() {
+    if (this.playing) this.setPlaying(false);
+    const input = this.main.querySelector('.chat-input');
+    input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    input?.focus({ preventScroll: true });
   }
 
   /** Play mode: hide every surface but the stage. The ludant is told, since it changes
@@ -574,8 +588,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   setPlaying(on) {
     this.playing = on;
     this.main.classList.toggle('playing', on);
-    this.playBtn?.classList.toggle('on', on);
-    if (this.playBtn) this.playBtn.textContent = on ? 'show all' : 'play';
+    if (this.playBtn) this.playBtn.textContent = on ? 'show chat' : 'just the game';
     try { localStorage.setItem('gactant-play', on ? '1' : '0'); } catch {}
     this.bus.emit('frame.view', { who: this.seat, playing: on });
     document.body.classList.toggle('fullplay', on && this.stage.touch);
@@ -634,7 +647,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     };
     root.append(
       el('button', { class: 'top-btn', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
-      el('button', { class: 'top-btn primary', onclick: async () => {
+      el('button', { class: 'top-btn', onclick: async () => {
         const given = this.actant.soma.given;
         const title = prompt(`Publish under the name ${given}-<title>. Each name belongs to one snapshot, so a new publication needs a new title. Title:`, this.actant.soma.sections.title ?? '');
         if (!title?.trim()) return;
@@ -645,8 +658,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
           else prompt(`Published as ${name}. Anyone can take a copy here:`, url);
         } catch (err) { alert(err.message); }
       } }, 'publish'),
-      el('a', { class: 'top-btn', href: '/', title: 'back to the lobby' }, 'lobby'),
-      this.playBtn = el('button', { class: `top-btn${this.playing ? ' on' : ''}`, title: 'show only the stage', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show all' : 'play'),
+      el('a', { class: 'top-btn', href: '/', title: 'more games, and your own' }, 'home'),
+      this.playBtn = el('button', { class: 'top-btn', title: 'just the game, or the game with its chat and whiteboard', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show chat' : 'just the game'),
       el('button', { class: 'top-btn', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
         const f = main.classList.toggle('folded');
         try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}

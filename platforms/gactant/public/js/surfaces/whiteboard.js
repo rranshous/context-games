@@ -239,7 +239,7 @@ export class Whiteboard {
         el('button', { class: 'wb-btn', onclick: () => this.pass(this.baton, seat, '') }, 'take it back'));
     } else {
       const note = el('input', { class: 'wb-note', placeholder: 'note (optional)' });
-      this.batonEl.append(note, el('button', { class: 'wb-btn primary', onclick: () => this.pass(seat, other, note.value) }, `your turn, ${other} →`));
+      this.batonEl.append(note, el('button', { class: 'wb-btn', onclick: () => this.pass(seat, other, note.value) }, `your turn, ${other} →`));
     }
   }
 

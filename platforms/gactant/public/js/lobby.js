@@ -3,14 +3,15 @@
 // their own ludants first. Everything published is further down, as family trees, and
 // starting from nothing is last.
 
-import { handOver } from './identity.js';
+import { handOver, newRecovery } from './identity.js';
 import { PadNav, Pads } from './pads.js';
-import { api, askName, el, forget, mine, myName } from './ui.js';
+import { api, askName, el, forget, mine, myName, recoveryDue, showRecovery } from './ui.js';
 import { watchPage } from './telemetry.js';
 
 watchPage('lobby');
 
 const FEATURED = 6;
+const POPULAR_FROM = 3;   // copies (and hours played, three each) before a game counts as popular
 
 const ago = (iso) => {
   if (!iso) return '';
@@ -21,12 +22,18 @@ const hours = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h.toFixed(h < 10 
 const costLine = (cost) => (cost ? `about $${cost.rate.toFixed(2)} an hour to play` : null);
 
 /** What's worth trying first: played and copied the most, with a little room for the new. */
+/** A title as people would write it: one typed as a slug ("lazy-drive") reads "Lazy Drive". */
+const titled = (t) => (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t ?? '') ? t.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : t);
+
 /** How much it's been played: copies taken, and hours spent playing. */
 const played = (p) => (p.copies ?? 0) + 3 * (p.cost?.hours ?? 0);
 
 /** A picture of its stage, fetched when it scrolls near, or a placeholder in the meantime. */
 function thumb(kind, id, name) {
-  const box = el('div', { class: 'thumb' }, el('span', { class: 'thumb-name' }, name));
+  // Until its picture comes (or if it has none), a colour of its own, from its name.
+  let h = 0;
+  for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 360;
+  const box = el('div', { class: 'thumb', style: `--hue: ${h}` }, el('span', { class: 'thumb-name' }, String(name).trim()[0]?.toUpperCase() ?? ''));
   new IntersectionObserver(async ([e], obs) => {
     if (!e.isIntersecting) return;
     obs.disconnect();
@@ -41,15 +48,14 @@ function thumb(kind, id, name) {
 function pubCard(p, big = false, fresh = false) {
   const facts = [
     p.by ? `by ${p.by}` : null,
-    fresh ? `published ${ago(p.at)}` : null,
+    fresh ? ago(p.at) : null,
     p.cost ? `played ${hours(p.cost.hours)}` : p.copies ? `${p.copies} ${p.copies === 1 ? 'player' : 'players'}` : 'new',
     costLine(p.cost),
   ].filter(Boolean).join(' · ');
   return el('a', { class: `card${big ? ' big' : ''}`, href: `/play.html?p=${p.id}` },
-    thumb('p', p.id, p.title || p.name),
+    thumb('p', p.id, titled(p.title) || p.name),
     el('div', { class: 'card-text' },
-      el('strong', {}, p.title || p.name),
-      el('span', { class: 'card-given' }, p.name),
+      el('strong', {}, titled(p.title) || p.name),
       p.note ? el('span', { class: 'card-note' }, p.note) : null,
       el('span', { class: 'card-facts' }, facts)));
 }
@@ -184,28 +190,61 @@ async function render() {
   for (const p of trusted) if (!latest.has(p.ludant) || p.at > latest.get(p.ludant).at) latest.set(p.ludant, p);
   const fresh = [...latest.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, FEATURED);
   const inFresh = new Set(fresh.map((p) => p.id));
-  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) > 0 && !have.has(p.id) && !mineIds.has(p.ludant))
+  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !have.has(p.id) && !mineIds.has(p.ludant))
     .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
   const parts = [];
 
   if (!returning) {
+    const step = (n, title, text) => el('li', { class: 'step' }, el('span', { class: 'step-n' }, n), el('strong', {}, title), el('span', {}, text));
+    // A real change, recorded: what was asked, and the game before and after.
+    const demo = el('figure', { class: 'demo' },
+      el('div', { class: 'demo-screen' },
+        el('img', { class: 'demo-before', src: '/img/demo-before.jpg', alt: 'Little Catch: a fishing boat on a Hokusai-style day sea, with purple fish' }),
+        el('img', { class: 'demo-after', src: '/img/demo-after.jpg', alt: 'The same game after: a night sea under a full moon, a lantern on the boat, and fish glowing cyan, gold and magenta' }),
+        el('div', { class: 'demo-ask' }, el('span', {}, 'a player, in the chat'), 'make it a night sea under the moon, with fish that glow'),
+        el('span', { class: 'demo-tag before' }, 'before'), el('span', { class: 'demo-tag after' }, 'after')),
+      el('figcaption', {}, 'A real change: one sentence in the chat, and Little Catch rebuilt itself. It cost 19¢ in AI thinking.'));
     parts.push(el('section', { class: 'intro' },
-      el('h1', {}, 'Pick a game and play it. Then tell it what you\'d change.'),
-      el('p', {}, 'These are ludants: games that are also AIs. A ludant can change itself while you play it: faster, stranger, kinder to your little brother. Each one you play is your own copy, and you can share what it becomes.')));
+      el('div', { class: 'intro-top' },
+        el('div', {},
+          el('h1', {}, 'Games that are alive.'),
+          el('p', { class: 'intro-lead' }, 'Every game here is also an AI, called a ludant. While you play one, you can tell it what you\'d change, and it rewrites itself, right there.')),
+        demo),
+      el('ol', { class: 'steps' },
+        step('1', 'Play one', 'Pick any game below. You get your own copy, so play it however you like.'),
+        step('2', 'Tell it what you\'d change', '"Make the fish faster." "Add a second player." "Make it spooky." Say it in its chat.'),
+        step('3', 'Watch it change', 'It rebuilds itself while you play. Like what it became? Publish it, and others can play it too.')),
+      el('p', { class: 'intro-fine' }, 'You can play without an account. For a ludant to talk with you and change, connect your own OpenRouter account: it thinks with an AI model there, usually a few cents at a time, and a meter shows what your sitting has cost.')));
+  }
+  // Someone made here without seeing a recovery code (ui.js): now that they have ludants,
+  // a way back to them, offered rather than forced.
+  if (returning && recoveryDue()) {
+    const box = el('section', { class: 'keep-box' },
+      el('p', {}, el('strong', {}, 'Keep a way back to your ludants. '), 'They\'re tied to this browser. A recovery code gets them back if you lose it or clear it, and lets you add your other devices.'),
+      el('button', { class: 'top-btn primary', onclick: async () => {
+        try {
+          const { recovery } = await newRecovery();
+          const cover = el('div', { class: 'cover' });
+          document.body.append(cover);
+          showRecovery(cover, recovery, () => { cover.remove(); recoveryDue(false); box.remove(); }, true);
+        } catch (err) { alert(`couldn't make one: ${err.message}`); }
+      } }, 'make a recovery code'),
+      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'not now'));
+    parts.push(box);
   }
   if (returning) parts.push(section('Your ludants', 'The ones you shape, what they were published as, and the copies you play.', yourTrees(yours, published)));
   if (fresh.length) {
-    parts.push(section('New', returning ? 'Just published, newest first.' : 'Just published, newest first. Click one to play. Ludants think with an AI model, whenever their own body decides to. That costs a few cents at a time, on your own OpenRouter account, and a meter shows what your sitting has cost.',
+    parts.push(section('New', 'Just published, newest first.',
       el('div', { class: 'cards-grid' }, ...fresh.map((p) => pubCard(p, !returning, true)))));
   }
   if (popular.length) {
     parts.push(section('Popular', 'The most played.', el('div', { class: 'cards-grid' }, ...popular.map((p) => pubCard(p, !returning)))));
   }
   if (published.length > fresh.length + popular.length || returning) {
-    parts.push(section('Every published ludant', 'Ludants are published by whoever plays them. A copy that changes can be published again, so they grow into families.',
+    parts.push(section('Family trees', 'Anyone can change their copy of a ludant and publish what it became, so ludants grow into families. Here is every one, and where each came from.',
       el('ul', { class: 'trees' }, ...families(published, mineIds))));
   }
-  parts.push(section('Start from nothing', 'Seed a new ludant: it begins as a pulsing dot with no game at all, and becomes whatever you make together.',
+  parts.push(section('Make your own', 'Start a new ludant. It begins as a pulsing dot with no game at all; tell it what you\'d like to play, and it builds itself into that.',
     el('button', { class: 'seed-btn', onclick: seed }, 'seed a new ludant')));
   if (everyone.length) {
     parts.push(section('Everyone here', 'Every ludant on this install (you\'re running it yourself, so you see them all).',
@@ -228,7 +267,7 @@ new PadNav(pads, { scope: () => document.querySelector('.cover') ?? document.bod
 // On Xbox, Edge gives pages the controller only in its controller mode; until a
 // controller shows up here, say how.
 const tip = el('p', { class: 'lobby-tip' }, 'Playing with a controller on an Xbox? Turn on controller mode in Edge\'s menu, or the controller only moves a pointer.');
-if (navigator.getGamepads) {
+if (navigator.getGamepads && /xbox/i.test(navigator.userAgent)) {
   document.querySelector('.top').after(el('div', { class: 'tip-bar' }, tip));
   pads.on(() => { tip.parentElement?.remove(); });
 }

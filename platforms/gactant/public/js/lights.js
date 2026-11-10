@@ -8,6 +8,10 @@
 
 import { el } from './ui.js';
 
+// How its life reads to people: plain words. (resting is thinking that's held back: it woke
+// itself too often, or nobody here has connected an AI for it to think with.)
+export const LIFE_WORDS = { asleep: 'ready', thinking: 'thinking…', resting: 'waiting', error: 'stuck' };
+
 export class Lights {
   constructor(frame) {
     this.frame = frame;
@@ -39,7 +43,7 @@ export class Lights {
     this.root.replaceChildren(...[
       el('span', { class: 'light people', title: 'sitting here' }, el('i'), [...this.frame.people].join(' · ')),
       el('span', { class: `light life ${this.life}`, title: this.detail || this.life },
-        el('i'), this.frame.actant?.name ?? '…', el('em', {}, this.life)),
+        el('i'), this.frame.actant?.name ?? '…', el('em', {}, LIFE_WORDS[this.life] ?? this.life)),
       this.detail ? el('span', { class: 'status-detail' }, this.detail) : null,
       this.meter(),
     ].filter(Boolean));
@@ -52,8 +56,10 @@ export class Lights {
     const left = this.frame.left?.();
     const room = left ? Math.min(left.remaining ?? Infinity, left.balance ?? Infinity) : Infinity;
     const warm = this.spent >= 1 || room < 0.5 ? 'hot' : this.spent >= 0.25 || room < 2 ? 'warm' : '';
-    const button = el('button', { class: `spend ${warm}`, title: 'what thinking has cost this sitting' },
-      payer ? `$${this.spent.toFixed(2)}${rate ? ` · $${rate.toFixed(2)}/h` : ''}${room < 2 ? ` · $${Math.max(0, room).toFixed(2)} left` : ''}` : 'connect thinking');
+    // Until someone here connects an AI, this is the one thing that brings it to life, so
+    // it looks like it.
+    const button = el('button', { class: payer ? `spend ${warm}` : 'spend connect', title: payer ? 'what thinking has cost this sitting' : 'it talks and changes itself by thinking with an AI model, on your own OpenRouter account' },
+      payer ? `$${this.spent.toFixed(2)}${rate ? ` · $${rate.toFixed(2)}/h` : ''}${room < 2 ? ` · $${Math.max(0, room).toFixed(2)} left` : ''}` : 'connect an AI');
     button.addEventListener('click', () => this.openMeter());
     return button;
   }

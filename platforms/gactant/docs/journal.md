@@ -2554,3 +2554,57 @@ With hardly any users yet, the day's wait hedged against something that isn't th
 - **Trusted** is now: a person cleared it, or it passed the publish check (or the install has no check) and has no open report. That holds from the moment it's published. The check and the scanning are unchanged: a flagged publication is still hidden until a person looks. A report now takes it off the front rows until it's reviewed.
 - **Two front rows, the same for everyone, your own included.** **New** is the latest snapshot of each ludant (one republished three times shows once), newest first, with "published … ago". **Popular** is the most played (copies, plus three per hour played) of what isn't in New, leaving out what someone back already has or made.
 - "Every published ludant" stays below as the full list, in families.
+
+## Part 26: making the site make sense
+
+Robby: "this site is visual and layout wise not very good", and what he's after is "how we present this platform and the ludants so that it is understandable. it's a weird thing to arrive at." The experiment: I redesign, then subagents review it, most of them **blind** (no repo, no briefing: "someone else shared a link w/ them or they find it in a search result"), one informed. Then iterate. Robby: "keep doing permutations. i don't want to make decisions now", and come back later to the best version and why.
+
+**Tools for it:**
+- `tools/page-shots.mjs`: headless Chrome screenshots driven by steps (goto, click by text, type, key, full page). Each run has its own Chrome, so several reviewers can work at once. `--profile` keeps a person between runs. It closes Chrome politely so storage is written: a kill lost the "got it" flag, and a reviewer reported that as a site bug.
+- `server.mjs --env none`: a local server without the OpenRouter key, run with `GACTANT_PUBLIC=1` on its own copy of the data (port 7781). So reviewers meet what a visitor meets, including the "connect OpenRouter" ask.
+
+**Round one** (my first pass):
+- a hero ("Games that are alive.") with three steps, and the cost said plainly
+- placeholders in a colour of their own
+- a "talk to it" button on the stage while playing
+- the first-visit hint with its own "talk to it" button, floating over the game on a phone (it was hidden in phone play mode)
+- publish no longer the loudest button
+
+**What four reviewers said** (three blind: phone from the home page, laptop from a search, phone from a game link; plus a designer who knew the idea):
+- *The gates:* all four flagged the gates before the game (a bare name page, then a 12-word recovery code: "felt like signing up for a crypto wallet"). Two nearly left there.
+- *The cost:* everyone got the pitch from the hero, but nobody saw a change happen. They typed a wish, met the OpenRouter ask, chose "just play", and their words sat unanswered.
+- *Small bugs:*
+  - "thinking…" showed while it couldn't think
+  - the chat header wrapped onto three lines
+  - the status row overflowed
+  - the "Your ludants" card was wider than a phone
+- *Cards:* without pictures, and with slug titles. That was partly local data: every one of Robby's 11 publications on gactant.com has a picture.
+- *Jargon:* "resting/asleep", "inside", "show all/play", and a faint "connect thinking" that is the one thing that brings a ludant to life.
+- *What worked:* the hero and steps, the "talk to it" button, family trees ("finally made the concept make sense").
+
+**Round two:**
+- *A link opens on the game.* play.html shows the publication's picture, title, who made it, and one line ("This game is alive…") together with the name ask; the button says "play". There's still a gate: a copy has to belong to someone, and making people silently is a bigger change. But now it's the game's door, not a form.
+- *The recovery code waits.* Someone new isn't shown one when they're made. The lobby offers "keep a way back to your ludants" once they have some, and makes a fresh code then (`newRecovery`). `/me.html` can make one any time.
+- *A real change, shown.* On the local server, which has the key, a fresh copy of Little Catch was asked "make it a night sea under the moon, with fish that glow". It rebuilt itself: a moon with a halo, a lantern boat, fish glowing cyan, gold and magenta, sparks on a catch. It cost $0.19. The frames are `public/img/demo-before.jpg` and `demo-after.jpg`. The hero loops them: the game, the ask appearing as a chat bubble, a crossfade to the result. The caption gives the real cost. Reduced motion shows the after.
+- *Plain words:*
+  - status: ready / thinking… / waiting / stuck
+  - until someone connects, "thinking…" shows as waiting, saying "it needs an AI to answer: connect OpenRouter"
+  - the meter, before anyone pays, is an amber "connect an AI" button
+  - "home", not "lobby"
+  - "just the game" / "show chat", not "play" / "show all"
+- *The chat:*
+  - while empty, it suggests what to say ("make it harder", "change the colors", "add something new", "what are you?") and says what answering takes, with "connect an AI" right there
+  - it has a send button
+- *The whiteboard's* "your turn" is no longer amber, so it doesn't outrank the chat.
+- *Cards:*
+  - slug titles read as words ("lazy-drive" becomes "Lazy Drive")
+  - a placeholder shows the title's initial, not the title twice
+  - the line under the title is "by Robby · 2 h ago · 3 players"
+- *Popular* needs at least 3 (copies, plus three per hour played).
+- *Phone fixes:*
+  - the chat header and status don't wrap or overflow
+  - the trees fit the width
+  - the steps collapse to one line each, so games start sooner
+- The Xbox tip shows only on an Xbox.
+
+Left for Robby (asked, not decided): a few free thinks on the site's key for newcomers, so they see a change without paying.
