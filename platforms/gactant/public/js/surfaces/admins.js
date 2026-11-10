@@ -114,7 +114,7 @@ export class Admins {
       for (const m of fresh) {
         this.show(m);
         f.sandbox.send('wake', { type: 'admins.letter', from: 'gactant\'s admins', issue: m.issue, title: m.title,
-          text: `A letter from gactant's admins arrived, answering your report "${m.title}". It's in your soma, in the section ${LETTERS}.` });
+          text: `A letter from gactant's admins arrived, answering your report "${m.title}" (${m.issue}):\n\n${m.text}\n\n(It's also in your soma, in the section ${LETTERS}, until you clear it.)` });
       }
     } catch (err) {
       console.warn('[gactant] letters from the admins will be tried again:', err.message);
