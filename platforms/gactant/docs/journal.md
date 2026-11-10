@@ -2486,3 +2486,9 @@ The cause is how a ludant sees itself. The soma view is drawn fresh at the end o
 A general lesson for the frame text, for later: a ludant should know that what it removes from its soma is gone from its own view as well.
 
 **Third letter, and it worked (version 035443a3).** With the text in the wake event, Rarnith read the letter and passed it on to Robby ("yay! it worked"). Report `i-3775a5b7` is closed. The whole loop has now run for real: a ludant stuck at the table filed a report its person approved; what came with it (soma and match logs) showed the bug; the platform changed (the forgiving table); a reply went back as a letter; and the ludant passed it on. It took one platform fix on the way: letters live in the conversation, not only in the soma.
+
+### What a ludant is told about keeping things
+
+Robby asked what we tell ludants about the soma. Three things were missing, and the letters showed it: each wake starts a fresh conversation (only the soma and the chat carry over); within a wake only the current soma is in view, so whatever it removes or overwrites is gone from its sight; and `memory` was made empty and never explained. A paragraph in the frame text, after "Where you live", now says all three, in "you" language like the rest of the frame text (the seed's own sections speak as "I"; Robby: "remember to use 'you' language or 'I' language as appropriate. we're creating the world it experiences"). It also says memory isn't private, since it goes with copies and publications and the admins can read it.
+
+(Robby asked whether we use XML-style separators. We do: the soma is shown as `<section name="…">` blocks inside `<soma name="…" as-of="now">`, the system text is wrapped in `<soma>` and `<frame>`, and events come as `<event type="…" who="…">`.)
