@@ -339,9 +339,12 @@ There are no passwords and no email (`people.mjs`, `public/js/identity.js`).
 
 ## One window, any device
 
-A ludant lives in one window at a time. Opening it elsewhere offers to **bring it here**,
-and the old window lets go and says so. Saves from a window that no longer holds it are
-refused. On a phone, the layout stacks and the stage gets a pad (arrows and space), so
+A ludant lives in one window at a time. Opening it where it's still open (another tab
+that answers, or another device still sending heartbeats) offers to **bring it here**, and
+the old window lets go and says so. A window that's gone without saying so (phones often
+close tabs silently) is taken over without asking: one that's missed its heartbeats, or
+one on this same device that no tab here answers for. Saves from a window that no longer
+holds it are refused. On a phone, the layout stacks and the stage gets a pad (arrows and space), so
 keyboard games are playable by touch. A drag on the game stays in the game. Play mode on a
 phone fills the screen (the browser's own full screen where it has one, turning sideways
 for a wide game), with the whole game in view, the pad floating over its lower corners when
