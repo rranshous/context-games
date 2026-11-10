@@ -2505,3 +2505,25 @@ length. It's a picture of the body (`genomeOf`): its bounding box, one character
 a space where the box isn't the body, `/` between rows. Its length measures sprawl, not
 code: the giant's 12,818 characters are 1,447 cells across a 998 × 20 box; s3's 912-cell
 biggest at 6.02M had 17,371 for a box 614 × 187. Every cell is exactly one glyph.
+
+## Two weeks on: second booms
+
+All four bakes (s1, s3 restarted 2026-10-27; s2, s4 10-24) ran without an error to
+2026-11-09. Where they are:
+
+| | tick | alive (10-29 → 11-09) | rss | ms/tick |
+|---|---|---|---|---|
+| s1 | 6.25M | 55k → 89k, flat ~87k since ~6M | 2.6 GB | 860 |
+| s2 | 1.77M | 153k → 203k, +35k in the last 100k ticks | 4.7 GB | 2,040 |
+| s3 | 7.10M | 56k → 110k | 3.0 GB | 960 |
+| s4 | 1.67M | 124k → 183k, most of it in one 50k-tick jump at ~1.55M | 3.6 GB | 2,170 |
+
+The plateaus each run seemed to reach weren't the end: every one boomed again. New biggest
+bodies, each displaced within tens of thousands of ticks: s4 1,607 cells at 1.464M (the
+largest so far), s1 1,509 at 6.162M, s3 1,037 at 6.912M. The biggest at any time are
+threads: s4's 1,068 at 1.31M was 1,056 × 4, s1's 939 now 928 × 4.
+
+Memory grows with the population, about 20 KB of rss a living body: the four use 14 GB of
+the machine's 31 (12 GB free). If s2 keeps climbing it'll get tight in a few weeks; s1,
+flat, is the one to pause first. `runs/bake` is 24 GB (checkpoints grow with the
+population; thinning holds the count), 266 GB free.

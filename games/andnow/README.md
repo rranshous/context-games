@@ -37,15 +37,17 @@ The current mode is a world that grows forever, both up and down.
 
 ### Forever runs
 
-Six seeds have baked on the current rules (rules 6), saving a checkpoint every 1,000 ticks (older ones thin out: see below). Two broke out of the middle steps and are still baking; the other four are paused.
+Six seeds have baked on the current rules (rules 6), saving a checkpoint every 1,000 ticks (older ones thin out: see below). Four are still baking; 7 and 13 are paused.
 
 | seed | tick | alive | notes |
 |---|---|---|---|
-| 2 | 1.25M | 151k | climbers took +2 and +3 at ~700k: both-eaters, meat-eating hunters and fat whales; the biggest body yet (1,447 cells) at ~1.12M |
-| 4 | 1.19M | 124k | divers took +2 at ~450k as plant eaters, then turned both-eaters; the biggest ~1,090 cells at ~1.06M |
-| 1, 3, 7, 13 | 4.9–14.4M | 3.6–46k | paused; mostly on steps ±1 |
+| 2 | 1.77M | 203k | climbers took +2 and +3 at ~700k: both-eaters, meat-eating hunters and fat whales; a second boom since ~1.7M, still climbing |
+| 4 | 1.67M | 183k | divers took +2 at ~450k as plant eaters, then turned both-eaters; the biggest body yet, 1,607 cells, at 1.46M |
+| 3 | 7.10M | 110k | quiet for millions of ticks, then booming since ~5.9M (27k → 110k) |
+| 1 | 6.25M | 89k | the same from ~4.95M (30k → 87k), flat since ~6M; a 1,509-cell body at 6.16M |
+| 7, 13 | 6.7M, 14.4M | 7.7k, 3.6k | paused; still mostly on steps ±1 |
 
-Crowded runs like these take about 3 GB of memory each (`HEAP=12288 ./bake.sh 2` gives the heap room to spare).
+The biggest bodies in every run are threads: a 939-cell body in a box 928 wide and 4 rows tall, say. None has held the top spot long; a thread that long has plenty of places for one bite to cut it (below). The crowded runs take 2.5–5 GB of memory each and grow with their populations (`HEAP=12288 ./bake.sh 2` gives the heap room to spare), and about 2 s a tick at 200k bodies.
 
 ### What evolved
 
@@ -73,7 +75,7 @@ Pictures from the two breakout runs, with glyphs on. Each picked body is outline
 
 *Bites are rare on the long arms: an auto-bite (`B` with an empty stack) never targets your own lineage, and the colonies at the top are all one lineage. But a bite aimed by stray numbers on the stack can land, and a bite near the core cuts off everything beyond it. Here a 304-cell body loses its lower 139 cells in one bite. Arms are fat and cheap, and grow back.*
 
-*The same thing ended seed 2's biggest body ever. Climber·27349073 grew for 100,000 ticks without moving to 1,447 cells, a thread 998 columns wide and 20 rows tall, at a pace of 0.019 (one action every ~50 ticks: mass slows a body). At tick 1,124,521 one bite cut it at a narrow point and it lost 1,141 cells at once. It lived on at 308 cells and regrew for a while. The biggest bodies since are half its size.*
+*The same thing ended seed 2's biggest body ever. Climber·27349073 grew for 100,000 ticks without moving to 1,447 cells, a thread 998 columns wide and 20 rows tall, at a pace of 0.019 (one action every ~50 ticks: mass slows a body). At tick 1,124,521 one bite cut it at a narrow point and it lost 1,141 cells at once. It lived on at 308 cells and regrew for a while. Bigger ones have come since (1,509 cells in seed 1, 1,607 in seed 4), and gone the same way.*
 
 The viewer hops between runs, scrubs a timeline of each one (alive count and biggest body), and can follow the biggest body. With **live** ticked (the default when a run opens at its newest checkpoint) it loads each new checkpoint as the bake writes it, keeping the camera and whoever it follows; jumping back in time unticks it.
 
