@@ -242,7 +242,29 @@ try {
   const wrong = await act(stranger, S, 'move', { cell: 0 });
   ok('the rules refuse a move out of turn', wrong.status === 422 && wrong.json.refused === 'it\'s X\'s turn', JSON.stringify(wrong.json));
   ok('playing through a ludant that isn\'t yours is refused', (await act(pass, A, 'move', { cell: 0 }, { ludant: linkCopy.json.id })).status === 403);
-  for (const [who, dev, cell] of [[pass, A, 0], [stranger, S, 3], [pass, A, 1], [stranger, S, 4]]) await act(who, dev, 'move', { cell });
+  // Live: sockets hear each action as it happens, and players share values with each other.
+  const socket = (who) => new Promise((resolve, reject) => {
+    const heard = [];
+    const ws = new WebSocket(`${base.replace(/^http/, 'ws')}/api/matches/${match.id}/live`, { protocols: who ? ['gactant', who] : ['gactant'], headers: { Origin: base } });
+    const live = { ws: null, heard, pongs: 0 };
+    ws.onmessage = (e) => { if (e.data === 'pong') live.pongs++; else heard.push(JSON.parse(e.data)); };
+    ws.onopen = () => resolve(Object.assign(live, { ws }));
+    ws.onerror = () => reject(new Error('no socket'));
+  });
+  const until = async (fn, ms = 3000) => { const end = Date.now() + ms; while (Date.now() < end) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 30)); } return null; };
+  const [liveA, liveS, liveOn] = await Promise.all([socket(pass), socket(stranger), socket(null)]);
+  await act(pass, A, 'move', { cell: 0 });
+  const pushed = await until(() => liveS.heard.find((m) => m.type === 'look' && m.n === n));
+  ok('a move is pushed to everyone following it live, each as they see it', pushed?.view?.you === 'O' && (await until(() => liveA.heard.find((m) => m.type === 'look' && m.n === n)))?.view?.you === 'X', JSON.stringify(liveS.heard).slice(0, 200));
+  liveA.ws.send(JSON.stringify({ share: { x: 12, y: 34 } }));
+  const sharedS = await until(() => liveS.heard.find((m) => m.type === 'shared'));
+  ok('a player shares a value with the others at once', sharedS?.value?.x === 12 && sharedS.name === 'Smoke' && (await until(() => liveOn.heard.find((m) => m.type === 'shared'))) && !liveA.heard.some((m) => m.type === 'shared'), JSON.stringify(sharedS));
+  liveOn.ws.send(JSON.stringify({ share: 1 }));
+  ok('someone not playing can\'t share', (await until(() => liveOn.heard.find((m) => m.type === 'error')))?.error.includes('only players'));
+  liveA.ws.send('ping');
+  ok('a ping is answered', await until(() => liveA.pongs > 0));
+  for (const l of [liveA, liveS, liveOn]) l.ws.close();
+  for (const [who, dev, cell] of [[stranger, S, 3], [pass, A, 1], [stranger, S, 4]]) await act(who, dev, 'move', { cell });
   const won = await act(pass, A, 'move', { cell: 2 }, { ludant: id });
   ok('X wins, and the result names the person who won', won.json.result?.winner === 'X' && won.json.result.winners?.[0] === me.id, JSON.stringify(won.json));
   ok('a move after the end is refused', (await act(stranger, S, 'move', { cell: 8 })).status === 422);

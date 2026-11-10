@@ -17,6 +17,7 @@
 //                                  (after: waits up to WAIT_MS for more than `after` actions;
 //                                  wait: false answers at once, { n, same: true } if nothing's new)
 //   log { from? }               -> { id, rulebook, seed, options, genesis, n, head, result, log, more }
+//   members                     -> { members: { person: name }, over }
 //   export                      -> the whole match, log included (to archive it)
 // A summary is what the World's index keeps: { n, head, updated, result, members, onlooker }
 // (onlooker: the rules' view for nobody in particular, if it's small).
@@ -135,6 +136,8 @@ export function createMatch({ store, rules }) {
       };
     },
 
+    async members() { const m = await it(); return { members: m.members, over: Boolean(m.result) }; },
+
     async log({ from = 0 }) {
       const m = await it();
       const start = Math.max(0, Number(from) || 0), upto = Math.min(m.n, start + 1000);
@@ -209,6 +212,41 @@ export function practice(rules, { source, seed = 1, options = {}, steps = [] }) 
   };
 }
 
+// Live: whoever follows a match over a socket hears each action as it happens (their own
+// look, pushed), and its players can share a passing value with everyone else on it: not
+// signed, not logged, never seen by the rules (positions, aim, what's under a cursor). A
+// host keeps the sockets ({ person, send }); these say what goes over them, so the Worker's
+// Match objects and the Node server do the same.
+export const MAX_SHARE = 2_000;        // characters of JSON in one shared value
+export const SHARES_A_SECOND = 20;     // from one socket
+
+/** Every socket hears the match as its person sees it now. */
+export async function pushLooks(match, sockets) {
+  for (const s of sockets) {
+    try { s.send(JSON.stringify({ type: 'look', ...(await match.op('look', { person: s.person })) })); } catch {}
+  }
+}
+
+/** A message from a socket: a share from one of the players, passed on to the others.
+ *  -> an error to send back, or null. (Pings are answered by the host.) */
+export async function relayShare(match, sockets, from, text, counts = new Map()) {
+  let msg;
+  try { msg = JSON.parse(text); } catch { return 'messages are JSON'; }
+  if (!msg || !('share' in msg)) return null;
+  const raw = JSON.stringify(msg.share ?? null);
+  if (raw.length > MAX_SHARE) return `a shared value is up to ${MAX_SHARE} characters of JSON`;
+  const { members } = await match.op('members');
+  if (!from.person || !(from.person in members)) return 'only players in the match can share (join it first)';
+  const second = Math.floor(Date.now() / 1000), key = `${from.person} ${second}`;
+  const n = (counts.get(key) ?? 0) + 1;
+  counts.set(key, n);
+  if (counts.size > 200) for (const k of counts.keys()) if (!k.endsWith(` ${second}`)) counts.delete(k);
+  if (n > SHARES_A_SECOND) return `that's ${SHARES_A_SECOND} shares a second; send less often`;
+  const out = `{"type":"shared","by":${JSON.stringify(from.person)},"name":${JSON.stringify(members[from.person])},"at":${Date.now()},"value":${raw}}`;
+  for (const s of sockets) if (s !== from) { try { s.send(out); } catch {} }
+  return null;
+}
+
 /** What the World keeps of an archived match. */
 export const archivedSummary = (doc) => ({ id: doc.id, rulebook: doc.rulebook, name: doc.name, at: doc.at, genesis: doc.genesis, n: doc.n, head: doc.head, updated: doc.updated, result: doc.result, members: doc.members });
 
@@ -226,8 +264,25 @@ export function createLocalMatches({ store, loadRules, archive }) {
     remove: (kind, k) => store.remove(kind === 'match' ? 'matches' : 'actions', kind === 'match' ? id : `${id}-${k}`),
   });
   const get = async (id) => { await ready(); if (!live.has(id)) live.set(id, createMatch({ store: scoped(id), rules })); return live.get(id); };
+  const rooms = new Map();   // id -> sockets following it live: { person, send, close }
+  const shares = new Map();
   return {
-    async op(id, name, body) { return (await get(id)).op(name, body); },
+    async op(id, name, body) {
+      const m = await get(id), out = await m.op(name, body);
+      if (name === 'act' && rooms.get(id)?.size) pushLooks(m, [...rooms.get(id)]);
+      return out;
+    },
+    /** A socket following a match live. -> { message(text), closed() } */
+    async follow(id, socket) {
+      const m = await get(id);
+      await m.op('members');   // 404 if there's no such match
+      if (!rooms.has(id)) rooms.set(id, new Set());
+      rooms.get(id).add(socket);
+      return {
+        message: (text) => relayShare(m, [...rooms.get(id)], socket, text, shares).catch((err) => err.message),
+        closed: () => { rooms.get(id)?.delete(socket); if (!rooms.get(id)?.size) rooms.delete(id); },
+      };
+    },
     async practice(person, body) { return practice(await ready(), body); },
     async check(person, source) { return (await ready()).check(source); },
     /** Archive a match: its whole log kept, its documents removed. -> its summary */
@@ -238,6 +293,8 @@ export function createLocalMatches({ store, loadRules, archive }) {
       await archive.put(doc.id, doc);
       await m.clear();
       live.delete(id);
+      for (const s of rooms.get(id) ?? []) s.close?.();
+      rooms.delete(id);
       return archivedSummary(doc);
     },
     /** Every match this install holds (for a sweep), by id. */

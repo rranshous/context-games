@@ -21,7 +21,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { makeCheck } from './check.mjs';
 import { SANDBOX_POLICY, createCore, pageHeaders, sameOrigin } from './core.mjs';
-import { archivedSummary, createMatch, practice } from './match.mjs';
+import { archivedSummary, createMatch, practice, pushLooks, relayShare } from './match.mjs';
 import { readPass } from './people.mjs';
 import { createRules } from './rules.mjs';
 // The rules engine's WebAssembly, compiled by wrangler when it bundles (a Worker can't compile it at run time).
@@ -51,19 +51,40 @@ function docStore(sql) {
 }
 
 /** One match (match.mjs), or a person's practice runs. Asked by the World (create, act, log,
- *  archive, practice, check) and by the Worker (look). */
+ *  archive, practice, check) and by the Worker (look, and live: a socket that hears every
+ *  action as it happens). Sockets use the hibernation API, so a quiet match isn't billed
+ *  for them; pings are answered without waking it. */
 export class Match extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.ctx = ctx; this.env = env;
     this.rules = createRules(quickjsWasm);
     this.match = this.rules.then((rules) => createMatch({ store: docStore(ctx.storage.sql), rules }));
+    this.shares = new Map();
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
+
+  sockets() { return this.ctx.getWebSockets().map((ws) => ({ ws, person: ws.deserializeAttachment()?.person ?? null, send: (t) => ws.send(t) })); }
+
+  async webSocketMessage(ws, text) {
+    const all = this.sockets();
+    const said = await relayShare(await this.match, all, all.find((s) => s.ws === ws), String(text), this.shares).catch((err) => err.message);
+    if (said) ws.send(JSON.stringify({ type: 'error', error: said }));
+  }
+
+  webSocketClose(ws, code) { try { ws.close(code === 1005 ? 1000 : code); } catch {} }
 
   async fetch(request) {
     const op = new URL(request.url).pathname.slice(1);
     try {
       if (this.gone) return json(404, { error: 'this match has been archived', gone: true });
+      if (op === 'live') {
+        await (await this.match).op('members');   // 404 if there's no match here
+        const [client, server] = Object.values(new WebSocketPair());
+        this.ctx.acceptWebSocket(server);
+        server.serializeAttachment({ person: request.headers.get('x-gactant-person') || null });
+        return new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': 'gactant' } });
+      }
       const body = await request.json().catch(() => ({}));
       if (op === 'practice') return json(200, practice(await this.rules, body));
       if (op === 'check') return json(200, (await this.rules).check(String(body.source ?? '')));
@@ -73,9 +94,12 @@ export class Match extends DurableObject {
         if (doc) await this.env.ARCHIVE.put(`matches/${doc.id}.json`, JSON.stringify(doc), { httpMetadata: { contentType: 'application/json' } });
         await this.ctx.storage.deleteAll();
         this.gone = true;
+        for (const ws of this.ctx.getWebSockets()) { try { ws.close(4410, 'archived'); } catch {} }
         return json(200, doc ? archivedSummary(doc) : null);
       }
-      return json(200, await match.op(op, body));
+      const out = await match.op(op, body);
+      if (op === 'act') this.ctx.waitUntil(pushLooks(match, this.sockets()));
+      return json(200, out);
     } catch (err) {
       if (!err.code || err.code >= 500) console.error({ error: err.message, match: op });
       return json(typeof err.code === 'number' ? err.code : 500, { error: err.message, ...(err.extra ?? {}) });
@@ -247,6 +271,17 @@ export default {
       // Looking at a match (and waiting for its next action) goes straight to the match, so
       // the World isn't asked every time someone's game checks in. An archived match is the
       // World's to answer.
+      // Following a match live: a socket straight to it, after checking the pass (sent as a
+      // subprotocol, since a browser can't put headers on a WebSocket).
+      const live = request.method === 'GET' && url.pathname.match(/^\/api\/matches\/(m-[0-9a-f]{12})\/live$/);
+      if (live) {
+        if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return json(426, { error: 'this is a WebSocket' });
+        const offered = (request.headers.get('sec-websocket-protocol') ?? '').split(',').map((x) => x.trim());
+        const who = env.SESSION_SECRET ? await readPass(offered.find((x) => x.startsWith('v1.')), env.SESSION_SECRET) : null;
+        const ask = new Request('https://match/live', request);
+        ask.headers.set('x-gactant-person', who?.person ?? '');
+        return env.MATCH.get(env.MATCH.idFromName(live[1])).fetch(ask);
+      }
       const look = request.method === 'GET' && url.pathname.match(/^\/api\/matches\/(m-[0-9a-f]{12})$/);
       if (look && env.SESSION_SECRET) {
         const who = await readPass(request.headers.get('x-gactant-pass'), env.SESSION_SECRET);

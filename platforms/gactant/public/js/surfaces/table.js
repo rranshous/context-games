@@ -24,11 +24,13 @@
 // Where a field of the view has the same name as one of the answer's, the answer's wins.
 //   budget() -> what this person has used today, and the limits
 //   standings(hash, n = 20) -> { matches, players: [{ rank, id, name, wins, losses, draws, played }], you }
+//   share(match, value) -> { sent }                       pass a value to everyone else on it at once (live; see below)
 // events
+//   table.shared { match, by, player, value, at }   another player shared a value (by: their name)
 //   table.changed { match, n, view, result, last: { kind, by, through, data }, ...the view's fields }   someone acted (you included)
 //   table.refused { match, kind, reason }
 
-import { sign } from '../identity.js';
+import { pass, sign } from '../identity.js';
 import { api } from '../ui.js';
 
 /** The answer with the rules' view's own fields on it too (see the top of this file). */
@@ -46,6 +48,7 @@ export class Table {
     this.seen = new Map();       // match -> { view, n, head, result, you, rulebook, name }
     this.watching = new Set();
     this.polls = new Map();      // match -> AbortController
+    this.sockets = new Map();    // match -> its live WebSocket, while it's open
     this.draftNames = new Map(); // draft id -> name, for saying what's being worked on
   }
 
@@ -58,7 +61,7 @@ export class Table {
   }
 
   describe() {
-    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options), join(state, player, request), move(state, player, action), view(state, player), result(state). They're pure: state in, state out, everything JSON, no clock or network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. player is { id, name } (view gets null for an onlooker). result returns null until the game is over, then anything the rules like plus winners: [player ids] ([] for a draw), which is what standings across matches count. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) (or look(match)) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over is archived after an hour (it can still be read). Every rulebook has standings: each match of it that ended with winners counts, in every ludant that plays it, so standings(hash) is the same board for all of them, kept by the server and impossible to fake. How it looks is yours: draw it in your game however suits you. What comes back: view, look and watch give { view, n, result, you }, join and move give { view, result }, and table.changed carries { match, n, view, result, last }; view is what your rules' view(state, player) returned for you, and its fields are also copied onto the answer itself, so view(match).seats and view(match).view.seats both work (a field named like one of the answer's own, such as n or result, is only under .view). matches(hash) lists recent matches with their players (names) and an onlooker's view, for finding one with room. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data }], seed, options }), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), view(match), look(match), standings(hash, n) -> { matches, players: [{ rank, id, name, wins, losses, draws, played }], you: your own row or null }, budget().`;
+    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options), join(state, player, request), move(state, player, action), view(state, player), result(state). They're pure: state in, state out, everything JSON, no clock or network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. player is { id, name } (view gets null for an onlooker). result returns null until the game is over, then anything the rules like plus winners: [player ids] ([] for a draw), which is what standings across matches count. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) (or look(match)) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over is archived after an hour (it can still be read). Every rulebook has standings: each match of it that ended with winners counts, in every ludant that plays it, so standings(hash) is the same board for all of them, kept by the server and impossible to fake. How it looks is yours: draw it in your game however suits you. Fast games: while you follow a match (open, join or watch it), you're connected to it live, so table.changed arrives the moment anyone acts. For what changes many times a second (where a ship is, where someone's aiming), share(match, value) passes a value straight to everyone else in the match, arriving as table.shared { match, by, player, value } on their side. It isn't signed or logged and the rules never see it, so it's for showing, not deciding: what decides (a hit, a score, a win) stays a move. Up to 20 shares a second of up to 2,000 characters each, from players who've joined. Between shares, ease things toward where they were last shared rather than jumping. What comes back: view, look and watch give { view, n, result, you }, join and move give { view, result }, and table.changed carries { match, n, view, result, last }; view is what your rules' view(state, player) returned for you, and its fields are also copied onto the answer itself, so view(match).seats and view(match).view.seats both work (a field named like one of the answer's own, such as n or result, is only under .view). matches(hash) lists recent matches with their players (names) and an onlooker's view, for finding one with room. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data }], seed, options }), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), share(match, value), view(match), look(match), standings(hash, n) -> { matches, players: [{ rank, id, name, wins, losses, draws, played }], you: your own row or null }, budget().`;
   }
 
   state() {
@@ -92,6 +95,7 @@ export class Table {
       move: (match, action) => this.act(who, match, 'move', action ?? null),
       view: async (match) => forgiving(structuredClone(this.seen.get(match) ?? await this.fetch(match))),
       look: async (match) => forgiving(structuredClone(this.seen.get(match) ?? await this.fetch(match))),
+      share: (match, value) => this.share(match, value),
       budget: () => api('GET', 'tables/budget'),
       standings: (hash, n) => api('GET', `rulebooks/${hash}/standings${n ? `?n=${n}` : ''}`),
     };
@@ -125,7 +129,11 @@ export class Table {
   }
 
   async fetch(match, after) {
-    const m = await api('GET', `matches/${match}${after != null ? `?after=${after}` : ''}`);
+    return this.took(match, await api('GET', `matches/${match}${after != null ? `?after=${after}` : ''}`));
+  }
+
+  /** The match as the server says it is now (asked, or pushed over its socket). */
+  took(match, m) {
     const before = this.seen.get(match);
     if (before && m.n < before.n) return structuredClone(before);   // an older answer, arriving late
     const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name, ...(m.archived ? { archived: true } : {}) };
@@ -134,12 +142,20 @@ export class Table {
     return structuredClone(s);
   }
 
+  /** Following a match: live over a socket, where every action is pushed as it happens;
+   *  asking the server (a long look) where a socket can't be had, trying one again now and then. */
   async poll(match) {
     const stop = new AbortController();
     this.polls.set(match, stop);
-    let quiet = 0;
+    let quiet = 0, liveAgainAt = 0;
     const done = () => this.seen.get(match)?.result || this.seen.get(match)?.archived;
     while (this.watching.has(match) && !stop.signal.aborted && !this.frame.lost && !done()) {
+      if (typeof WebSocket === 'function' && Date.now() >= liveAgainAt) {
+        const how = await this.live(match, stop);
+        if (how === 'dropped') { await new Promise((r) => setTimeout(r, 1000)); continue; }
+        if (how === 'over') { await this.fetch(match).catch(() => {}); continue; }
+        liveAgainAt = Date.now() + 60_000;   // no socket to be had: ask for a minute, then try again
+      }
       // Nobody's looking at this page: don't keep asking. Catch up when it's seen again.
       if (document.visibilityState === 'hidden') { await new Promise((r) => document.addEventListener('visibilitychange', r, { once: true })); continue; }
       try {
@@ -150,6 +166,56 @@ export class Table {
         await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** quiet++)));
       }
     }
+  }
+
+  /** A socket that hears the match: resolves 'failed' (it never opened), 'dropped' (it did,
+   *  and closed) or 'over' (the match was archived). */
+  live(match, stop) {
+    return new Promise((resolve) => {
+      pass().catch(() => null).then((p) => {
+        let ws, opened = false;
+        try { ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/matches/${match}/live`, p ? ['gactant', p] : ['gactant']); }
+        catch { resolve('failed'); return; }
+        const ping = setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 30_000);
+        const close = () => { try { ws.close(1000); } catch {} };
+        stop.signal.addEventListener('abort', close, { once: true });
+        ws.onopen = () => {
+          opened = true;
+          this.sockets.set(match, ws);
+          this.fetch(match).catch(() => {});   // whatever happened before it opened
+        };
+        ws.onmessage = (e) => {
+          if (e.data === 'pong') return;
+          let m;
+          try { m = JSON.parse(e.data); } catch { return; }
+          if (m.type === 'look') {
+            this.took(match, m);
+            if (m.result || m.archived) close();
+          } else if (m.type === 'shared') this.frame.bus.emit('table.shared', { match, by: m.name, player: m.by, value: m.value, at: m.at });
+          else if (m.type === 'error') this.frame.bus.emit('table.refused', { match, kind: 'share', reason: m.error });
+        };
+        ws.onclose = (e) => {
+          clearInterval(ping);
+          stop.signal.removeEventListener('abort', close);
+          if (this.sockets.get(match) === ws) this.sockets.delete(match);
+          resolve(e.code === 4410 ? 'over' : opened ? 'dropped' : 'failed');
+        };
+      });
+    });
+  }
+
+  /** Pass a value to everyone else on the match, at once: not signed, not logged, never seen
+   *  by the rules. Best effort: while it isn't connected live, nothing goes. */
+  share(match, value) {
+    const ws = this.sockets.get(match);
+    if (!ws || ws.readyState !== 1) {
+      if (!this.watching.has(match)) this.watch(match).catch(() => {});
+      return { sent: false, why: 'not connected to that match live yet (it connects once you watch, open or join it); try again in a moment' };
+    }
+    const text = JSON.stringify({ share: value ?? null });
+    if (text.length > 2_010) throw new Error('a shared value is up to 2,000 characters of JSON');
+    ws.send(text);
+    return { sent: true };
   }
 
   /** A join or a move: signed by this device over the match's latest head. If someone else

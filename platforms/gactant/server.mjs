@@ -15,6 +15,7 @@
 // how Claude sees what a ludant saw and did.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,6 +79,7 @@ const art = {
 
 const archive = { put: (id, doc) => store.put('archive', id, doc), get: (id) => store.get('archive', id) };
 
+const localMatches = createLocalMatches({ store, archive, loadRules: async () => createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm')))) });
 const core = createCore({
   store,
   settings: {
@@ -95,7 +97,7 @@ const core = createCore({
     artBase: '/art/',
     // Tables: every match in this process (match.mjs), its rules in QuickJS (rules.mjs, from
     // the vendored WebAssembly), and finished matches archived as data/archive/<id>.json.
-    matches: createLocalMatches({ store, archive, loadRules: async () => createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm')))) }),
+    matches: localMatches,
     archive,
     archiveOverMs: process.env.GACTANT_ARCHIVE_OVER_MS ? Number(process.env.GACTANT_ARCHIVE_OVER_MS) : undefined,   // the smoke test's: at once
     log: (who, record) => appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n'),
@@ -127,7 +129,7 @@ function serveStatic(path, res) {
 
 const json = (res, code, value) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname.startsWith('/art/')) {
     const pic = await art.get(url.pathname.slice(5)).catch(() => null);
@@ -149,6 +151,54 @@ createServer(async (req, res) => {
     if (!err.code || err.code >= 500) console.error(`[gactant] ${req.method} ${url.pathname}: ${err.message}`);
     json(res, typeof err.code === 'number' ? err.code : 500, { error: err.message, ...(err.extra ?? {}) });
   }
-}).listen(PORT, () => {
+});
+
+// Following a match live (match.mjs: pushLooks, relayShare), as the hosted Match objects do,
+// with just enough WebSocket for it: text messages, ping, close. The pass comes as a
+// subprotocol, since a browser can't put headers on a WebSocket.
+server.on('upgrade', async (req, socket) => {
+  const url = new URL(req.url, 'http://x');
+  const id = url.pathname.match(/^\/api\/matches\/(m-[0-9a-f]{12})\/live$/)?.[1];
+  if (!id || !sameOrigin(req.headers.origin, req.headers.host) || req.headers.upgrade?.toLowerCase() !== 'websocket') { socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'); return; }
+  const offered = String(req.headers['sec-websocket-protocol'] ?? '').split(',').map((x) => x.trim());
+  const pass = offered.find((x) => x.startsWith('v1.'));
+  const person = pass ? (await core.route('GET', ['people', 'me'], {}, new URLSearchParams(), { ip: '', pass }).catch(() => null))?.id ?? null : null;
+  const frame = (op, payload) => {
+    const n = payload.length;
+    const head = n < 126 ? Buffer.from([0x80 | op, n]) : n < 65536 ? Buffer.from([0x80 | op, 126, n >> 8, n & 255]) : Buffer.concat([Buffer.from([0x80 | op, 127]), (() => { const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(n)); return b; })()]);
+    return Buffer.concat([head, payload]);
+  };
+  const me = { person, send: (t) => socket.write(frame(1, Buffer.from(t))), close: () => { try { socket.end(frame(8, Buffer.from([0x11, 0x3a]))); } catch {} } };   // 4410: archived
+  let room;
+  try { room = await localMatches.follow(id, me); } catch { socket.end('HTTP/1.1 404 Not Found\r\n\r\n'); return; }
+  const accept = createHash('sha1').update(`${req.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: gactant\r\n\r\n`);
+  let buf = Buffer.alloc(0);
+  socket.on('data', async (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    while (buf.length >= 2) {
+      const op = buf[0] & 15, masked = buf[1] & 128;
+      let n = buf[1] & 127, at = 2;
+      if (n === 126) { if (buf.length < 4) return; n = buf.readUInt16BE(2); at = 4; } else if (n === 127) { if (buf.length < 10) return; n = Number(buf.readBigUInt64BE(2)); at = 10; }
+      const mask = masked ? buf.subarray(at, at + 4) : null;
+      if (masked) at += 4;
+      if (buf.length < at + n) return;
+      const data = Buffer.from(buf.subarray(at, at + n));
+      if (mask) for (let i = 0; i < data.length; i++) data[i] ^= mask[i % 4];
+      buf = buf.subarray(at + n);
+      if (op === 8) { room.closed(); socket.end(frame(8, Buffer.alloc(0))); return; }
+      if (op === 9) { socket.write(frame(10, data)); continue; }
+      if (op !== 1) continue;
+      const text = data.toString('utf8');
+      if (text === 'ping') { me.send('pong'); continue; }
+      const said = await room.message(text);
+      if (said) me.send(JSON.stringify({ type: 'error', error: said }));
+    }
+  });
+  socket.on('close', () => room.closed());
+  socket.on('error', () => room.closed());
+});
+
+server.listen(PORT, () => {
   console.log(`gactant on http://lilg:${PORT}/  model ${MODEL}  key ${process.env.OPENROUTER_API_KEY ? 'present' : 'none (people connect their own OpenRouter)'}`);
 });

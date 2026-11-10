@@ -2510,3 +2510,21 @@ Tried on Vedina (local): the report went in, the banner showed Alice what it sai
 - The frame is the reported person's own browser, so they could stop the report from being sent. That's inherent in sending it from their side.
 - If a report concerns actual child sexual abuse material, US law may require reporting it to NCMEC. Check before relying on this.
 - What we do about a person: warn them, block them, take down their ludants?
+
+## Part 24: live
+
+Robby: "as long as it doesn't involve too much undue complexity i'd like the improvements to be transparent, the current games to keep working."
+
+**Pushed, not asked for.** A frame following a match opens a WebSocket to it (`/api/matches/<id>/live`). The pass goes as a subprotocol (`['gactant', pass]`), since a browser can't set headers on a WebSocket; the server answers `gactant`.
+- Hosted: the Worker checks the pass and the Origin, and hands the socket to the Match object with the person attached. The object accepts it through the hibernation API (`acceptWebSocket`, an attachment for the person, and `setWebSocketAutoResponse('ping', 'pong')` so pings don't wake it). After every `act`, it pushes each socket that socket's own look. Archiving closes them with 4410.
+- Node: `server.mjs` has just enough WebSocket for this (handshake, text frames, ping, close) over `createLocalMatches().follow(id, socket)`.
+- Both use the same `pushLooks` and `relayShare` from match.mjs.
+- The table (`table.js`) tries a socket first. On open it catches up with one fetch, and pushed looks go through the same `took()` as fetched ones, so `table.changed` fires once per action whichever way it came. A dropped socket reconnects after a second. One that never opens means falling back to the long look for a minute, then trying again. Nothing a game calls changed.
+
+**`table.share(match, value)`**, new and optional: a value passed to everyone else on the match at once, arriving as `table.shared { match, by, player, value, at }`. It's not signed or logged, and the rules never see it. It's for showing (positions, aim), not deciding: hits and wins stay moves. Only players who've joined can share, 20 a second, 2,000 characters each. When the socket isn't open, it answers `{ sent: false, why }` and starts watching. The table's description says when to use it, and to ease things between shares.
+
+**Tried:**
+- Smoke, on Node and under `wrangler dev` (real Match objects, hibernation): a move is pushed to every follower as each sees it, a share reaches the others but not the sender, an onlooker can't share, and pings are answered.
+- In the browser (local): Alice's Vedina and Bob's copy, both in the same tic-tac-toe match, each with an open socket. Alice's move reached Bob's frame in 45 ms, before her own call had returned; her share reached him in 4 ms. It used to take up to 3 s.
+
+**Cost, to watch:** an idle hibernated socket costs nothing. Each incoming message (a share) counts as 1/20 of a request against the free 100,000 a day. While shares are flowing, the object stays awake and is billed for duration, so a long, fast game is one object's worth of awake time. Two players sharing 10 times a second for an hour is 72,000 messages, about 3,600 requests' worth. Fine for now; the per-socket limit keeps a runaway game in check.
