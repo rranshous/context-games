@@ -41,7 +41,7 @@ Six seeds have baked on the current rules (rules 6), saving a checkpoint every 1
 
 | seed | tick | alive | notes |
 |---|---|---|---|
-| 2 | 1.77M | 203k | climbers took +2 and +3 at ~700k: both-eaters, meat-eating hunters and fat whales; a second boom since ~1.7M, still climbing |
+| 2 | 1.77M | 203k | climbers took +2 and +3 at ~700k: both-eaters, meat-eating hunters and fat whales; a second boom since ~1.65M, still climbing |
 | 4 | 1.67M | 183k | divers took +2 at ~450k as plant eaters, then turned both-eaters; the biggest body yet, 1,607 cells, at 1.46M |
 | 3 | 7.10M | 110k | quiet for millions of ticks, then booming since ~5.9M (27k → 110k) |
 | 1 | 6.25M | 89k | the same from ~4.95M (30k → 87k), flat since ~6M; a 1,509-cell body at 6.16M |
