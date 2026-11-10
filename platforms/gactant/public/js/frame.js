@@ -122,7 +122,11 @@ class Frame {
       const now = Date.now(), seconds = document.visibilityState === 'visible' ? (now - lastBeat) / 1000 : 0;
       const spent = this.status.spent - reported;
       lastBeat = now; reported = this.status.spent;
-      try { await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token, seconds, spent }); }
+      try {
+        const beat = await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token, seconds, spent });
+        // A letter from the admins is waiting: fetch it and hand it over.
+        if (beat.mail && this.stage.live) this.admins.deliver(await api('GET', `ludants/${this.recordId}/mail`));
+      }
       catch (err) { if (err.status === 409) this.lose(err.body?.heldBy); }
     }, HEARTBEAT_MS);
     addEventListener('pagehide', () => navigator.sendBeacon(`/api/ludants/${this.recordId}/release`, JSON.stringify({ token: this.token })));
@@ -680,6 +684,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.bus.emit('frame.arrived', { who: this.seat, firstVisit: arrival.firstVisit, visits: arrival.visits, fresh: Boolean(this.record.fresh), note: this.arrivalNote(arrival) });
     if (this.record.fresh) this.changed();
     this.table.resume();
+    this.admins.deliver(this.record.mail);
   }
 }
 

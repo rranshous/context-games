@@ -62,6 +62,9 @@
 //   POST ludants/<id>/heartbeat { token, seconds, spent } -> { held } 409 once another window took it
 //   POST ludants/<id>/issue { token, by, title, trying, wrong, tried, soma, table, doings } -> { id }
 //                                                   a problem the ludant reported and its person sent (surfaces/admins.js)
+//                                                   about: one of its reports, to answer the admins there
+//   GET  ludants/<id>/mail                       -> [{ id, issue, title, at, text }]   letters waiting (its owner)
+//   POST ludants/<id>/mail { token, took }       -> { mail }   the ones its frame has written into its soma
 //   POST ludants/<id>/release { token }          -> {}
 //   POST ludants/<id>/arrive { who }             -> { firstVisit, visits, checkpoint, people }
 //   GET  ludants/<id>/checkpoints                -> [{ n, label, by, at }]
@@ -96,7 +99,8 @@
 //   POST admin/ops { token, days? }              -> { traffic, trouble, held }   what's going on (tools/ops.mjs)
 //   POST admin/migrate-art { token, n? }         -> { moved, left }   art and thumbs kept as data URLs in the
 //                                                   store move to the art store, n owners at a time (once, 2026-10-28)
-//   POST admin/issues { token, n?, all?, id?, status? } -> the open reports in brief, or one whole (and its status set)
+//   POST admin/issues { token, n?, all?, id?, status?, reply? } -> the open reports in brief, or one whole (its status set,
+//                                                   or a reply added: a letter waiting in the ludant's mail)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
 //   drafts, rulebooks, matches                   tables: games many ludants play together (tables.mjs has their API)
@@ -148,10 +152,14 @@ const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => 
 const newId = (name) => `${slug(name)}-${hex(3)}`;
 export const safe = (id) => { if (!/^[a-z0-9-]+$/.test(String(id))) throw httpError(400, 'bad id'); return id; };
 const sameSoma = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Replies from the admins, written into the soma of the ludant that reported (surfaces/admins.js).
+// They're to that ludant: copies and publications go without them.
+export const LETTERS = 'letters_from_gactant_admins';
+const withoutLetters = (soma) => { const s = structuredClone(soma); if (s?.sections) delete s.sections[LETTERS]; return s; };
 /** Same body, ignoring title and memory: a new name or remembering being published
  *  doesn't make a different ludant. Something else has to change. */
 const sameBody = (a, b) => {
-  const strip = (x) => ({ ...x, sections: { ...x?.sections, memory: undefined, title: undefined } });
+  const strip = (x) => ({ ...x, sections: { ...x?.sections, memory: undefined, title: undefined, [LETTERS]: undefined } });
   return sameSoma(strip(a), strip(b));
 };
 
@@ -585,11 +593,23 @@ export function createCore({ store, settings }) {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       if (body.id) {
         const issue = await read('issues', String(body.id));
-        if (body.status) { issue.status = String(body.status).slice(0, 40); await store.put('issues', issue.id, issue); }
+        if (body.status) issue.status = String(body.status).slice(0, 40);
+        // A reply: kept on the report, and waiting for the ludant as a letter its frame writes into its soma.
+        if (body.reply) {
+          const reply = { id: `r-${hex(4)}`, at: now(), text: String(body.reply).slice(0, 8000) };
+          issue.replies = [...(issue.replies ?? []), reply];
+          issue.thread = [...(issue.thread ?? []), { at: reply.at, from: 'admins', text: reply.text, reply: reply.id }];
+          const ludant = await store.get('ludants', issue.ludant);
+          if (ludant && !ludant.abandoned) {
+            ludant.mail = [...(ludant.mail ?? []), { id: reply.id, issue: issue.id, title: issue.title, at: reply.at, text: reply.text }];
+            await store.put('ludants', ludant.id, ludant);
+          }
+        }
+        if (body.status || body.reply) await store.put('issues', issue.id, issue);
         return issue;
       }
       return (await store.list('issues')).filter((i) => body.all || i.status === 'open').sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(body.n) || 20)
-        .map(({ id, at, status, ludant, name, by, title, wrong }) => ({ id, at, status, ludant, name, by, title, wrong: wrong.slice(0, 300) }));
+        .map(({ id, at, status, ludant, name, by, title, wrong, thread }) => ({ id, at, status, ludant, name, by, title, wrong: wrong.slice(0, 300), ...(thread?.length ? { thread: thread.length } : {}) }));
     }
     if (a === 'admin' && b === 'reports' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
@@ -676,13 +696,13 @@ export function createCore({ store, settings }) {
       if (!c && method === 'GET') {
         // The names its family has already published under, so it knows which are taken.
         const familyNames = (await store.list('published')).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
-        const { stats, owner, ownedAt, ...rest } = ludant;
+        const { stats, owner, ownedAt, mail, ...rest } = ludant;
         // What was said, sketched and saved is for its owners (every device with its key).
         // Anyone else with the link sees what a copy would get: its game and its art.
         if (!owns(ludant, from)) {
           return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false, unclaimed: !ludant.owner };
         }
-        return { ...rest, surfaces: kept(rest.surfaces), familyNames, yours: true };
+        return { ...rest, surfaces: kept(rest.surfaces), familyNames, yours: true, mail: mail ?? [] };
       }
       if (!c && method === 'PUT') {
         await requireHold(ludant, body, from);
@@ -704,7 +724,7 @@ export function createCore({ store, settings }) {
       if (c === 'heartbeat' && method === 'POST') {
         await requireHold(ludant, body, from);
         await played(b, Number(body.seconds) || 0, Number(body.spent) || 0);
-        return { held: true };
+        return { held: true, mail: ludant.mail?.length ?? 0 };
       }
       // Art: pictures made for the ludant, kept apart from it (they're big) and listed on it.
       if (c === 'assets' && method === 'GET') {
@@ -732,7 +752,37 @@ export function createCore({ store, settings }) {
         await store.put('ludants', b, ludant);
         return { removed: name };
       }
+      // Letters from the admins waiting for it; took: the ones its frame has written into its soma.
+      if (c === 'mail' && method === 'GET') { if (!owns(ludant, from)) throw notYours(ludant); return ludant.mail ?? []; }
+      if (c === 'mail' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        const took = new Set((body.took ?? []).map(String));
+        ludant.mail = (ludant.mail ?? []).filter((m) => !took.has(m.id));
+        await store.put('ludants', b, ludant);
+        for (const m of await store.list('issues')) {
+          if (m.ludant !== b || !m.replies?.some((x) => took.has(x.id))) continue;
+          for (const x of m.replies) if (took.has(x.id)) x.delivered = now();
+          await store.put('issues', m.id, m);
+        }
+        return { mail: ludant.mail.length };
+      }
       // A ludant telling the admins about a problem, sent by its person (surfaces/admins.js).
+      // about: one of its reports, to answer the admins on it (the thread goes on there).
+      if (c === 'issue' && method === 'POST' && body.about) {
+        await requireHold(ludant, body, from);
+        const issue = await read('issues', String(body.about));
+        if (issue.ludant !== b) throw httpError(404, 'that report isn\'t one of this ludant\'s');
+        const counted = limit('issue', from.person ?? from.ip, ISSUES_A_DAY, `that's ${ISSUES_A_DAY} reports today; more tomorrow`);
+        const text = String(body.wrong ?? body.text ?? '').trim().slice(0, 4000);
+        if (!text) throw httpError(400, 'say something');
+        issue.thread = [...(issue.thread ?? []), { at: now(), from: 'ludant', by: String(body.by ?? '').slice(0, 40), text, ...(body.soma ? { soma: body.soma } : {}) }];
+        if (JSON.stringify(issue).length > MAX_ISSUE * 2) throw httpError(413, 'that report is too big');
+        issue.status = 'open';
+        await store.put('issues', issue.id, issue);
+        counted();
+        settings.opsLog?.({ trouble: 'issue answered', where: b, issue: issue.id });
+        return { id: issue.id };
+      }
       if (c === 'issue' && method === 'POST') {
         await requireHold(ludant, body, from);
         const counted = limit('issue', from.person ?? from.ip, ISSUES_A_DAY, `that's ${ISSUES_A_DAY} reports today; more tomorrow`);
@@ -771,7 +821,7 @@ export function createCore({ store, settings }) {
         limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
         const id = newId(ludant.soma.given);
         const copy = {
-          id, soma: structuredClone(ludant.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
+          id, soma: withoutLetters(ludant.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
           lineage: { from: { ludant: b, name: nameOf(ludant.soma) }, takenBy: body.by || null },
         };
         await checkpoint(copy, `copied from ${nameOf(ludant.soma)}`, body.by);
@@ -850,7 +900,7 @@ export function createCore({ store, settings }) {
         await store.put('published', id, {
           id, name, given: ludant.soma.given, title, by: body.by || null, note,
           ludant: ludant.id, n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
-          copies: 0, soma: structuredClone(ludant.soma), checked: look.checked,
+          copies: 0, soma: withoutLetters(ludant.soma), checked: look.checked,
           ...(look.why ? { hidden: { by: 'check', at: now(), note: look.why } } : {}),
         });
         if (look.why) {

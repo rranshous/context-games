@@ -105,7 +105,13 @@ trying, what went wrong and what it tried. Its person sees the report and sends 
 doesn't. With it go the soma, its rules drafts, the matches it's following and its
 recent tool calls and errors, never the chat. `node tools/issues.mjs` lists them, and
 `tools/issues.mjs <id>` writes one out to `issues/<id>/` with the rulebooks and match
-logs it names. `experiments/soma-views` is where this was tried against showing the whole
+logs it names. `tools/issues.mjs <id> reply "…"` answers it: the next time that ludant is
+open (the heartbeat says so), its frame writes the reply into its soma, in a section
+`letters_from_gactant_admins`, and saves it before telling the server it has it. It's
+woken with it whatever its hooks say, its person sees it in a banner, and it deals with
+the letter by editing or clearing the section. It answers back with the same tool and
+`about` (the report's id), and the thread goes on there. Copies and publications go
+without the letters. `experiments/soma-views` is where this was tried against showing the whole
 soma once per wake: it did as well or better, for the same cost, on 112 conversations.
 
 At the moments a ludant tends to slip, the frame nudges it once. For example, if a person

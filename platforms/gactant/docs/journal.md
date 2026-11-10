@@ -2463,3 +2463,14 @@ Robby wants the admin channel to go both ways, "more 'injecty'" than a tool the 
 - The person sees the reply in a banner.
 - The section is stripped from copies and publications.
 - Answers back go through the report tool with the report's id, approved by the person each time, and without the soma unless the ludant asks for it.
+
+### Letters, built
+
+As agreed above. `tools/issues.mjs <id> reply "…"` keeps the reply on the report (in `replies`, and in a `thread` with the ludant's answers) and puts a letter in the reporting ludant's `mail`. The heartbeat answers `mail: n`, and opening a frame brings the letters with the ludant. The frame (`Admins.deliver`):
+1. writes them into `letters_from_gactant_admins` (each with its report id and reply id, so it's never written twice) and saves;
+2. tells the server it has them (`POST ludants/<id>/mail { took }`), and the report marks them delivered;
+3. shows the person a banner with our text;
+4. wakes the ludant through a new chassis message, `wake`, which goes straight to `actant.wake`, past its hooks.
+Answering back is the report tool with `about` (the thread goes on there, the report opens again, and the soma goes too only with `with_soma`), approved on the same card. Copies and publications drop the section, and `sameBody` ignores it, so a letter doesn't make a "different" ludant.
+
+**Tried on Vedina (local, real thinking):** I replied to its report. On opening, the banner showed, and the section was written and saved: `mail` empty, the reply marked delivered. Vedina woke with the letter, told Alice in the chat ("Good news: two copies now land in the same match…"), and cleared the section with `write_section`. Nobody told it to: the header of the section said it could. That's the ack, done with tools it already has. Smoke: reply, heartbeat count, mail for the owner only, took, delivered, answering on its report (and not on someone else's), the thread, and copies without letters.

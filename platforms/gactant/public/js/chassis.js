@@ -10,7 +10,7 @@
 //   the frame is told   soma (the body as it is now), life, note, event, store,
 //                       frame (pictures), size, halt, restart, advanced, input (a key or pointer)
 //   the frame asks      init, tick, event, store, people, stage(action, args), restart,
-//                       write, load, idle, sleep, gameState
+//                       write, load, idle, sleep, gameState, wake (an event that wakes it whatever its hooks say)
 //
 // Surfaces across the bridge are proxies whose actions return promises. Two are kept
 // as local copies so game code can read them every frame: the store (writes go to the
@@ -98,6 +98,7 @@ async function boot() {
       return { name: actant.name };
     },
     idle(ms) { return actant.idle(ms); },
+    wake(e) { actant?.wake(e); },
     sleep() { actant?.sleepForever(); stage.halted = 'moved'; },
     gameState() { return JSON.parse(JSON.stringify(actant?.game?.state ?? null)); },
   });

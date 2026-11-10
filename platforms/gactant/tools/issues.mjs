@@ -5,6 +5,8 @@
 //   node tools/issues.mjs [site] <id>                one whole: written to issues/<id>/ (report.md,
 //                                                    soma.json, and the rulebooks and match logs it names)
 //   node tools/issues.mjs [site] <id> <status>       mark it (done, wontfix, …); "open" opens it again
+//   node tools/issues.mjs [site] <id> reply "text"   answer it: a letter the ludant's frame writes into
+//                                                    its soma the next time it's open (and its person sees)
 //
 // site defaults to https://gactant.com. Needs GACTANT_ADMIN_TOKEN in .env. From a network
 // that blocks gactant.com, use https://gactant.rranshous.workers.dev for the admin calls;
@@ -19,7 +21,7 @@ const env = Object.fromEntries((existsSync(join(HERE, '.env')) ? readFileSync(jo
   .map((l) => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2].replace(/^["']|["']$/g, '')]));
 const args = process.argv.slice(2);
 const base = (args[0]?.startsWith('http') ? args.shift() : 'https://gactant.com').replace(/\/$/, '');
-const [what, status] = args;
+const [what, status, replyText] = args;
 const admin = async (body) => {
   const res = await fetch(`${base}/api/admin/issues`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ token: env.GACTANT_ADMIN_TOKEN ?? '', ...body }) });
   const json = await res.json();
@@ -30,9 +32,11 @@ const admin = async (body) => {
 if (!what || what === 'all') {
   const list = await admin({ all: what === 'all', n: 50 });
   if (!list.length) console.log('no reports');
-  for (const i of list) console.log(`${i.id}  ${i.at.slice(0, 16)}  ${i.status.padEnd(6)}  ${i.name} (${i.ludant}), sent by ${i.by}\n    ${i.title}\n    ${i.wrong.replace(/\s+/g, ' ')}\n`);
+  for (const i of list) console.log(`${i.id}  ${i.at.slice(0, 16)}  ${i.status.padEnd(6)}  ${i.name} (${i.ludant}), sent by ${i.by}${i.thread ? `, ${i.thread} in the thread` : ''}\n    ${i.title}\n    ${i.wrong.replace(/\s+/g, ' ')}\n`);
 } else {
-  const issue = await admin({ id: what, ...(status ? { status } : {}) });
+  if (status === 'reply' && !replyText) { console.error('reply needs the text, in quotes'); process.exit(2); }
+  const issue = await admin({ id: what, ...(status === 'reply' ? { reply: replyText } : status ? { status } : {}) });
+  if (status === 'reply') { const r = issue.replies.at(-1); console.log(`${issue.id}: replied (${r.id}); ${issue.ludant} gets it the next time it's open`); process.exit(0); }
   if (status) { console.log(`${issue.id}: ${issue.status}`); process.exit(0); }
   const dir = join(HERE, 'issues', issue.id);
   mkdirSync(dir, { recursive: true });
@@ -45,6 +49,6 @@ if (!what || what === 'all') {
   for (const h of hashes) { const rb = await get(`rulebooks/${h}`); if (rb) writeFileSync(join(dir, `rulebook-${h.slice(0, 12)}.js`), `// ${rb.name}, ${rb.at}\n${rb.source}`); }
   for (const m of issue.table?.matches ?? []) { const log = await get(`matches/${m.id}/log`); if (log) writeFileSync(join(dir, `match-${m.id}.json`), JSON.stringify(log, null, 1)); }
   const doings = issue.doings.map((d) => `- ${d.at.slice(11, 19)} [${d.kind}] ${d.text}`).join('\n');
-  writeFileSync(join(dir, 'report.md'), `# ${issue.title}\n\n${issue.name} (${issue.ludant}), sent by ${issue.by} at ${issue.at}. Status: ${issue.status}.\n\n## Trying\n\n${issue.trying || '(not said)'}\n\n## What went wrong\n\n${issue.wrong}\n\n## Tried\n\n${issue.tried || '(not said)'}\n\n## What it did, latest last\n\n${doings || '(nothing)'}\n`);
+  writeFileSync(join(dir, 'report.md'), `# ${issue.title}\n\n${issue.name} (${issue.ludant}), sent by ${issue.by} at ${issue.at}. Status: ${issue.status}.\n\n## Trying\n\n${issue.trying || '(not said)'}\n\n## What went wrong\n\n${issue.wrong}\n\n## Tried\n\n${issue.tried || '(not said)'}\n\n## The thread\n\n${(issue.thread ?? []).map((t) => `**${t.from === 'admins' ? 'admins' : `${issue.name}${t.by ? ` (sent by ${t.by})` : ''}`}**, ${t.at.slice(0, 16)}${t.from === 'admins' ? ((issue.replies ?? []).find((x) => x.id === t.reply)?.delivered ? ', delivered' : ', not delivered yet') : ''}${t.soma ? ', with its soma' : ''}:\n\n${t.text}`).join('\n\n') || '(nothing yet)'}\n\n## What it did, latest last\n\n${doings || '(nothing)'}\n`);
   console.log(`${issue.id}: ${issue.title}\n  written to ${dir} (report.md, soma.json, table.json${hashes.size ? `, ${hashes.size} rulebook hash(es) looked up` : ''})`);
 }

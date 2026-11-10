@@ -97,6 +97,20 @@ try {
   ok('and whole, with its soma', (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id })).json.soma?.sections != null);
   ok('and can close it', (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id, status: 'done' })).json.status === 'done' && !(await call('POST', 'admin/issues', { token: TOKEN })).json.some((i) => i.id === filed.id));
   ok('nobody else can read reports', (await call('POST', 'admin/issues', { token: 'nope' })).status === 403);
+  // The admins answer: a letter waiting for that ludant, for its owner only.
+  const replied = (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id, reply: 'try view(m).view.seats' })).json;
+  const rid = replied.replies?.[0]?.id;
+  ok('the admins reply', /^r-[0-9a-f]{8}$/.test(rid ?? ''), JSON.stringify(replied).slice(0, 200));
+  ok('a heartbeat says a letter is waiting', (await call('POST', `ludants/${id}/heartbeat`, { token: 'w', seconds: 0, spent: 0 }, as(pass))).json.mail === 1);
+  ok('its owner reads it', (await call('GET', `ludants/${id}/mail`, undefined, as(pass))).json[0]?.text === 'try view(m).view.seats');
+  ok('nobody else does', (await call('GET', `ludants/${id}/mail`, undefined, as(stranger))).status === 403 && !('mail' in (await call('GET', `ludants/${id}`, undefined, as(stranger))).json));
+  ok('its frame says it has it', (await call('POST', `ludants/${id}/mail`, { token: 'w', took: [rid] }, as(pass))).json.mail === 0);
+  ok('and the report says it was delivered', (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id })).json.replies[0].delivered);
+  const answered = await call('POST', `ludants/${id}/issue`, { token: 'w', by: 'Smoke', about: filed.id, wrong: 'that did it, thanks' }, as(pass));
+  ok('the ludant answers on its report', answered.json.id === filed.id);
+  const thread = (await call('POST', 'admin/issues', { token: TOKEN, id: filed.id })).json;
+  ok('and the thread goes on there, opened again', thread.thread?.length === 2 && thread.thread[1].text === 'that did it, thanks' && thread.status === 'open');
+  ok('not on someone else\'s report', (await call('POST', `ludants/${id}/issue`, { token: 'w', about: 'i-00000000', wrong: 'x' }, as(pass))).status === 404);
   const firstThumb = (await call('GET', `thumbs/l/${id}`)).json.url;
   ok('the picture is served from the art store', firstThumb?.startsWith('/art/t/') && (await fetch(`${base}${firstThumb}`)).status === 200, firstThumb);
   await call('POST', `ludants/${id}/thumb`, { token: 'w', image: 'data:image/jpeg;base64,BBBB' }, as(pass));
@@ -160,16 +174,20 @@ try {
   ok('over http, a public site won\'t take a secret instead of a key', (await call('POST', 'people', { name: 'X', secret: 'x'.repeat(40), ...(await A.prove()) })).status === 400);
 
   ok('a stranger can\'t publish it', (await call('POST', 'published', { ludant: id, by: 'stranger', token: 'w' }, as(stranger))).status === 403);
+  // A letter from the admins in its soma stays with it: not in publications or copies.
+  await call('PUT', `ludants/${id}`, { token: 'w', soma: { ...soma, sections: { ...soma.sections, letters_from_gactant_admins: 'a letter (r-00000000)' } }, surfaces }, as(pass));
   const pub = await call('POST', 'published', { ludant: id, by: 'smoke', token: 'w' }, as(pass));
   ok('publish', pub.status === 200 && pub.json.id, JSON.stringify(pub.json));
   const list = await call('GET', 'published');
   ok('it\'s listed (untrusted)', list.json.some?.((p) => p.id === pub.json.id && p.trusted === false));
   const copy = await call('POST', `published/${pub.json.id}/copy`, { by: 'player' }, as(stranger));
+  ok('a copy of the publication goes without the letters', copy.status === 200 && !('letters_from_gactant_admins' in (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json.soma.sections));
   ok('a copy draws with the same art file', (await call('GET', `ludants/${copy.json.id}/assets`, undefined, as(stranger))).json[0]?.url === made1.json.url);
   ok('a publication has its own picture', (await call('GET', `thumbs/p/${pub.json.id}`)).json.url?.startsWith(`/art/t/p-${pub.json.id}-`));
   ok('a copy belongs to whoever took it', copy.json.id && (await call('POST', `ludants/${copy.json.id}/hold`, { token: 'c', who: 'stranger' }, as(stranger))).json.held === true);
   const linkCopy = await call('POST', `ludants/${id}/copy`, { by: 'stranger' }, as(stranger));
   ok('a stranger may copy a ludant by its link', linkCopy.json.id);
+  ok('so does a copy by its link', !('letters_from_gactant_admins' in (await call('GET', `ludants/${linkCopy.json.id}`, undefined, as(stranger))).json.soma.sections));
   ok('the copy starts without the chat', !JSON.stringify((await call('GET', `ludants/${linkCopy.json.id}`, undefined, as(stranger))).json).includes('a secret'));
   ok('a report goes in', (await call('POST', 'flags', { published: pub.json.id, reason: 'other', by: 'smoke' }, as(stranger))).json.id);
   ok('events go in', (await call('POST', 'events', { browser: 'smoke', events: [{ kind: 'sit' }] })).status === 200);
