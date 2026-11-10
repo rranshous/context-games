@@ -2422,3 +2422,21 @@ Tried in a browser on Vedina (local): the card, "send it", and the report as sto
 ### For later (Robby's aside)
 
 - **Ludants reporting people.** "we may want to extend the tool, or add other tools, so that ludants could report people who are trying to be abusive or ask it to do illegal things." This needs its own design, because the approval card turns upside down: the person who would approve the report is the person being reported. So it would have to go without their say. What it can carry is the open question. The chat is sealed and we can't read it, so a ludant's report would be the only account we'd get: its own words, perhaps quoting what was said. That means deciding what a ludant may send about someone without them seeing it, telling people so on the privacy page and in the rules, and what we do with a report like that (the ⚑ flags and `tools/moderate.mjs` are the nearest thing we have).
+
+### The first report, and what it found
+
+Rarnith filed the first one (`i-3775a5b7`): "Two people joining the same table match both get seat 1 (P1) and never see each other". It was a careful report: what it built, what it checked, and its own guess ("is a friend who opens a published copy of me given a distinct player identity at the table?").
+
+What came with it was enough. The match logs (public) showed both joins working: Robby and Robby-tmp-01 were different people on different devices, playing through two copies, and both seats filled. Then nothing: no moves. The soma showed why. `table.view(match)` answers `{ view, n, result, you }`, with the rules' view under `.view`, and `join` answers `{ view, result }`. Rarnith read `.me` and `.seats` off the outer object, got `undefined`, fell back to seat 0 on both sides, and waited for `seats >= 2` forever. I made the same slip in my own test loop in Part 19: a view inside a "view" is a trap, not one ludant's mistake.
+
+**Both ways work now** (Robby: "can we make both ways work? i want the frame and surfaces and tools to be as forgiving as possible"). Wherever the rules' view comes back as `.view` (`view`, `watch`, `join`, `move` and the `table.changed` event), its fields are copied onto the answer too. So `view(match).seats` and `view(match).view.seats` both work. Where a field has the same name as one of the answer's own (`n`, `result`, `you`), the answer's wins, so no game already reading it correctly changes. Tic-tac-toe's view has its own `you: 'X'`: at the top, `you` is still "you're in this match", and 'X' is at `.view.you`. Also added `look(match)`, the same as `view`, for whoever reaches for that word. The description now spells out what each action returns, and that `matches(hash)` lists each match's players (it always did; the description left it out). Tried on Vedina's live tic-tac-toe match: board, turn and the rest are on the answer and under `.view`, and `look` gives the same.
+
+A principle worth keeping: **surfaces and tools forgive.** Accept the shapes and names a model is likely to reach for, rather than failing quietly on near misses. A quiet `undefined` is the worst kind of failure: Rarnith rewrote its lobby several times without ever seeing what was wrong.
+
+### For later: security (Robby: "lets talk about security soon")
+
+How the admin side works today, as Robby asked: admin routes take `ADMIN_TOKEN` in the request body, and that's the only check. Whoever has the token is an admin, with no person, device or signature behind it and no expiry. It lives in `.env` on this machine and as a Wrangler secret. The tools send it from Node to the workers.dev address (which only answers admin and config). `tools/chrome-fetch.mjs` (headless Chrome, a fresh profile deleted afterwards, no cookies or pass) is only used for public GETs: rulebooks, match lists and logs. Things to talk about:
+- Admin as a person: their device's signature, maybe a second device to approve destructive routes (wipe, own, moderate), and an audit log of admin calls.
+- Rotating the token, and what a leaked token reaches: every report (with somas), people's names and devices, moderation, and the wipe route.
+- Reports hold unsealed somas: who can read them, and how long they're kept.
+- What else to review: pass lifetimes, what the sandbox can reach, the rate limits.

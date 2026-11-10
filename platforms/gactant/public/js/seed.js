@@ -189,7 +189,7 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
   },
   {
     name: 'table',
-    description: 'Shared play: rulebooks and matches with other people and their ludants (see the table surface). op is one of its actions (drafts, draft, readDraft, writeDraft, tryDraft, lock, removeDraft, rulebook, matches, open, watch, unwatch, join, move, view, standings, budget); args is the list of arguments it takes, e.g. { op: "writeDraft", args: ["d-1a2b3c", { source: "..." }] } or { op: "move", args: ["m-4d5e6f", { cell: 4 }] }.',
+    description: 'Shared play: rulebooks and matches with other people and their ludants (see the table surface). op is one of its actions (drafts, draft, readDraft, writeDraft, tryDraft, lock, removeDraft, rulebook, matches, open, watch, unwatch, join, move, view, look, standings, budget); args is the list of arguments it takes, e.g. { op: "writeDraft", args: ["d-1a2b3c", { source: "..." }] } or { op: "move", args: ["m-4d5e6f", { cell: 4 }] }.',
     input_schema: { type: 'object', properties: { op: { type: 'string' }, args: { type: 'array' } }, required: ['op'] },
     run: (input, me, s) => {
       const fn = s.table[input.op];

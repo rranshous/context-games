@@ -12,21 +12,27 @@
 //   lock(id) -> { rulebook }                                frozen; the hash is its name for good
 //   removeDraft(id)
 //   rulebook(hash) -> { name, source, by, at, from }       anyone's, by reference
-//   matches(hash) -> [{ id, at, n, over, view }]           its recent matches, as an onlooker sees them
+//   matches(hash) -> [{ id, at, updated, n, over, players, view }]   its recent matches; view: an onlooker's
 //   open(hash, options?) -> { match }                      a new match (nobody in it yet), watched
 //   watch(match) -> { view, n, result, you }               follow it: table.changed on every action
 //   unwatch(match)
 //   join(match, request?) -> { view, result }              take a place, if the rules allow
 //   move(match, action) -> { view, result }                act, if the rules allow (refused: an error with their words)
-//   view(match) -> { view, n, result, you }                the latest seen (asked of the server if it hasn't been)
+//   view(match), or look(match) -> { view, n, result, you } the latest seen (asked of the server if it hasn't been)
+// Forgiving: wherever the rules' view comes back as .view (these, and table.changed), its own
+// fields are on the answer too, so view(match).seats and view(match).view.seats both work.
+// Where a field of the view has the same name as one of the answer's, the answer's wins.
 //   budget() -> what this person has used today, and the limits
 //   standings(hash, n = 20) -> { matches, players: [{ rank, id, name, wins, losses, draws, played }], you }
 // events
-//   table.changed { match, n, view, result, last: { kind, by, through, data } }   someone acted (you included)
+//   table.changed { match, n, view, result, last: { kind, by, through, data }, ...the view's fields }   someone acted (you included)
 //   table.refused { match, kind, reason }
 
 import { sign } from '../identity.js';
 import { api } from '../ui.js';
+
+/** The answer with the rules' view's own fields on it too (see the top of this file). */
+const forgiving = (o) => (o && o.view && typeof o.view === 'object' && !Array.isArray(o.view) ? { ...o.view, ...o } : o);
 
 const signedText = ({ match, n, prev, kind, data }) => ['gactant/act/v1', match, n, prev, kind, JSON.stringify(data ?? null)].join('\n');
 const TRIES = 4;   // an action meets a newer head (someone else acted first): signed again on it
@@ -52,7 +58,7 @@ export class Table {
   }
 
   describe() {
-    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options), join(state, player, request), move(state, player, action), view(state, player), result(state). They're pure: state in, state out, everything JSON, no clock or network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. player is { id, name } (view gets null for an onlooker). result returns null until the game is over, then anything the rules like plus winners: [player ids] ([] for a draw), which is what standings across matches count. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over is archived after an hour (it can still be read). Every rulebook has standings: each match of it that ended with winners counts, in every ludant that plays it, so standings(hash) is the same board for all of them, kept by the server and impossible to fake. How it looks is yours: draw it in your game however suits you. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data }], seed, options }), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), view(match), standings(hash, n) -> { matches, players: [{ rank, id, name, wins, losses, draws, played }], you: your own row or null }, budget().`;
+    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options), join(state, player, request), move(state, player, action), view(state, player), result(state). They're pure: state in, state out, everything JSON, no clock or network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. player is { id, name } (view gets null for an onlooker). result returns null until the game is over, then anything the rules like plus winners: [player ids] ([] for a draw), which is what standings across matches count. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) (or look(match)) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over is archived after an hour (it can still be read). Every rulebook has standings: each match of it that ended with winners counts, in every ludant that plays it, so standings(hash) is the same board for all of them, kept by the server and impossible to fake. How it looks is yours: draw it in your game however suits you. What comes back: view, look and watch give { view, n, result, you }, join and move give { view, result }, and table.changed carries { match, n, view, result, last }; view is what your rules' view(state, player) returned for you, and its fields are also copied onto the answer itself, so view(match).seats and view(match).view.seats both work (a field named like one of the answer's own, such as n or result, is only under .view). matches(hash) lists recent matches with their players (names) and an onlooker's view, for finding one with room. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data }], seed, options }), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), view(match), look(match), standings(hash, n) -> { matches, players: [{ rank, id, name, wins, losses, draws, played }], you: your own row or null }, budget().`;
   }
 
   state() {
@@ -80,11 +86,12 @@ export class Table {
       rulebook: (hash) => api('GET', `rulebooks/${hash}`),
       matches: (hash) => api('GET', `rulebooks/${hash}/matches`),
       open: (hash, options) => this.open(hash, options),
-      watch: (match) => this.watch(match),
+      watch: async (match) => forgiving(await this.watch(match)),
       unwatch: (match) => this.unwatch(match),
       join: (match, request) => this.act(who, match, 'join', request ?? null),
       move: (match, action) => this.act(who, match, 'move', action ?? null),
-      view: async (match) => structuredClone(this.seen.get(match) ?? await this.fetch(match)),
+      view: async (match) => forgiving(structuredClone(this.seen.get(match) ?? await this.fetch(match))),
+      look: async (match) => forgiving(structuredClone(this.seen.get(match) ?? await this.fetch(match))),
       budget: () => api('GET', 'tables/budget'),
       standings: (hash, n) => api('GET', `rulebooks/${hash}/standings${n ? `?n=${n}` : ''}`),
     };
@@ -123,7 +130,7 @@ export class Table {
     if (before && m.n < before.n) return structuredClone(before);   // an older answer, arriving late
     const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name, ...(m.archived ? { archived: true } : {}) };
     this.seen.set(match, s);
-    if (before && m.n > before.n) this.frame.bus.emit('table.changed', { match, n: m.n, view: m.view, result: m.result, last: m.last });
+    if (before && m.n > before.n) this.frame.bus.emit('table.changed', forgiving({ match, n: m.n, view: m.view, result: m.result, last: m.last }));
     return structuredClone(s);
   }
 
@@ -156,7 +163,7 @@ export class Table {
         // The long look sees it too; this makes sure the one acting hears it at once.
         await this.fetch(match);
         if (!this.watching.has(match)) await this.watch(match);
-        return { view: out.view, result: out.result };
+        return forgiving({ view: out.view, result: out.result });
       } catch (err) {
         if (err.status === 409 && i < TRIES) { s = await this.fetch(match); continue; }
         if (err.status === 422 || err.status === 410 || err.status === 429) {
