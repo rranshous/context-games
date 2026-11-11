@@ -2684,7 +2684,7 @@ Not done:
 **Robby's look** (2026-11-10): "nice! very much improved." His notes:
 - *Making was undersold.* "feels like having the create your own at the bottom is an undersell. how do we feature both? maybe a banner at the top?" Done: a banner above everything, for everyone: a pulsing amber dot (what a new ludant is), "Make your own game. A new ludant begins as a pulsing dot. Tell it what you'd like to play, and it builds itself into that.", and "seed a new ludant →". On a phone it's one row (the dot, "Make your own game.", the button), so the headline still lands in the first screen. The old section at the bottom is gone.
 - *Hard to judge the home page on test data.* He'll look at the full thing on production, with the real games.
-- *Visual lineages:* yes. Next build: the changes that made a game, with before and after pictures.
+- *Visual lineages:* first a yes. Then, after hearing the shape (record a "moment" each time a ludant's game comes out different: a stage picture and the ludant's own line on what changed; carry them with a publication through its ancestors; show them as a strip on the shared-link card and as the history button), "it feels like too much". Shelved for now. The design is here if it comes back. Nothing records moments today, so existing games would start their strips from scratch.
 - *Who runs gactant:* waiting on an email address at the domain (see the to-do below). Then the rules and privacy pages can name who runs it and how to reach them, with age guidance alongside.
 - Deployed to production on his say ("deploy to prod!").
 
