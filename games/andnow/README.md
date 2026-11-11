@@ -131,3 +131,4 @@ The Climb grew out of all of those. They're still reachable from the viewer (*Ba
 
 - [`docs/journal.md`](docs/journal.md): the whole journey, session by session, including the dead ends.
 - [`docs/climb.md`](docs/climb.md): the Climb's design.
+- [`docs/survey.md`](docs/survey.md): a field survey of what lives in the forever runs: the species, their programs and anatomy, how they live and die, with pictures.

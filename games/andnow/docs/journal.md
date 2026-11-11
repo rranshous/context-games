@@ -2527,3 +2527,27 @@ Memory grows with the population, about 20–30 KB of rss a living body: the fou
 the machine's 31 (12 GB free). If s2 keeps climbing it'll get tight in a few weeks; s1,
 flat, is the one to pause first. `runs/bake` is 24 GB (checkpoints grow with the
 population; thinning holds the count), 266 GB free.
+
+## A field survey
+
+[docs/survey.md](survey.md): the species of the four live runs, with pictures. The method: a
+census of every living body in 72 checkpoints, body plans at 33, and the newest checkpoint
+of each run replayed 200–300 ticks following ~114k bodies. What it found:
+
+- The IP runs only a body's top row (frame row 0) in every common form; the rest is
+  anatomy, counted only through its traits. Programs and body plans evolve separately.
+- Each run's boom is a new program taking over: s1 `CDmM`, s3 `CMxDm` → `CMDm`, s4
+  `CmMmMD` → `CmMD` (blind "sprinters": no SCAN, steered by their max size, 10× the
+  founders' pace from off-path `M`s doubled by `x`s, insulation 4 the same way), and s2
+  `CLDM` lookers hung on fat masts (77% of s2, steps 5–6). The sprinter evolved three
+  times; s4's Divers became sky creatures with it.
+- Giants are growth mutants: a `G` in the code row, 97–99% fat, poles or threads by the
+  direction on the stack.
+- Husks (no `C`, can't eat) are 12–25% of every run: what the cold and starvation leave.
+- No predation: one lineage per run, auto-bite spares kin, zero bites in the replays;
+  bitten-to-death is ≤0.02% of all deaths. Cold is 82–99.5%.
+- Climbers and Divers coexisted through each quiet era (s3 level at 1,823 each at 4M);
+  the boom forms swamped that. Hunters were gone by 100k–1M.
+
+The survey scripts (survey.ts, classify.ts, render.py, chart.py) live in the session
+scratchpad, not the repo.
