@@ -356,7 +356,7 @@ sideways, and ✕ to come back.
 
 | URL | what |
 |---|---|
-| `/` | home: what a ludant is (with a recorded real change, `img/demo-*.jpg`), your ludants, New and Popular, every publication as family trees, seed a new one |
+| `/` | home: a banner up top to seed a new ludant (making is half of what this is), what a ludant is (with a recorded real change, `img/demo-*.jpg`), your ludants, New and Popular, every publication as family trees |
 | `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
 | `/play.html?p=<publication>` | take a copy (remembered per browser) and sit with it, in play mode; someone new sees its picture and title with the name ask |
 

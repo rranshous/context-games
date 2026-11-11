@@ -210,6 +210,14 @@ body.frame-page > .top { flex: none; }
 .trees { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 18px; }
 .seed-btn { background: var(--pane-2); border: 1px solid var(--amber); color: var(--amber); border-radius: 8px; padding: 8px 16px; font-weight: 600; }
 .seed-btn:hover { background: var(--amber); color: #1a1408; }
+.make-banner { display: flex; align-items: center; gap: 14px; margin: 12px 0 4px; padding: 14px 18px; background: var(--pane); border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 10px; }
+.make-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--amber); animation: make-pulse 2.4s ease-in-out infinite; }
+@keyframes make-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(232, 163, 61, 0.55); transform: scale(0.85); } 50% { box-shadow: 0 0 0 9px rgba(232, 163, 61, 0); transform: scale(1); } }
+.make-text { flex: 1; min-width: 0; color: var(--ink-2, var(--ink)); }
+.make-text strong { color: var(--ink); }
+.make-go { flex: none; padding: 10px 18px; }
+@media (prefers-reduced-motion: reduce) { .make-dot { animation: none; } }
+@media (max-width: 640px) { .make-banner { padding: 10px 12px; gap: 10px; } .make-text span { display: none; } .make-go { padding: 8px 12px; } }
 .family { list-style: none; }
 .family-name { font: 12px var(--mono); color: var(--ink-3); margin: 4px 0 6px; letter-spacing: 0.04em; }
 .tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }

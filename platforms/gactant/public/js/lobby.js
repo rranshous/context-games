@@ -192,6 +192,14 @@ async function render() {
     .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
   const parts = [];
 
+  // Making one is half of what this is, so it's up top for everyone, beside playing.
+  parts.push(el('section', { class: 'make-banner' },
+    el('span', { class: 'make-dot', 'aria-hidden': 'true' }),
+    el('div', { class: 'make-text' },
+      el('strong', {}, 'Make your own game.'),
+      el('span', {}, ' A new ludant begins as a pulsing dot. Tell it what you\'d like to play, and it builds itself into that.')),
+    el('button', { class: 'seed-btn make-go', onclick: seed }, 'seed a new ludant →')));
+
   // The explanation stays until someone has made a ludant of their own: a copy or two
   // doesn't mean they've got what this is.
   const maker = yours.some((l) => !l.lineage?.from);
@@ -245,8 +253,6 @@ async function render() {
     parts.push(section('Family trees', 'Anyone can change their copy of a ludant and publish what it became, so ludants grow into families. Here is every one, and where each came from.',
       el('ul', { class: 'trees' }, ...families(published, mineIds))));
   }
-  parts.push(section('Make your own', 'Start a new ludant. It begins as a pulsing dot with no game at all; tell it what you\'d like to play, and it builds itself into that.',
-    el('button', { class: 'seed-btn', onclick: seed }, 'seed a new ludant')));
   if (everyone.length) {
     parts.push(section('Everyone here', 'Every ludant on this install (you\'re running it yourself, so you see them all).',
       el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l.id))))));

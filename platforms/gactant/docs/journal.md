@@ -2680,3 +2680,15 @@ Not done:
 - history as lineage, with pictures (worth doing: it's the proof)
 - the whiteboard folded until wanted
 - free first changes
+
+**Robby's look** (2026-11-10): "nice! very much improved." His notes:
+- *Making was undersold.* "feels like having the create your own at the bottom is an undersell. how do we feature both? maybe a banner at the top?" Done: a banner above everything, for everyone: a pulsing amber dot (what a new ludant is), "Make your own game. A new ludant begins as a pulsing dot. Tell it what you'd like to play, and it builds itself into that.", and "seed a new ludant →". On a phone it's one row (the dot, "Make your own game.", the button), so the headline still lands in the first screen. The old section at the bottom is gone.
+- *Hard to judge the home page on test data.* He'll look at the full thing on production, with the real games.
+- *Visual lineages:* yes. Next build: the changes that made a game, with before and after pictures.
+- *Who runs gactant:* waiting on an email address at the domain (see the to-do below). Then the rules and privacy pages can name who runs it and how to reach them, with age guidance alongside.
+- Deployed to production on his say ("deploy to prod!").
+
+**To do (Robby's):**
+- Set up an email address at gactant.com, for a "who runs this" line and a contact on the site.
+- Unblock gactant.com in the Spectrum app (the home network's filter).
+- The CSAM Scanning Tool on the R2 domain.
