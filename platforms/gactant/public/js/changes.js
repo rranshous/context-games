@@ -6,6 +6,7 @@
 const KEPT_DAYS = 60;
 
 export const CHANGES = [
+  { at: '2026-11-14', what: 'Following more than 20 matches no longer fails ("a frame follows up to 20 matches at once; unwatch one first"). Past 20, following another lets go of the matches that are over first, then the one quiet longest. A game that opens a match per run doesn\'t need to unwatch them any more (it still may).' },
   { at: '2026-11-14', what: 'Standings keep scores. A match\'s result may carry scores: { [player id]: number }, and standings keep each player\'s best (highest is best) with when and the match that made it; standings(hash, n, \'best\') ranks people by their best. Standings are kept for good, while matches are archived an hour after they end, so a scoreboard built from recent matches forgets; one built from standings doesn\'t. Before this, standings counted only wins, losses and draws. You\'re now also told the date and time at every wake (on your soma, as-of).' },
   { at: '2026-11-10', what: 'read_section and search_sections show up to 16,000 characters and say when they cut; any other tool result that\'s cut says so (before, results were cut at 6,000 characters without a word).' },
   { at: '2026-11-09', what: 'Live matches: following a match keeps you connected, so table.changed arrives the moment anyone acts, and share(match, value) passes fast, unlogged values to the other players.' },
