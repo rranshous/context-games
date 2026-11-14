@@ -68,6 +68,8 @@ export async function readPass(token, secret) {
   try { return await crypto.subtle.verify('HMAC', key, unb64u(mac), enc.encode(`pass.v1.${person}.${device}.${until}`)) ? { person, device } : null; } catch { return null; }
 }
 
+const GUARDED = ['pair', 'remove', 'recovery', 'hand'];   // routes that ask for a fresh proof
+
 export function createPeople({ store, settings, httpError, limit }) {
   const isPublic = Boolean(settings.public);
   // The server's own signature, over challenges and passes. Without a configured secret
@@ -251,6 +253,13 @@ export function createPeople({ store, settings, httpError, limit }) {
     const me = need(from);
     const p = await get(me.person);
     if (b === 'me') return shown(p, me.device);
+    // What could take someone's account from them (a code to add a device, removing one, a new
+    // recovery code, handing over their key) needs this device to prove itself again, now: a
+    // pass alone, copied off a phone, isn't enough.
+    if (GUARDED.includes(b)) {
+      const d = p.devices.find((x) => x.id === me.device);
+      if (!d || !await proves(d, body).catch(() => false)) throw httpError(401, 'this device has to prove itself again for that; reload and try once more');
+    }
     if (b === 'pair') {
       const code = pairCode();
       const id = await sha(`pair.${tidyPair(code)}`);

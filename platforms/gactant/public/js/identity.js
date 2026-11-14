@@ -323,8 +323,13 @@ export async function forgetDevice() {
   try { localStorage.removeItem(PASS); } catch {}
 }
 
-/** Looking after themselves, signed in: people/me, pair, name, remove, recovery. */
+/** Looking after themselves, signed in: people/me, pair, name, remove, recovery. What could
+ *  take the account (pair, remove, recovery, hand) goes with a fresh proof by this device. */
 export async function mine(path, body) {
+  if (['pair', 'remove', 'recovery', 'hand'].includes(path)) {
+    const device = await load();
+    if (device) body = { ...(body ?? {}), ...(await proof(device)) };
+  }
   const ask = async (p) => {
     if (!p) throw Object.assign(new Error('this device isn\'t anyone\'s yet'), { status: 401 });
     return fetch(`/api/people/${path}`, path === 'me'

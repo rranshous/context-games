@@ -136,7 +136,8 @@ try {
   ok('art that isn\'t a picture is refused', (await call('POST', `ludants/${id}/assets`, { token: 'w', name: 'x', image: 'data:text/html;base64,PGI+' }, as(pass))).status === 400);
 
   // Another device of theirs, by a code.
-  const { code } = (await call('POST', 'people/pair', {}, as(pass))).json;
+  ok('a pass alone can\'t make a code to add a device', (await call('POST', 'people/pair', {}, as(pass))).status === 401);
+  const { code } = (await call('POST', 'people/pair', { ...(await A.prove()) }, as(pass))).json;
   const A2 = await device();
   const joined = await call('POST', 'people/join', { label: 'smoke A2', key: A2.key, code, ...(await A2.prove()) });
   ok('a second device joins with a code', joined.json.person?.id === me.id && joined.json.person.devices.length === 2, JSON.stringify(joined.json));
@@ -145,7 +146,7 @@ try {
   ok('the second device reads what was sealed', JSON.stringify((await call('GET', `ludants/${id}`, undefined, as(pass2))).json.surfaces).includes('a-secret-sealed'));
   ok('and finds the ludant in its lobby', (await call('GET', 'ludants?mine=1', undefined, as(pass2))).json.some((l) => l.id === id));
   const d2 = joined.json.person.devices.find((d) => d.current).id;
-  ok('a device can be removed', (await call('POST', 'people/remove', { device: d2 }, as(pass))).json.devices?.length === 1);
+  ok('a device can be removed', (await call('POST', 'people/remove', { device: d2, ...(await A.prove()) }, as(pass))).json.devices?.length === 1);
   ok('its pass stops working at once', (await call('GET', `ludants?mine=1`, undefined, as(pass2))).status === 401);
 
   // Every device lost: the recovery code.
@@ -161,10 +162,10 @@ try {
   const sealer = await call('POST', 'people', { name: 'Sealer', label: 'K1', key: K.key, ...(await K.prove()), recovery: words(), vault });
   ok('a browser makes the recovery code and its vault; the server doesn\'t see the code again', sealer.status === 200 && !sealer.json.recovery && sealer.json.person.vault?.data === 'v-wrapped-key', JSON.stringify(sealer.json));
   const kpass = sealer.json.pass;
-  ok('a recovery code that isn\'t twelve words is refused', (await call('POST', 'people/recovery', { recovery: 'abc', vault }, as(kpass))).status === 400);
-  ok('the server won\'t make a code that would lock the key away', (await call('POST', 'people/recovery', {}, as(kpass))).status === 409);
-  ok('nor take a first key twice', (await call('POST', 'people/recovery', { recovery: words(), vault, first: true }, as(kpass))).status === 409);
-  const { code: kcode } = (await call('POST', 'people/pair', {}, as(kpass))).json;
+  ok('a recovery code that isn\'t twelve words is refused', (await call('POST', 'people/recovery', { recovery: 'abc', vault, ...(await K.prove()) }, as(kpass))).status === 400);
+  ok('the server won\'t make a code that would lock the key away', (await call('POST', 'people/recovery', { ...(await K.prove()) }, as(kpass))).status === 409);
+  ok('nor take a first key twice', (await call('POST', 'people/recovery', { recovery: words(), vault, first: true, ...(await K.prove()) }, as(kpass))).status === 409);
+  const { code: kcode } = (await call('POST', 'people/pair', { ...(await K.prove()) }, as(kpass))).json;
   const K2 = await device();
   const kbox = { kty: 'EC', crv: 'P-256', x: 'bx', y: 'by' };
   const k2 = await call('POST', 'people/join', { label: 'K2', key: K2.key, code: kcode, box: kbox, ...(await K2.prove()) });
@@ -172,13 +173,13 @@ try {
   const asked = (await call('GET', 'people/me', undefined, as(kpass))).json.devices.find((d) => d.id === k2id);
   ok('a device joining with a code asks for the key', asked?.asking?.x === 'bx', JSON.stringify(asked));
   const handed = { iv: 'h-iv', data: 'h-wrapped', from: { kty: 'EC', crv: 'P-256', x: 'fx', y: 'fy' } };
-  ok('another of their devices hands it over', (await call('POST', 'people/hand', { device: k2id, handed }, as(kpass))).json.done === true);
+  ok('another of their devices hands it over', (await call('POST', 'people/hand', { device: k2id, handed, ...(await K.prove()) }, as(kpass))).json.done === true);
   const k2me = (await call('GET', 'people/me', undefined, as(k2.json.pass))).json;
   ok('and only the asking device is shown it', k2me.devices.find((d) => d.current)?.handed?.data === 'h-wrapped' && !JSON.stringify((await call('GET', 'people/me', undefined, as(kpass))).json).includes('h-wrapped'));
   ok('which says it took it', !(await call('POST', 'people/took', {}, as(k2.json.pass))).json.devices.some((d) => d.asking || d.handed));
   const K3 = await device();
   const krec = words();
-  await call('POST', 'people/recovery', { recovery: krec, vault: { iv: 'v2-iv', data: 'v2-wrapped' } }, as(kpass));
+  await call('POST', 'people/recovery', { recovery: krec, vault: { iv: 'v2-iv', data: 'v2-wrapped' }, ...(await K.prove()) }, as(kpass));
   const k3 = await call('POST', 'people/join', { label: 'K3', key: K3.key, recovery: krec, ...(await K3.prove()) });
   ok('with the recovery code, a new device gets the vault to open, and makes the next code itself', k3.json.person?.vault?.data === 'v2-wrapped' && !k3.json.recovery, JSON.stringify(k3.json));
   ok('a sealed person\'s ludants are sealed too: a wipe leaves only sealed ones', typeof (await call('POST', 'admin/wipe-unsealed', { token: TOKEN })).json.wiped === 'number');
