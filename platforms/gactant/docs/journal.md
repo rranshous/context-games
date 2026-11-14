@@ -2746,3 +2746,5 @@ Robby: "lets add a warning. lets also raise the limit to 50".
 - In the changelog, and in the README with how a message mid-wake joins it ("Meanwhile").
 
 Not done: a timeout on a model call or tool, so a hang shows as an error instead of "thinking…" forever.
+
+Deployed on Robby's say ("go ahead and push"), as version b1670356. Smoke passed first; the new actant.js is served.
