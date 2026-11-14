@@ -21,7 +21,7 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SANDBOX_POLICY, createCore, pageHeaders, safe, sameOrigin, slimmed } from './core.mjs';
 import { createLocalMatches } from './match.mjs';
-import { createRules } from './rules.mjs';
+import { createRulesThread } from './rules-thread.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
@@ -84,7 +84,8 @@ const art = {
 
 const archive = { put: (id, doc) => store.put('archive', id, doc), get: (id) => store.get('archive', id) };
 
-const localMatches = createLocalMatches({ store, archive, loadRules: async () => createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm')))) });
+// Rules run on a thread of their own (rules-thread.mjs), so a slow one can't stall the server.
+const localMatches = createLocalMatches({ store, archive, loadRules: () => createRulesThread(join(HERE, 'vendor/quickjs/quickjs.wasm')) });
 const core = createCore({
   store,
   settings: {
