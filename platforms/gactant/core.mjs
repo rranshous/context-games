@@ -438,6 +438,55 @@ export function createCore({ store, settings }) {
     return abandoned;
   }
 
+  // ---------- apparent CSAM: preserve it, take it down, and say what a report needs ----------
+
+  /** A picture the CSAM Scanning Tool (or a person) matched: the file is moved out of the
+   *  served art into the private archive (preserved, as the law asks, for 90 days or more),
+   *  every ludant that used it is taken down (whole, preserved first) and every publication
+   *  hidden, and the answer is what a CyberTipline report needs. Nothing is downloaded to
+   *  whoever runs this. -> { id, file, ludants, publications, people, preservedAt } */
+  async function csam({ file: given }) {
+    const file = String(given ?? '').replace(/^https?:\/\/[^/]+\//, '').replace(/^art\//, '').replace(/^\//, '');
+    if (!/^[at]\/[a-z0-9.-]+$/.test(file)) throw httpError(400, 'give the matched file\'s path, like a/1234abcd.jpg, or its URL');
+    if (!settings.preserve) throw httpError(501, 'this install has nowhere private to preserve it');
+    const id = `c-${hex(6)}`, at = now();
+    const pic = await art.get(file);
+    if (pic) await settings.preserve(`${id}/${file.replace('/', '-')}`, pic.bytes, pic.type);
+    // Who used it: as art, or as a thumb.
+    // A thumb's file is named for whose it is: t/<l|p>-<id>-<hash>.<ext>.
+    const thumbKey = file.startsWith('t/') ? file.slice(2).replace(/-[0-9a-f]{12}\.[a-z]+$/, '') : null;
+    const ludants = [], publications = [], people = new Map();
+    for (const l of await store.list('ludants')) {
+      if (l.abandoned) continue;
+      if (!(l.assets ?? []).some((m) => m.file === file) && thumbKey !== `l-${l.id}`) continue;
+      // The whole ludant goes into the archive before it's taken down: its soma, its art list,
+      // its checkpoints (what's private stays sealed: nobody here can read it).
+      const checkpoints = [];
+      for (const cp of l.checkpoints ?? []) checkpoints.push({ ...cp, soma: (await store.get('checkpoints', `${l.id}-${cp.n}`))?.soma ?? null });
+      await settings.preserve(`${id}/ludant-${l.id}.json`, new TextEncoder().encode(JSON.stringify({ ...l, checkpoints })), 'application/json');
+      if (l.owner && !people.has(l.owner)) people.set(l.owner, (await store.get('people', l.owner))?.name ?? null);
+      ludants.push({ id: l.id, name: nameOf(l.soma), owner: l.owner ?? null, created: l.created, updated: l.updated, lineage: l.lineage ?? {} });
+      await letGo(l, { by: 'gactant', takenDown: true });
+    }
+    for (const p of await store.list('published')) {
+      if (!(p.assets ?? []).some((m) => m.file === file) && thumbKey !== `p-${p.id}`) continue;
+      await settings.preserve(`${id}/publication-${p.id}.json`, new TextEncoder().encode(JSON.stringify(p)), 'application/json');
+      publications.push({ id: p.id, name: p.name, by: p.by, at: p.at });
+      p.hidden = { by: 'csam', at, note: id };
+      p.assets = (p.assets ?? []).filter((m) => m.file !== file);
+      delete p.cleared;
+      await store.put('published', p.id, p);
+    }
+    await art.remove(file);
+    if (thumbKey && (await store.get('thumbs', thumbKey))?.file === file) await store.remove('thumbs', thumbKey);
+    const record = { id, at, file, url: urlOf(file), type: pic?.type ?? null, bytes: pic?.bytes.length ?? 0, preservedAt: `preserved/${id}/`, ludants, publications,
+      people: [...people].map(([pid, name]) => ({ id: pid, name })) };
+    await store.put('preserved', id, record);
+    ops.count('csam taken down');
+    settings.opsLog?.({ csam: id, file });
+    return record;
+  }
+
   // ---------- flags: someone says what they saw doesn't belong here ----------
 
   const FLAG_REASONS = ['illegal', 'sexual', 'hateful', 'violent', 'other'];
@@ -578,9 +627,11 @@ export function createCore({ store, settings }) {
     if (tabled !== undefined) return tabled;
     if (a === 'events' && method === 'POST') return ops.events(body);
     if (a === 'flags' && method === 'POST') return flag(body, from);
-    if (a === 'admin' && (b === 'flags' || b === 'moderate') && method === 'POST') {
+    if (a === 'admin' && (b === 'flags' || b === 'moderate' || b === 'csam' || b === 'preserved') && method === 'POST') {
       if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       if (b === 'moderate') return moderate(body);
+      if (b === 'csam') return csam(body);
+      if (b === 'preserved') return (await store.list('preserved')).sort((x, y) => y.at.localeCompare(x.at));
       const all = (await store.list('flags')).sort((x, y) => y.at.localeCompare(x.at));
       return body.all ? all.slice(0, 200) : all.filter((f) => f.status === 'open');
     }

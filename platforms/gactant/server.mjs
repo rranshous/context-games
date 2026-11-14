@@ -36,7 +36,7 @@ const PORT = Number(arg('--port')) || 7780;
 if (arg('--env') !== 'none') loadEnv(arg('--env') ?? join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
-for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'issues', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'drafts', 'rulebooks', 'matches', 'actions', 'match-index', 'archive', 'standings', 'log', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'issues', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'drafts', 'rulebooks', 'matches', 'actions', 'match-index', 'archive', 'standings', 'log', 'preserved', 'preserved-files', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
 const PICTURES = join(DATA, 'pictures');
 
 function loadEnv(path) {
@@ -105,6 +105,8 @@ const core = createCore({
     // the vendored WebAssembly), and finished matches archived as data/archive/<id>.json.
     matches: localMatches,
     archive,
+    // Apparent CSAM and what used it, kept apart (core.mjs csam()): hosted, a private bucket.
+    preserve: async (key, bytes) => { const f = join(DATA, 'preserved-files', key); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, bytes); },
     archiveOverMs: process.env.GACTANT_ARCHIVE_OVER_MS ? Number(process.env.GACTANT_ARCHIVE_OVER_MS) : undefined,   // the smoke test's: at once
     log: (who, record) => appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n'),
     tail: (who, n) => {

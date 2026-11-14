@@ -6,7 +6,7 @@
 //   node tools/smoke.mjs
 
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -345,6 +345,17 @@ try {
   const heavy = (await call('POST', 'drafts', { name: 'heavy', source: 'function init() { let s = 0; for (let i = 0; i < 3e6; i++) s += i; return { s } }\nfunction join(s) { return s }\nfunction move(s) { return s }\nfunction view(s) { return s }\nfunction result() { return null }' }, as(pass))).json;
   ok('it warns past half of a limit', (await call('POST', `drafts/${heavy.id}/try`, { steps: [] }, as(pass))).json.warnings?.some((w) => /init steps/.test(w)));
 
+  // Apparent CSAM (the Scanning Tool matched a file): preserved privately, what used it taken down.
+  const bad = (await call('POST', 'ludants', { by: 'smoke' }, as(pass))).json.id;
+  await call('POST', `ludants/${bad}/hold`, { token: 'c', who: 'smoke' }, as(pass));
+  const badArt = (await call('POST', `ludants/${bad}/assets`, { token: 'c', name: 'pic', image: `data:image/png;base64,${Buffer.from(`not-a-real-picture-${Date.now()}`).toString('base64')}` }, as(pass))).json;
+  const badFile = badArt.url?.replace(/^\/art\//, '');
+  const taken = (await call('POST', 'admin/csam', { token: TOKEN, file: `${base}${badArt.url}` })).json;
+  ok('a matched picture is preserved, and what used it taken down', taken.file === badFile && taken.ludants?.[0]?.id === bad && taken.people?.[0]?.name === 'Smoke', JSON.stringify(taken).slice(0, 300));
+  ok('the ludant is gone, the picture no longer served', (await call('GET', `ludants/${bad}`, undefined, as(pass))).status === 410 && (await fetch(`${base}${badArt.url}`)).status === 404);
+  ok('and the record stays for the report', (await call('POST', 'admin/preserved', { token: TOKEN })).json.some?.((r) => r.id === taken.id));
+  if (data) ok('kept privately, with the ludant', existsSync(join(data, 'preserved-files', taken.id, `ludant-${bad}.json`)) && existsSync(join(data, 'preserved-files', taken.id, badFile.replace('/', '-'))));
+  ok('only with the admin token', (await call('POST', 'admin/csam', { token: 'nope', file: badFile })).status === 403);
   ok('abandon', (await call('POST', `ludants/${id}/abandon`, { token: 'w', by: 'smoke' }, as(pass))).status === 200);
   ok('its link says so', (await call('GET', `ludants/${id}`)).status === 410);
 } catch (err) {

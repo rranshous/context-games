@@ -2875,3 +2875,12 @@ The ⚑ report had a reason, an optional note, a picture of the stage, and the l
 - It would also take chat out of match moves, whose logs anyone with the id can read: people think of chat as private, and as moves it isn't.
 - Questions for then: how long it's kept; whether players can read back history or only hear it live.
 - With it: **report a player** from inside a match, and **block a person** (their moves and shares stop reaching you, everywhere).
+
+**The CSAM Scanning Tool is on.** Robby set it up on the gactant.com zone (Caching → Configuration), with admin@gactant.com for its daily email, now that the address exists (the to-do from Part 26). What Cloudflare's page says: it scans what's served through the cache, blocks a matched file where it can, and emails the paths once a day; reporting to NCMEC is the site owner's, along with preserving the content, removing it, and telling Cloudflare it's gone (Security Center → Blocked Content).
+
+Robby: "go ahead and add that step to moderate". `node tools/moderate.mjs csam <file or url>` (`admin/csam`):
+- moves the picture out of the served art into the private archive bucket (`preserved/<id>/`), never to the computer of whoever runs it;
+- preserves every ludant that used it, whole (soma, art list, checkpoints; sealed things stay sealed), and every publication, then takes the ludants down and hides the publications;
+- keeps a record (`preserved`, listed by `moderate.mjs preserved`): the file, when, the ludants and publications, and the people (name and id; gactant has no emails or addresses to give);
+- prints what the CyberTipline report needs, and the steps: report it, keep what's preserved 90 days or more (nothing deletes it), tell Cloudflare it's removed.
+Smoke checks it: a ludant with a picture is taken down, the picture stops being served, the record and the preserved files exist, and only the admin token can do it.

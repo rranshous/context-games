@@ -7,6 +7,11 @@
 //   node tools/moderate.mjs [site] approve <publication>    vouch for it: it can be featured to newcomers
 //   node tools/moderate.mjs [site] remove <ludant>          take a ludant down: its link says so
 //   node tools/moderate.mjs [site] dismiss <flag>           close a report, nothing done
+//   node tools/moderate.mjs [site] csam <file or url>       apparent CSAM (the Scanning Tool's email
+//                                                           gives the path): preserve it privately,
+//                                                           take down what used it, and print what a
+//                                                           CyberTipline report needs
+//   node tools/moderate.mjs [site] preserved                what's been preserved that way
 //
 // site defaults to https://gactant.com. Needs GACTANT_ADMIN_TOKEN in .env.
 
@@ -45,6 +50,25 @@ if (!action || action === 'all') {
     // The matches it was in: their signed logs say who did what (node tools/check-match.mjs <id>).
     for (const m of f.matches ?? []) console.log(`   match ${m.id}  ${m.name} (${m.players.join(', ') || 'no players'})  ${m.n} actions when reported${m.over ? ', over' : ''}  → ${base}/api/matches/${m.id}/log`);
   }
+} else if (action === 'csam') {
+  if (!target) { console.error('give the matched file, like a/1234abcd.jpg, or its URL'); process.exit(1); }
+  const r = await call('csam', { file: target });
+  console.log(`Preserved as ${r.id}, in the private archive at ${r.preservedAt} (the picture and every ludant and publication that used it).`);
+  console.log(`The picture is out of the art (${r.file}, ${r.type ?? 'already gone'}, ${r.bytes} bytes).`);
+  for (const l of r.ludants) console.log(`Took down ludant ${l.id} (${l.name}), owner ${l.owner ?? 'none'}, made ${l.created}, last saved ${l.updated}${l.lineage?.from ? `, a copy of ${l.lineage.from.name}` : ''}`);
+  for (const p of r.publications) console.log(`Hid publication ${p.id} (${p.name}), published by ${p.by ?? 'someone'} ${p.at}`);
+  for (const p of r.people) console.log(`Person: ${p.name ?? '(no name)'} (${p.id})`);
+  console.log(`
+Now, by law (18 U.S.C. § 2258A), as soon as you can:
+  1. Report it to NCMEC's CyberTipline: https://report.cybertip.org
+     - the file's URL: ${r.url.startsWith('/') ? base + r.url : r.url} (now removed), and when it was served
+     - the people above: their names on gactant and ids (gactant asks for no email; addresses are never kept)
+     - this record: ${r.id}, kept in the private archive
+     Don't download or open the picture to describe it; the report doesn't need you to.
+  2. Keep what's preserved for at least 90 days (it's in the archive bucket; nothing deletes it).
+  3. Tell Cloudflare it's removed: Security Center > Blocked Content.`);
+} else if (action === 'preserved') {
+  for (const r of await call('preserved', {})) console.log(`${r.id}  ${r.at.slice(0, 16)}  ${r.file}  ludants ${r.ludants.map((l) => l.id).join(', ') || '-'}  publications ${r.publications.map((p) => p.id).join(', ') || '-'}`);
 } else {
   const key = { hide: 'published', restore: 'published', approve: 'published', remove: 'ludant', dismiss: 'flag' }[action];
   if (!key || !target) { console.error('see the top of tools/moderate.mjs for how to use it'); process.exit(1); }

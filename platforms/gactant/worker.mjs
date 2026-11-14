@@ -35,9 +35,7 @@ const artStore = (bucket) => ({
 
 const json = (code, value) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
 
-/** Documents in a Durable Object's own SQLite, one table of them. Made when first written to,
- *  so an object that's only read (or only runs practice) keeps nothing. */
-// What a slim list keeps of each kind (core.mjs's SLIM says the same for the local store).
+// What a slim list keeps of each kind (core.mjs's slimmed() does the same for the local store).
 const SLIM = {
   ludants: `json_set(json_remove(json, '$.surfaces', '$.assets', '$.mail', '$.soma.sections'), '$.soma.sections', json_object('title', json_extract(json, '$.soma.sections.title')))`,
   published: `json_remove(json, '$.soma', '$.assets')`,
@@ -45,6 +43,8 @@ const SLIM = {
   reports: `json_remove(json, '$.report')`,
 };
 
+/** Documents in a Durable Object's own SQLite, one table of them. Made when first written to,
+ *  so an object that's only read (or only runs practice) keeps nothing. */
 function docStore(sql) {
   let made = false;
   const make = () => { if (!made) { sql.exec('CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id))'); made = true; } };
@@ -175,6 +175,8 @@ function matchHost(env) {
       check: (person, source) => ask(practiceStub(person), 'check', { source }),
       archive: (ref) => ask(stub(ref), 'archive', {}),
     },
+    // Apparent CSAM and what used it, kept apart in the private archive (core.mjs csam()).
+    preserve: async (key, bytes, type) => { await env.ARCHIVE.put(`preserved/${key}`, bytes, { httpMetadata: { contentType: type } }); },
     archive: {
       async put(id, doc) { await env.ARCHIVE.put(`matches/${id}.json`, JSON.stringify(doc), { httpMetadata: { contentType: 'application/json' } }); },
       async get(id) { const o = await env.ARCHIVE.get(`matches/${id}.json`); return o ? JSON.parse(await o.text()) : null; },

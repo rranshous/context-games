@@ -252,7 +252,14 @@ for thinking, at about 3¢ an image (7¢ for the best model).
   ludant, its copies and its publications share one file, and thumbs are `t/<l|p>-<id>-<hash>`.
   Hosted, they're in R2 (`gactant-art`), served from **art.gactant.com**, the bucket's own
   custom domain, so they pass through Cloudflare's cache, where the **CSAM Scanning Tool**
-  sees them. Locally they're in `data/pictures/`, served at `/art/`.
+  sees them (it's on, mailing admin@gactant.com). Locally they're in `data/pictures/`, served at `/art/`.
+- On a match, `node tools/moderate.mjs csam <file or url>` (`admin/csam`) moves the picture
+  out of the served art into the private archive bucket (`preserved/<id>/`), with every
+  ludant (whole, checkpoints included) and publication that used it; takes the ludants down
+  and hides the publications; keeps a record (`admin/preserved`); and prints what a
+  CyberTipline report needs and the steps after. Nothing is downloaded to whoever runs it.
+  Pictures a game draws in code, or keeps as data URLs in its soma, never pass through the
+  art domain, so the tool can't see them; ⚑ reports and the publish check cover those.
 
 And a way to ask without typing: **`choices.offer({ question, options })`** puts a few
 options over the stage, with pictures or just words. A pick (by click, tap or
