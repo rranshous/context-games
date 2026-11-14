@@ -2692,3 +2692,5 @@ Not done:
 - Set up an email address at gactant.com, for a "who runs this" line and a contact on the site.
 - Unblock gactant.com in the Spectrum app (the home network's filter).
 - The CSAM Scanning Tool on the R2 domain.
+
+**Unused traffic** (2026-11-14). Production, over two days: ~2,150 requests an hour, nearly all heartbeats from what looks like one tab left open since at least Nov 12, about 3× the rate one window should send (a beat every 5 s is ~720 an hour). Nobody was sitting with it. Robby: we want to cut traffic that isn't doing anything, to save capacity and spend less on hosting. To look at: why the rate is 3× (several frames or timers beating for one window?), and whether a hidden or idle page should beat at all, or much more slowly, and let its hold go stale.
