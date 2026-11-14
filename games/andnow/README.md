@@ -106,6 +106,7 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 | `check.mjs --verify test/golden.json` | determinism check: replays 2,491 recorded matches |
 | `bench.mjs <checkpoint.andnow.gz> [ticks]` | times the sim on a saved world and prints a hash of where it ends up, so a speed-up can be checked to change nothing |
 | `diet.mjs <bake dir> [...] [--every 50000]` | who eats what in climb runs over time (plants, meat, both), meat eaters' size, dead cells and rich ones; reads runs on any rules, for comparing them |
+| `ecology.mjs <checkpoint.andnow.gz> [--ticks 200] [--out f.json]` | replays a checkpoint while watching every interaction, and reports, by body plan: bites, code written into other bodies (and what became of them), whose dead cells get eaten, who blocks whose moves, pairs that move together, how much each plan moves, and whether touching another plan helps or hurts it (mutualism, competition, exploitation). Viewer links for examples. `./ecology.sh 1 2 3 4` runs it on each run's newest checkpoint in the background, into `runs/ecology/` |
 
 Runs are deterministic: the same seed and settings always replay the same history, and a world restored from a checkpoint continues exactly as the original run would have.
 
