@@ -93,8 +93,9 @@
 //                                                   with an id, updates that report as the check goes on
 //   POST admin/reports { token, n? }             -> newest reports (needs settings.adminToken; tools/reports.mjs)
 //   POST events { browser, mobile, events: [...] } -> {}           what a page noticed: trouble and how the stage runs (ops.mjs)
-//   POST flags { ludant?, published?, reason, note, by, image? } -> { id }   someone reports content (frame.js);
-//                                                   a publication flagged by enough people is hidden until looked at
+//   POST flags { ludant?, published?, reason, note, by, image?, matches? } -> { id }   someone reports content (frame.js);
+//                                                   a publication flagged by enough people is hidden until looked at;
+//                                                   matches: the ids of matches the game was in (kept with who played, and how far)
 //   POST admin/flags { token, all? }             -> open reports (or the latest 200)        tools/moderate.mjs
 //   POST admin/moderate { token, action: hide|restore|approve|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
 //   POST admin/owners { token }                  -> [{ id, name, owned, owner, ownedAt, by, from, updated, people }]
@@ -455,7 +456,15 @@ export function createCore({ store, settings }) {
     if (!ludant && !published) throw httpError(400, 'a report says what it is about');
     const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
     const id = `f-${hex(4)}`;
-    const doc = { id, at: now(), status: 'open', reason, note: String(body.note ?? '').slice(0, 1000), by: String(body.by || 'someone').slice(0, 40), person: from.person ?? null, ludant, published, image };
+    // The matches the game was in, as the server knows them (who was playing, and how far it
+    // had got when the report came), so the log can be read up to that point.
+    const matches = [];
+    for (const m of (Array.isArray(body.matches) ? body.matches : []).slice(0, 10)) {
+      if (!/^m-[0-9a-f]{12}$/.test(String(m))) continue;
+      const idx = await store.get('match-index', String(m));
+      if (idx) matches.push({ id: idx.id, name: idx.name, rulebook: idx.rulebook, n: idx.n, players: Object.values(idx.members ?? {}), over: Boolean(idx.result) });
+    }
+    const doc = { id, at: now(), status: 'open', reason, note: String(body.note ?? '').slice(0, 1000), by: String(body.by || 'someone').slice(0, 40), person: from.person ?? null, ludant, published, image, ...(matches.length ? { matches } : {}) };
     await store.put('flags', id, doc);
     ops.count(`flag ${reason}`);
     settings.opsLog?.({ flag: reason, ludant, published });

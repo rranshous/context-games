@@ -2859,3 +2859,19 @@ Robby: "go ahead and deploy. of the 8 lets do them all except 6. i don't underst
 Smoke passes in Node, and against `wrangler dev` with fresh data except the publish check (Workers AI can't run locally).
 
 Deployed on Robby's say ("yea, deploy"), as version f340513c. Smoke passed first. Checked after: config answers with the new version, the lobby's slim list loads, and recovery.js is served. Existing recovery codes (Robby's included) stop working: the lobby and /me.html ask for a new one.
+
+## Part 33: reports carry their matches; chat between people, later
+
+Robby asked whether providing a system chat can be built on makes us responsible for policing it. My answer, in short (not legal advice): in the US there's no duty to monitor (Section 230), but there are duties on knowledge (CSAM goes to NCMEC's CyberTipline and is preserved, 18 U.S.C. § 2258A), and the UK's Online Safety Act and the EU's DSA ask more of services with users there, especially ones children use. The proportionate shape for gactant: tools people use (report, block), not reading everything. Then his question about the ⚑ button: "do they have the option to write a message? … could we include something like active match so we can see what was going on? otherwise i feel like we'd need an official chat data channel that could be referenced".
+
+The ⚑ report had a reason, an optional note, a picture of the stage, and the ludant (and the publication a copy came from); nothing about matches.
+
+**Now it carries the matches.** The frame sends the ids of the matches the game was in (those it follows first, then those it's seen, up to 10). The server keeps, for each one it knows, its name, rulebook, players, how many actions it was at, and whether it was over. `tools/moderate.mjs` prints each with a link to its log. A move's text is signed by whoever sent it, so a moderator can read exactly what happened in the moves, provably. What travels as shares isn't kept anywhere, so it can't be shown.
+
+**Later, maybe: a chat channel the platform keeps** (Robby: "lets not do chat right now, put it in the journal as a possible future"). The shape we talked about:
+- `table.say(match, text)`: each message signed by the sender's device like a move, kept apart from the public log (only the match's players can read it, and a moderator when a report points at it), never seen by the rules.
+- Rate-limited and short (500 characters, a few a second); kept a set time (30 days?) then deleted, and the privacy page says so.
+- ⚑ during a match points at it, and the moderator reads the server's copy: who said what, provably.
+- It would also take chat out of match moves, whose logs anyone with the id can read: people think of chat as private, and as moves it isn't.
+- Questions for then: how long it's kept; whether players can read back history or only hear it live.
+- With it: **report a player** from inside a match, and **block a person** (their moves and shares stop reaching you, everywhere).

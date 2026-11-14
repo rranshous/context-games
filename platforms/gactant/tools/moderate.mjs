@@ -42,6 +42,8 @@ if (!action || action === 'all') {
       console.log(`   ${f.by} reported ${f.who || 'the person with it'}${f.personName ? ` (${f.personName}, ${f.person})` : f.person ? ` (${f.person})` : ''}:\n   "${f.note}"${f.why ? `\n   why: "${f.why}"` : ''}`);
       for (const m of f.chat ?? []) console.log(`     ${m.who}: ${m.text.replace(/\s+/g, ' ').slice(0, 300)}`);
     } else if (f.note) console.log(`   "${f.note}"`);
+    // The matches it was in: their signed logs say who did what (node tools/check-match.mjs <id>).
+    for (const m of f.matches ?? []) console.log(`   match ${m.id}  ${m.name} (${m.players.join(', ') || 'no players'})  ${m.n} actions when reported${m.over ? ', over' : ''}  → ${base}/api/matches/${m.id}/log`);
   }
 } else {
   const key = { hide: 'published', restore: 'published', approve: 'published', remove: 'ludant', dismiss: 'flag' }[action];

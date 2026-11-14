@@ -423,7 +423,7 @@ SQLite.
 
 ### Reports and takedowns
 
-Anyone can press **⚑** in a frame's top bar to report what they saw. They pick a reason and may add a note. The report covers the ludant and, for a copy, the publication it came from (that's what others can see), with a picture of the stage as it was. `/rules.html` says what isn't allowed, and the lobby links to it.
+Anyone can press **⚑** in a frame's top bar to report what they saw. They pick a reason and may add a note. The report carries a picture of the stage and the matches the game was in (up to 10, followed first), which the server records with who was playing and how many actions in it was, so a moderator can read the match's signed log up to that point (`tools/moderate.mjs` prints the link). The report covers the ludant and, for a copy, the publication it came from (that's what others can see), with a picture of the stage as it was. `/rules.html` says what isn't allowed, and the lobby links to it.
 
 A publication reported by two different signed-in people as illegal, or by three for any reason, is **hidden at once** until someone looks. (Reports from no one in particular wait for a moderator: a name typed into a report is anyone's to type. A person may make 20 reports a day.) It's out of the lobby, it can't be copied, and its picture isn't served. People are cheap to make, so this can still be gamed. Hiding only waits for review, and a restored publication isn't hidden by reports again. The install takes at most 300 reports a day.
 

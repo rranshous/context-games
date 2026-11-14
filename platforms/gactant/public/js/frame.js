@@ -475,7 +475,10 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
         const c = document.createElement('canvas');
         c.width = 320; c.height = Math.round(320 * this.stage.height / this.stage.width);
         c.getContext('2d').drawImage(this.stage.canvas, 0, 0, c.width, c.height);
-        await api('POST', 'flags', { ludant: this.recordId, published: from?.published ?? null, reason, note: note.value, by: this.seat, image: c.toDataURL('image/jpeg', 0.72) });
+        // The matches this game was in (followed, or seen lately), so whoever looks can read
+        // what happened there: every move is in the match's signed log.
+        const matches = [...this.table.seen.keys()].sort((a, b) => Number(this.table.watching.has(b)) - Number(this.table.watching.has(a))).slice(0, 10);
+        await api('POST', 'flags', { ludant: this.recordId, published: from?.published ?? null, reason, note: note.value, by: this.seat, image: c.toDataURL('image/jpeg', 0.72), matches });
         box.querySelector('.cover-box').replaceChildren(el('p', {}, 'Thank you. Your report went to the people who run gactant, with a picture of the stage as it is now.'),
           el('button', { class: 'top-btn', onclick: () => box.remove() }, 'close'));
       } catch (err) { send.disabled = false; alert(`couldn't send the report: ${err.message}`); }

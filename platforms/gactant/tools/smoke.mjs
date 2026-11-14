@@ -302,6 +302,11 @@ try {
   ok('the log brings the signers\' public keys', keys && Object.values(keys).map((k) => k.x).sort().join() === [A.key.x, S.key.x].sort().join());
   ok('the log checks out: a chain of signed actions', chain && log.length === 7 && prev === head);
   ok('it says which ludant a move was played through', log.at(-1).through?.id === id);
+  // A report from a game that was in a match carries the match: who played, and how far it was.
+  const withMatch = (await call('POST', 'flags', { ludant: id, reason: 'other', by: 'smoke', note: 'they said something', matches: [match.id, 'not-a-match'] }, as(pass))).json;
+  const mf = (await call('POST', 'admin/flags', { token: TOKEN })).json.find?.((f) => f.id === withMatch.id);
+  ok('a report brings the matches its game was in', mf?.matches?.length === 1 && mf.matches[0].id === match.id && mf.matches[0].players.includes('Smoke') && mf.matches[0].n === 7, JSON.stringify(mf?.matches));
+  await call('POST', 'admin/moderate', { token: TOKEN, action: 'dismiss', flag: withMatch.id });
   const spent = (await call('GET', 'tables/budget', undefined, as(pass))).json;
   ok('a budget says what\'s been used today', spent.actions?.used === 4 && spent.steps?.used > 0 && spent.steps.allowed > spent.steps.used, JSON.stringify(spent).slice(0, 200));
   // Over: archived on the next sweep, its log whole, still checkable, and closed to actions.
