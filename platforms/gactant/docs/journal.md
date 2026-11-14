@@ -2806,3 +2806,5 @@ Still open: age guidance (the Children section says families play together and n
 Deployed (Robby, asked whether to deploy as is or after the name and age questions, answered both). Smoke passed first; privacy and rules are served with the address and the age line.
 
 **Not in the ludants' prompt.** Robby: "i don't think we need to put my name in the ludants prompt, lets remove my name and ref to you from it". The context block now opens "This is gactant, an experimental platform. You are part of the experiment, and this note explains it." (it was "…built by Robby Ranshous with Claude"). Who runs the site stays on the privacy and rules pages, for people. The only other mention is the note a Claude shard's seat gives when one is sent to sit with a ludant (testing), which is about who's sitting, not who built it.
+
+Deployed on Robby's say ("go ahead and deploy it"); the new frame.js is served.
