@@ -150,7 +150,7 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 ![](img/survey/giants.png)
 
-Every giant's IP runs a `G` (grow): in its code row, or below it, reached by a turn (`v`, `|`) that sends the IP down a column. That's how the giants' IPs leave the top row. Each pass of the loop adds a fat cell at the end of a line, in the direction on its stack, so a giant is a growth mutant. s2's biggest on 2026-11-14 had two `G`s down its mast and grew two parallel threads, 443 and 390 cells long. It is nearly all fat: 97–99% of its cells.
+Every giant's IP runs a `G` (grow): in its code row, or below it, reached by a turn (`v`, `|`) that sends the IP down a column. That's how the giants' IPs leave the top row. Each pass of the loop adds a fat cell at the end of a line, in the direction on its stack, so a giant is a growth mutant. In s2, many giants have two `G`s and grow two threads at once (see [combs](#combs-s2) below). Giants are nearly all fat: 97–99% of their cells.
 
 The direction decides the shape:
 - **Poles** grow straight down or up. s3's record at 6.5M was 1,299 cells in a column 1,288 tall and 5 wide.
@@ -167,6 +167,28 @@ The direction decides the shape:
 - They're rare, about 1% of a run at any time, but they set every size record.
 
 [s3's pole in the viewer (6.5M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=3&bake=runs/bake/climb7-s3&t=6500000&pick=61967760)
+
+#### Combs (s2)
+
+*Found 2026-11-14.*
+
+![](img/survey/combs-s2.png)
+
+The code end of three s2 combs. Each "tooth" is a thread of fat, a few hundred cells long, cut short here (→).
+
+**Anatomy:** a comb is a mast, as the lookers have, with two `G`s hung on it. Each `G` grows a thread sideways, so the body grows two threads side by side, like a comb with two teeth. The teeth sit next to each other, or up to 8 rows apart.
+
+**How the IP reaches both `G`s:** the code row has a turn in it: `v` (go south), `^` (go north) or `|` (pop: 0 → south, else north). An IP runs only its own cells: it skips gaps and wraps to the far end of the body. So once it turns, it runs the whole mast, top to bottom or bottom to top, and passes both `G`s on every loop. Each loop adds one cell to each tooth, so the teeth stay about the same length (214 + 201, 341 + 340, 402 + 401).
+
+The heads differ: sprinter heads (`CvDM`, `C|DM`, `C^DM`) and a looker head (`CL|M`). Since combs come with different heads, the form has probably evolved more than once.
+
+**The biggest body today** (1.89M) is a comb: 885 cells, teeth 409 and 461 long and still growing.
+
+![](img/survey/comb-s2-today.png)
+
+**How common:** the comb is s2's main giant form. A two-`G` comb was s2's biggest body at 40% of the checkpoints from 945k on, and at least 14 different combs held the title since the first, at 870k. Two-tooth combs are rare elsewhere: 1% of the time in s3, and never in s1 or s4. Giants with one `G` grow a single thread or pole.
+
+[A comb in the viewer (1.8M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=1800000&pick=1382784584)
 
 ### Husks
 
@@ -191,6 +213,14 @@ The direction decides the shape:
 **At the end:** by s4's 100k they had become plant eaters. The program was `S C T M D`, with no `B` left, and a `K` in the body, at step −1. They were gone from s2 by 100k and from s1 and s3 by 300k. s4's held out longest, peaking at 1,002 at 500k, and were gone by 1M.
 
 [a late Hunter (s4, 100k)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=100000&pick=233891)
+
+## New finds
+
+New forms and behaviours, as they turn up. Each gets a write-up in its section above.
+
+| found | run | what | where |
+|---|---|---|---|
+| 2026-11-14 | s2 | Combs: giants with two `G`s on a mast, growing two threads at once | [Combs](#combs-s2) |
 
 ## How they interact
 

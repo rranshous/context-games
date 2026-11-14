@@ -2551,3 +2551,7 @@ of each run replayed 200–300 ticks following ~114k bodies. What it found:
 
 The survey scripts (survey.ts, classify.ts, render.py, chart.py) live in the session
 scratchpad, not the repo.
+
+## Combs in s2 (2026-11-14)
+
+s2's biggest body today isn't a single thread. It's a mast with two `G`s that grows two threads side by side: 885 cells, teeth 409 and 461. The code row has a turn (`v`, `^` or `|`), so the IP runs the whole mast and passes both `G`s on every loop. That keeps the teeth about equal in length. The form isn't new to s2. A two-`G` comb has been s2's biggest body at 40% of checkpoints since 945k, with 14 different combs holding the title since 870k, under both sprinter and looker heads. It's nearly absent elsewhere (1% of s3's checkpoints, none in s1 or s4). It's written up in the survey, which now has a "New finds" table to log forms as they turn up.
