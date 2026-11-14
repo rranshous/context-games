@@ -2802,3 +2802,5 @@ Deployed on Robby's say ("yea, go ahead and deploy"), with "just play" from Part
 Still open: age guidance (the Children section says families play together and nobody is asked their age).
 
 **Age guidance.** Robby: "I don't _think_ we need any sort of age restriction. though it seems prudent to copy everything else and just have one". So the common line: **13 and older; younger children with a parent or guardian, who sets it up and connects any AI account**. It's in the privacy page's In short and Children section, and at the top of the rules. Nobody is asked their age; it's guidance, not a gate. Robby on his name being on the site: "having my name on there is fine".
+
+Deployed (Robby, asked whether to deploy as is or after the name and age questions, answered both). Smoke passed first; privacy and rules are served with the address and the age line.
