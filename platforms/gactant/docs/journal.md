@@ -2732,3 +2732,5 @@ Checked in a real sandbox, on a scratch ludant: a scene with Sky, a RoundedBox f
 ![add-ons and physics](shots/28-addons-physics.png)
 
 **Later: 3D assets.** Robby: "it would be cool if the frame supported 3d assets like it does 2d". The art surface paints pictures; there's nothing for meshes. GLTFLoader is in, so the frame could keep `.glb` files the way it keeps art (R2, scanned, per-ludant budget), and `stage.model(name)` could hand a game a loaded scene. Where models come from is the open part: generated (image-to-3D models on OpenRouter or elsewhere), or a small library the frame offers (simple avatars, props). To look into.
+
+Deployed on Robby's say ("yep! plz deploy"), as version a3b2df74. Smoke passed first; the add-ons and rapier.js are served on gactant.com.
