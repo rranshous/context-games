@@ -2719,7 +2719,7 @@ Deployed on Robby's say ("go ahead and deploy"), as version 9a754357: following 
 
 ## Part 28: three.js add-ons and physics
 
-Robby, about to try "a small 3d chat space w/ avatars": "i think we should make three.js available to the ludants. did we already do that?" Yes, since Part 12-ish: three r170 through `stage.three()`. What was missing was everything around it. "adding common add-ons sounds like it's worth doing. same if there is a well known physics engine that pairs w/ three.js."
+Robby, about to try "a small 3d chat space w/ avatars": "i think we should make three.js available to the ludants. did we already do that?" Yes, for a while now: three r170 through `stage.three()`. What was missing was everything around it. "adding common add-ons sounds like it's worth doing. same if there is a well known physics engine that pairs w/ three.js."
 
 - **Add-ons** (`public/vendor/three/addons/`, from three r170's `examples/jsm`, their `from 'three'` pointed at the frame's copy, gathered in `all.js` and loaded at boot, 470 KB): EffectComposer with RenderPass, ShaderPass, UnrealBloomPass, OutlinePass and OutputPass; GLTFLoader; FontLoader, Font and TextGeometry, with Helvetiker regular and bold as JS modules (the sandbox can't fetch JSON); RoundedBoxGeometry; BufferGeometryUtils; SkeletonUtils; Sky; Water; ImprovedNoise and SimplexNoise; Octree and Capsule (walking collisions without a physics engine). `stage.three()` returns them as `addons`.
 - **A composer.** Setting `view.composer` to an EffectComposer makes the stage render that instead of the scene, so bloom and outlines work. It resizes with the stage and is dropped when the game is rebuilt.
