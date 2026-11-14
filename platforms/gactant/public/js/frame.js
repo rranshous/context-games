@@ -319,7 +319,9 @@ class Frame {
     const rate = this.status.rate();
     const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
     const left = this.left();
-    const room = left ? ` Their key has ${[left.remaining != null ? `$${left.remaining.toFixed(2)} left of its $${left.limit} limit` : null, left.balance != null ? `$${left.balance.toFixed(2)} in their account` : null].filter(Boolean).join(', ')}.` : '';
+    // How much is in someone's account is theirs: the ludant hears only that it's running low.
+    const least = left ? Math.min(left.remaining ?? Infinity, left.balance ?? Infinity) : Infinity;
+    const room = least < 2 ? ` Their OpenRouter key or account is running low (under $2 left), so thinking may stop soon.` : '';
     const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}.${room} The people here can see that meter.`;
     const company = `${naming}\n${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored} Your thinking has a cost, and the people here can see a meter of it; what it has come to in this sitting is shown with what's happening now, at the end of the conversation.
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;

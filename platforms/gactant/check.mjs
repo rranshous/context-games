@@ -10,7 +10,7 @@
 const GUARD = '@cf/meta/llama-guard-3-8b';
 const EYES = '@cf/meta/llama-4-scout-17b-16e-instruct';
 const MAX_TEXT = 12_000;
-const MAX_IMAGES = 6;
+const MAX_IMAGES = 12;
 const MAX_IMAGE = 400_000;   // characters of data URL; bigger art is skipped (it came from a filtered image model)
 
 // Llama Guard's categories that matter here. Games are full of fighting and crime, so
@@ -41,7 +41,11 @@ export function makeCheck(ai) {
     const codes = said.includes('unsafe') ? [...said.matchAll(/S\d+/g)].map((m) => m[0]) : [];
     const bad = codes.filter((c) => CATEGORIES[c]);
     if (bad.length) return { flagged: true, why: `its words: ${bad.map((c) => CATEGORIES[c]).join(', ')}` };
-    for (const url of images.filter((u) => typeof u === 'string' && u.length <= MAX_IMAGE).slice(0, MAX_IMAGES)) {
+    // A picture it can't look at (too big, or past how many it looks at) means it wasn't
+    // checked whole: that's unchecked, not clean, and waits for a person.
+    const all = images.filter((u) => typeof u === 'string');
+    const looked = all.filter((u) => u.length <= MAX_IMAGE).slice(0, MAX_IMAGES);
+    for (const url of looked) {
       const seen = await ai.run(EYES, { messages: [{ role: 'user', content: [{ type: 'text', text: LOOK }, { type: 'image_url', image_url: { url } }] }], max_tokens: 60 });
       const answer = typeof seen?.response === 'string' ? seen.response : JSON.stringify(seen?.response ?? '');
       const json = answer.match(/\{[\s\S]*\}/)?.[0];
@@ -49,6 +53,6 @@ export function makeCheck(ai) {
       try { verdict = JSON.parse(json); } catch {}
       if (verdict && verdict.ok === false) return { flagged: true, why: `a picture: ${String(verdict.why ?? 'not fine').slice(0, 80)}` };
     }
-    return { flagged: false };
+    return looked.length < all.length ? { flagged: false, partly: true } : { flagged: false };
   };
 }

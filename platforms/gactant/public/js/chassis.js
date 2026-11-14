@@ -83,6 +83,9 @@ async function boot() {
         chat.push({ who: e.who, text: e.text, at: e.at });
         if (chat.length > KEEP_CHAT) chat.splice(0, chat.length - KEEP_CHAT);
       }
+      // A person did something (only the frame can say so: an event the ludant's own code
+      // makes up can name a person too, and mustn't count as one).
+      if (chassis.isPerson(e.who) || chassis.isPerson(e.from)) actant?.personActed();
       bus.deliver(e);
     },
     store(data) { store.load({ data }); },
@@ -100,7 +103,7 @@ async function boot() {
       return { name: actant.name };
     },
     idle(ms) { return actant.idle(ms); },
-    wake(e) { actant?.wake(e); },
+    wake(e) { if (chassis.isPerson(e?.who) || chassis.isPerson(e?.from)) actant?.personActed(); actant?.wake(e); },
     sleep() { actant?.sleepForever(); stage.halted = 'moved'; },
     gameState() { return JSON.parse(JSON.stringify(actant?.game?.state ?? null)); },
   });

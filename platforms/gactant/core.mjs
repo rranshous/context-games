@@ -131,6 +131,9 @@ const ISSUES_A_DAY = 10;         // reports a person may send in a day
 const PERSON_REPORTS_A_DAY = 3;  // reports about people one ludant may send in a day
 const REPORTED_CHAT = 30;        // chat messages that go with one
 const MAX_FLAGS_A_DAY = 300;     // reports of content the install takes in a day
+const FLAGS_EACH_A_DAY = 20;     // reports one person (or address) may make in a day
+const DEVICE_REPORTS_A_DAY = 30; // device checks (check.html) one address may save in a day
+const ART_BYTES_A_DAY = 40_000_000;   // bytes of pictures one person may upload in a day (art is never overwritten)
 const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each costs a little)
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
 const SEED_A_DAY = 20;           // new ludants one address may seed in a day
@@ -152,7 +155,19 @@ const now = () => new Date().toISOString();
 const PICTURE = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/;
 const slug = (s) => String(s || 'actant').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'actant';
 const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, '0')).join('');
-const newId = (name) => `${slug(name)}-${hex(3)}`;
+// A ludant's link works like a key (a stranger who has it sees its soma), so its id has 64
+// random bits; a short one could be found by guessing.
+const newId = (name) => `${slug(name)}-${hex(8)}`;
+const short = (s) => (s == null || s === '' ? null : String(s).slice(0, 40));   // a person's name as given
+const MAX_TITLE = 80;
+/** The admin token, compared in constant time (an empty one never matches). */
+export const isAdmin = (settings, token) => {
+  const want = String(settings.adminToken || ''), got = String(token ?? '');
+  if (!want || got.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  return diff === 0;
+};
 export const safe = (id) => { if (!/^[a-z0-9-]+$/.test(String(id))) throw httpError(400, 'bad id'); return id; };
 const sameSoma = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Replies from the admins, written into the soma of the ludant that reported (surfaces/admins.js).
@@ -185,7 +200,7 @@ export function createCore({ store, settings }) {
   const ops = createOps({ store, log: settings.opsLog });
   const people = createPeople({ store, settings, httpError, limit: (...a) => limit(...a) });
   // Games many ludants play together (tables.mjs); each match apart, in settings.matches.
-  const tables = createTables({ store, people, httpError, owns: (l, f) => owns(l, f), settings: { ...settings, count: (k, n) => ops.count(k, n) } });
+  const tables = createTables({ store, people, httpError, owns: (l, f) => owns(l, f), settings: { ...settings, count: (k, n) => ops.count(k, n), isAdmin: (token) => isAdmin(settings, token) } });
 
   // ---------- pictures: files in settings.art, served from artBase ----------
   const art = settings.art;
@@ -323,6 +338,7 @@ export function createCore({ store, settings }) {
 
   const add = (stats, seconds, spent) => ({ seconds: (stats?.seconds ?? 0) + seconds, spent: (stats?.spent ?? 0) + spent, sittings: stats?.sittings ?? 0 });
   const unwritten = new Map();   // ludant id -> { seconds, spent, since }
+  const beats = new Map();       // ludant id -> when its last heartbeat came (ms)
 
   async function played(id, seconds, spent) {
     if (!(seconds > 0 || spent > 0)) return;
@@ -359,7 +375,7 @@ export function createCore({ store, settings }) {
     const who = body.who ? safe(body.who) : 'anon';
     // Thinking uses the install's model; painting may use one of the art models.
     const chosen = Object.values(ART_MODELS).includes(body.model) ? body.model : model;
-    const request = buildRequest({ ...body, model: chosen });
+    const request = buildRequest({ messages: body.messages, tools: body.tools, modalities: body.modalities, model: chosen, max_tokens: Math.min(Number(body.max_tokens) || 32000, 32000) });
     const started = Date.now();
     // A dropped connection or a busy provider shouldn't end someone's sitting: retry those.
     let res, text;
@@ -417,6 +433,7 @@ export function createCore({ store, settings }) {
     const today = now().slice(0, 10);
     if (today !== flagDay) { flagDay = today; flagsToday = 0; }
     if (++flagsToday > MAX_FLAGS_A_DAY) throw httpError(429, 'too many reports today; please try again tomorrow');
+    limit('flag', from.person ?? from.ip, FLAGS_EACH_A_DAY, `that's ${FLAGS_EACH_A_DAY} reports from you today; more tomorrow`)();
     const reason = FLAG_REASONS.includes(body.reason) ? body.reason : 'other';
     const ludant = body.ludant ? safe(body.ludant) : null;
     const published = body.published ? safe(body.published) : null;
@@ -431,10 +448,11 @@ export function createCore({ store, settings }) {
       const pub = await store.get('published', published);
       if (pub && !pub.hidden && !pub.cleared) {
         const open = (await store.list('flags')).filter((f) => f.published === published && f.status === 'open');
-        // Different people: by who they are when they're signed in, else by the name they gave.
-        const who = (f) => f.person ?? `name:${f.by.toLowerCase()}`;
-        const reporters = new Set(open.map(who)).size;
-        const strong = new Set(open.filter((f) => f.reason === 'illegal').map(who)).size;
+        // Different people, signed in: a name typed into a report is anyone's to type, so
+        // reports without a person wait for a moderator instead of hiding anything.
+        const people = open.filter((f) => f.person);
+        const reporters = new Set(people.map((f) => f.person)).size;
+        const strong = new Set(people.filter((f) => f.reason === 'illegal').map((f) => f.person)).size;
         if (strong >= 2 || reporters >= 3) { pub.hidden = { by: 'reports', at: now() }; await store.put('published', published, pub); }
       }
     }
@@ -444,12 +462,12 @@ export function createCore({ store, settings }) {
   // What one address has done today, for the daily limits. In memory only: an address is
   // never written down.
   const today = new Map();   // `${day} ${what} ${ip}` -> count
-  function limit(what, ip, max, saying) {
+  function limit(what, ip, max, saying, amount = 1) {
     const day = now().slice(0, 10), k = `${day} ${what} ${ip ?? 'here'}`;
     if (!today.has(k)) for (const old of today.keys()) if (!old.startsWith(day)) today.delete(old);
     const n = today.get(k) ?? 0;
-    if (n >= max) throw httpError(429, saying);
-    return () => today.set(k, n + 1);   // count it once it's done
+    if (n + amount > max) throw httpError(429, saying);
+    return () => today.set(k, (today.get(k) ?? 0) + amount);   // count it once it's done
   }
   let checkDay = '', checksToday = 0;
 
@@ -462,7 +480,9 @@ export function createCore({ store, settings }) {
     try {
       const verdict = await settings.check({ text: publicText(pub), images: images.filter(Boolean) });
       ops.count(`check ${verdict.flagged ? 'flagged' : 'clean'}`);
-      return verdict.flagged ? { checked: 'flagged', why: `the publish check: ${verdict.why}` } : { checked: 'clean' };
+      if (verdict.flagged) return { checked: 'flagged', why: `the publish check: ${verdict.why}` };
+      if (verdict.partly) { ops.count('check couldn\'t see every picture'); return { checked: 'unchecked' }; }
+      return { checked: 'clean' };
     } catch (err) {
       await ops.trouble({ kind: 'server', where: 'publish check', message: err.message, sample: err.stack }).catch(() => {});
       return { checked: 'unchecked' };
@@ -535,7 +555,7 @@ export function createCore({ store, settings }) {
     if (a === 'events' && method === 'POST') return ops.events(body);
     if (a === 'flags' && method === 'POST') return flag(body, from);
     if (a === 'admin' && (b === 'flags' || b === 'moderate') && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       if (b === 'moderate') return moderate(body);
       const all = (await store.list('flags')).sort((x, y) => y.at.localeCompare(x.at));
       return body.all ? all.slice(0, 200) : all.filter((f) => f.status === 'open');
@@ -543,7 +563,7 @@ export function createCore({ store, settings }) {
     // Owners, for whoever runs the install: which ludants have one, and a key for one that
     // doesn't (a ludant from before owners). An owned ludant's key is never replaced here.
     if (a === 'admin' && (b === 'owners' || b === 'own' || b === 'people') && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       if (b === 'people') return (await store.list('people')).map((p) => ({ id: p.id, name: p.name, created: p.created, devices: p.devices.map((d) => `${d.label} (last ${d.seen})`) }));
       const isPerson = (o) => /^p-[a-f0-9]{16}$/.test(String(o ?? ''));
       if (b === 'owners') {
@@ -564,7 +584,7 @@ export function createCore({ store, settings }) {
     }
     // Once, when sealing began: every ludant's private surfaces from before, gone for good.
     if (a === 'admin' && b === 'wipe-unsealed' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       let wiped = 0;
       for (const l of await store.list('ludants')) {
         const surfaces = l.surfaces ?? {};
@@ -575,16 +595,20 @@ export function createCore({ store, settings }) {
       return { wiped };
     }
     if (a === 'admin' && b === 'ops' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       return { ...(await ops.read({ days: Number(body.days) || 2 })), held: [...holds.keys()].length, storage: await store.size?.(), flagsOpen: (await store.list('flags')).filter((f) => f.status === 'open').length };
     }
     if (a === 'config') return { version: settings.version ?? null, model, hasKey: Boolean(key), logs: !isPublic, public: isPublic, sandbox: settings.sandbox || '' };
-    if (a === 'infer' && method === 'POST') return infer(body);
+    if (a === 'infer' && method === 'POST') {
+      if (!from.person) throw httpError(401, 'sign in first');
+      return infer(body);
+    }
     if (a === 'log' && b && method === 'POST') { if (!isPublic) await log(safe(b), { ...body, last: summarize(body.last) }); return {}; }
     if (a === 'log' && b) return isPublic ? [] : tail(safe(b), Number(query.get('n')) || 20);
     // A device's check: what its browser can do (controllers, voice, pictures across the
     // sandbox). Saved as it goes, so whoever is building can read it without anyone relaying.
     if (a === 'reports' && method === 'POST') {
+      limit('device-report', from.ip, DEVICE_REPORTS_A_DAY, 'that\'s enough device checks from here today')();
       const report = body.report ?? {};
       if (JSON.stringify(report).length > MAX_REPORT) throw httpError(413, 'report too big');
       const id = body.id && /^r-[a-f0-9]{8}$/.test(body.id) && await store.get('reports', body.id) ? body.id : `r-${hex(4)}`;
@@ -593,7 +617,7 @@ export function createCore({ store, settings }) {
     }
     // Problems ludants reported (tools/issues.mjs): the newest, in brief, or one whole by id.
     if (a === 'admin' && b === 'issues' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       if (body.id) {
         const issue = await read('issues', String(body.id));
         if (body.status) issue.status = String(body.status).slice(0, 40);
@@ -615,13 +639,13 @@ export function createCore({ store, settings }) {
         .map(({ id, at, status, ludant, name, by, title, wrong, thread }) => ({ id, at, status, ludant, name, by, title, wrong: wrong.slice(0, 300), ...(thread?.length ? { thread: thread.length } : {}) }));
     }
     if (a === 'admin' && b === 'reports' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       return (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(body.n) || 10);
     }
     // Once (2026-10-28): art and thumbs were data URLs in the store; they move to the art
     // store, n ludants and publications at a time, until nothing is left (tools/migrate-art.mjs).
     if (a === 'admin' && b === 'migrate-art' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       const n = Math.max(1, Number(body.n) || 20);
       let moved = 0, owners = 0, missing = 0;
       for (const [kind, prefix] of [['ludants', 'l'], ['published', 'p']]) {
@@ -652,7 +676,7 @@ export function createCore({ store, settings }) {
       return { moved, missing, left };
     }
     if (a === 'admin' && b === 'import' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       let imported = 0;
       for (const p of body.published ?? []) {
         if (!p?.id || !p.soma?.given || !p.name) continue;
@@ -679,13 +703,15 @@ export function createCore({ store, settings }) {
         return found.map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
       }
       if (!b && method === 'POST') {
+        ownedBy({}, from);   // refused before anything is counted or written
         const counted = limit('seed', from.ip, SEED_A_DAY, `that's ${SEED_A_DAY} new ludants from here today; more tomorrow`);
         counted();
+        const by = short(body.by);
         const given = await freshGiven();
         const id = newId(given);
-        const ludant = { id, soma: seedSoma(given, body.by), surfaces: {}, checkpoints: [], visitors: {}, lineage: { seededBy: body.by || null }, fresh: true, created: now(), updated: now() };
+        const ludant = { id, soma: seedSoma(given, by), surfaces: {}, checkpoints: [], visitors: {}, lineage: { seededBy: by }, fresh: true, created: now(), updated: now() };
         ownedBy(ludant, from);
-        await checkpoint(ludant, 'as seeded', body.by);
+        await checkpoint(ludant, 'as seeded', by);
         await store.put('ludants', id, ludant);
         return { id };
       }
@@ -712,7 +738,11 @@ export function createCore({ store, settings }) {
         if (isPublic && Object.keys(body.surfaces ?? {}).some((k) => !SEALED_SURFACES.has(k))) throw httpError(400, 'what\'s private is sealed before it\'s saved here; reload the page to get the version that does');
         const size = JSON.stringify(body.soma).length + JSON.stringify(body.surfaces).length;
         if (size > MAX_LUDANT) throw httpError(413, `too big to keep: ${size} characters of soma and surfaces (the limit is ${MAX_LUDANT})`);
-        await store.put('ludants', b, { ...ludant, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: now() });
+        // Its given name is the server's to give (it's how families are told apart), and a
+        // title is a name, not a document.
+        const soma = { ...body.soma, given: ludant.soma.given };
+        if (soma.sections && typeof soma.sections.title === 'string') soma.sections = { ...soma.sections, title: soma.sections.title.slice(0, MAX_TITLE) };
+        await store.put('ludants', b, { ...ludant, soma, surfaces: body.surfaces, fresh: false, updated: now() });
         return {};
       }
       if (c === 'hold' && method === 'POST') {
@@ -726,7 +756,10 @@ export function createCore({ store, settings }) {
       }
       if (c === 'heartbeat' && method === 'POST') {
         await requireHold(ludant, body, from);
-        await played(b, Number(body.seconds) || 0, Number(body.spent) || 0);
+        // Play time can't run faster than the clock: no more than has passed since its last beat.
+        const last = beats.get(b) ?? 0, nowMs = Date.now();
+        beats.set(b, nowMs);
+        await played(b, Math.min(Number(body.seconds) || 0, (nowMs - last) / 1000), Number(body.spent) || 0);
         return { held: true, mail: ludant.mail?.length ?? 0 };
       }
       // Art: pictures made for the ludant, kept apart from it (they're big) and listed on it.
@@ -741,6 +774,8 @@ export function createCore({ store, settings }) {
         const kept = list.reduce((n, m) => n + (m.bytes ?? 0), 0);
         const size = pictureOf(body.image, MAX_ASSET).bytes.length;
         if (kept + size > ART_BUDGET) throw httpError(413, `its pictures would be over the ${Math.round(ART_BUDGET / 1e6)} MB a ludant keeps (${Math.round(kept / 1e6)} MB now); remove some first, or make smaller ones`);
+        // Art is kept by what's in it and never overwritten, so uploads are counted by the day.
+        limit('art-bytes', from.person, ART_BYTES_A_DAY, `that's all the pictures you can add today (${Math.round(ART_BYTES_A_DAY / 1e6)} MB); more tomorrow`, size)();
         const { file, bytes } = await keepArt(body.image);
         const meta = { name, w: Number(body.w) || 0, h: Number(body.h) || 0, prompt: String(body.prompt ?? '').slice(0, 1000), by: String(body.by ?? '').slice(0, 60), at: now(), bytes, file };
         ludant.assets = [...list, meta];
@@ -798,7 +833,7 @@ export function createCore({ store, settings }) {
         const text = String(body.wrong ?? body.text ?? '').trim().slice(0, 4000);
         if (!text) throw httpError(400, 'say something');
         issue.thread = [...(issue.thread ?? []), { at: now(), from: 'ludant', by: String(body.by ?? '').slice(0, 40), text, ...(body.soma ? { soma: body.soma } : {}) }];
-        if (JSON.stringify(issue).length > MAX_ISSUE * 2) throw httpError(413, 'that report is too big');
+        if (JSON.stringify(issue).length > MAX_ISSUE * 1.5) throw httpError(413, 'that report is too big');
         issue.status = 'open';
         await store.put('issues', issue.id, issue);
         counted();
@@ -840,13 +875,14 @@ export function createCore({ store, settings }) {
       // Someone sits down. Remember them, and keep the ludant as it was right now, so
       // whatever changes while they're here can be undone.
       if (c === 'copy' && method === 'POST') {
+        ownedBy({}, from);
         limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
         const id = newId(ludant.soma.given);
         const copy = {
           id, soma: withoutLetters(ludant.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
-          lineage: { from: { ludant: b, name: nameOf(ludant.soma) }, takenBy: body.by || null },
+          lineage: { from: { ludant: b, name: nameOf(ludant.soma) }, takenBy: short(body.by) },
         };
-        await checkpoint(copy, `copied from ${nameOf(ludant.soma)}`, body.by);
+        await checkpoint(copy, `copied from ${nameOf(ludant.soma)}`, short(body.by));
         copy.assets = ludant.assets ?? [];   // the same files: art is named by what's in it
         ownedBy(copy, from);
         await store.put('ludants', id, copy);
@@ -865,7 +901,7 @@ export function createCore({ store, settings }) {
       if (c === 'checkpoints' && method === 'GET') return ludant.checkpoints;
       if (c === 'checkpoints' && method === 'POST') {
         await requireHold(ludant, body, from);
-        const n = await checkpoint(ludant, body.label, body.by);
+        const n = await checkpoint(ludant, String(body.label ?? '').slice(0, 120), short(body.by));
         await store.put('ludants', b, ludant);
         return { n };
       }
@@ -921,7 +957,7 @@ export function createCore({ store, settings }) {
         await store.put('ludants', ludant.id, ludant);
         const id = newId(name);
         await store.put('published', id, {
-          id, name, given: ludant.soma.given, title, by: body.by || null, note,
+          id, name, given: ludant.soma.given, title: title.slice(0, MAX_TITLE), by: short(body.by), note,
           ludant: ludant.id, n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
           copies: 0, soma: withoutLetters(ludant.soma), checked: look.checked,
           ...(look.why ? { hidden: { by: 'check', at: now(), note: look.why } } : {}),

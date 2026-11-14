@@ -45,7 +45,8 @@
 //                                           match has more than n actions. Hosted, the Worker takes this
 //                                           straight to the match, and does the waiting itself (up to 25
 //                                           seconds, asking every 3), since an object is billed while it waits.
-//   GET  matches/<id>/log?from=0         -> { id, rulebook, seed, options, genesis, n, head, result, log, keys, more }
+//   GET  matches/<id>/log?from=0         -> { id, rulebook, seed?, salt?, options, genesis, n, head, result, log, keys, more }
+//                                           seed and salt only once it's over (they decide what's dealt)
 //                                           keys: each signing device's public key (JWK), by device id
 //   POST matches/<id>/act { kind: join|move, data, n, prev, signature?, ludant? }
 //                                        -> { n, head, view, result, budget }   409 if n or prev aren't the latest;
@@ -318,7 +319,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     if (a === 'tables' && b === 'budget' && method === 'GET') return budget(need(from).person);
 
     if (a === 'admin' && b === 'sweep' && method === 'POST') {
-      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      if (!settings.isAdmin?.(body.token)) throw httpError(403, 'not allowed');
       return sweep(body.objects);
     }
 
@@ -331,8 +332,8 @@ export function createTables({ store, people, httpError, owns, settings }) {
         const options = body.options && typeof body.options === 'object' ? body.options : {};
         if (JSON.stringify(options).length > MAX_ACTION) throw httpError(413, `options are up to ${MAX_ACTION} characters of JSON`);
         enoughSteps(from.person);
-        const id = `m-${hex(6)}`, seed = crypto.getRandomValues(new Uint32Array(1))[0];
-        const made = await fromMatch(host.op(id, 'create', { id, rulebook: rb.id, name: rb.name, source: rb.source, seed, options }));
+        const id = `m-${hex(6)}`, seed = crypto.getRandomValues(new Uint32Array(1))[0], salt = hex(16);
+        const made = await fromMatch(host.op(id, 'create', { id, rulebook: rb.id, name: rb.name, source: rb.source, seed, salt, options }));
         steps(from.person, made.steps);
         add('matches', from.person); add('matches', 'world');
         settings.count?.('table matches opened');
@@ -357,7 +358,9 @@ export function createTables({ store, people, httpError, owns, settings }) {
         // device its person has since removed is gone, and so is its key.)
         const keys = {};
         for (const e of m.log) if (e?.signature && !(e.device in keys)) keys[e.device] = await people.publicKey(e.player.id, e.device);
-        return { ...m, keys };
+        // The seed deals what the rules keep secret: shown only once the match is over.
+        const { seed, salt, ...open } = m;
+        return { ...open, keys, ...(m.result ? { seed, salt } : {}) };
       }
       if (c === 'act' && method === 'POST') return act(b, body, from);
     }

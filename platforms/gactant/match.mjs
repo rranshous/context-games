@@ -25,7 +25,10 @@
 // The text a device signs, base64url ECDSA P-256 SHA-256:
 //   gactant/act/v1 \n match \n n \n prev \n kind \n JSON(data)
 // An entry's hash, which the next entry's prev names: sha256(that text \n signature, or 'unsigned').
-// The first prev is the genesis: sha256(gactant/match/v1 \n id \n rulebook \n seed \n JSON(options)).
+// The first prev is the genesis: sha256(gactant/match/v2 \n id \n rulebook \n seed \n salt \n JSON(options)).
+// The seed decides everything the rules deal (hands, decks), so it stays hidden until the
+// match is over; the salt (128 random bits) keeps the genesis from giving it away to anyone
+// who tries every seed. Both are shown once it's over, and the whole chain can be checked.
 
 import { MAX_STEPS, RuleError } from './rules.mjs';
 
@@ -43,7 +46,7 @@ const pad = (n) => String(n).padStart(6, '0');
 const size = (v) => (v === undefined ? 0 : JSON.stringify(v).length);
 
 export const signedText = ({ match, n, prev, kind, data }) => ['gactant/act/v1', match, n, prev, kind, JSON.stringify(data ?? null)].join('\n');
-export const genesisText = ({ id, rulebook, seed, options }) => ['gactant/match/v1', id, rulebook, seed, JSON.stringify(options ?? {})].join('\n');
+export const genesisText = ({ id, rulebook, seed, salt, options }) => ['gactant/match/v2', id, rulebook, seed, salt, JSON.stringify(options ?? {})].join('\n');
 
 /** An error the host passes on as an answer: code, message, and anything else to say. */
 export const answer = (code, message, extra) => Object.assign(new Error(message), { code, extra });
@@ -81,13 +84,13 @@ export function createMatch({ store, rules }) {
   const playerFor = (m, person) => (person && m.members[person] ? { id: person, name: m.members[person] } : person ? { id: person, name: null } : null);
 
   const ops = {
-    async create({ id, rulebook, name, source, seed, options }) {
+    async create({ id, rulebook, name, source, seed, salt, options }) {
       if (await store.get('match', 'it')) throw answer(409, 'that match already exists');
       let init;
       try { init = rules.call(source, 'init', [seed, options ?? {}]); } catch (err) { throw answer(422, `the rules couldn't start a match: ${said(err).error}`); }
       if (size(init.value) > MAX_STATE) throw answer(413, `the rules started a state too big to keep (over ${MAX_STATE} characters)`);
-      const genesis = await sha(genesisText({ id, rulebook, seed, options }));
-      const m = { id, rulebook, name, source, seed, options: options ?? {}, genesis, at: now(), updated: now(), n: 0, head: genesis, members: {}, state: init.value, result: null };
+      const genesis = await sha(genesisText({ id, rulebook, seed, salt, options }));
+      const m = { id, rulebook, name, source, seed, salt, options: options ?? {}, genesis, at: now(), updated: now(), n: 0, head: genesis, members: {}, state: init.value, result: null };
       await store.put('match', 'it', m);
       return { ...summary(m), genesis, steps: init.steps };
     },

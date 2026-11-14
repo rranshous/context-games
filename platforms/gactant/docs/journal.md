@@ -2808,3 +2808,35 @@ Deployed (Robby, asked whether to deploy as is or after the name and age questio
 **Not in the ludants' prompt.** Robby: "i don't think we need to put my name in the ludants prompt, lets remove my name and ref to you from it". The context block now opens "This is gactant, an experimental platform. You are part of the experiment, and this note explains it." (it was "…built by Robby Ranshous with Claude"). Who runs the site stays on the privacy and rules pages, for people. The only other mention is the note a Claude shard's seat gives when one is sent to sit with a ludant (testing), which is about who's sitting, not who built it.
 
 Deployed on Robby's say ("go ahead and deploy it"); the new frame.js is served.
+
+## Part 32: a security audit
+
+Robby: "lets do a security audit and fix cycle. spin up some sub agents to look for security issues and another to review the crypto / signing part to make sure it's good. there's prob bugs in there somewhere". Four auditors, read-only, each with its own scratch server: the server's authorization and input handling; the client and the sandbox; the crypto and signing; the rules engine and matches. (The rules auditor was stopped partway by a safety classifier while testing escapes. Its findings were in its notes and came through.)
+
+**What held up** (all four said so, several by trying): every change to a ludant needs its owner and the window's hold; ids are sanitized before they touch storage; the pass travels in a header, so no cross-site forgery; no XSS anywhere (`el()` sets text, never HTML); the sandbox is `allow-scripts` only, on an opaque origin, with no network, and the bridge checks who's talking; the OpenRouter key never reaches the sandbox; ECDSA P-256 pinned, signed text unambiguous and domain-separated, passes HMAC'd and checked in constant time, a match's chain checked atomically; sealing with fresh IVs and AAD bound to the ludant; recovery codes at about 151 bits.
+
+**Fixed now:**
+- *Hiding a publication with three anonymous reports.* Reporters were told apart by the name they typed. Now only signed-in people count toward hiding at once; anonymous reports wait for a moderator; 20 reports per person a day.
+- *A match's seed was public.* The log showed it, and the rules deal everything from it, so every hand could be worked out. The seed now stays hidden until the match is over, and the genesis has 128 bits of salt so it can't be ground back to the 32-bit seed (`gactant/match/v2`; matches from before don't check under the new genesis). `check-match` replays only once a match is over, and counts unsigned actions as a problem.
+- *The rules engine:* a rulebook returning something nested a few thousand deep brought QuickJS's WebAssembly down for the whole process (locally, every match), and a rulebook could swap `JSON.stringify` to overflow the host's stack. Now: nesting over 200 is refused, the JSON in and out is a copy the rulebook can't touch, an engine-level failure marks that rulebook broken and loads the engine fresh, and calls stop at 3 seconds where the clock moves. Tested: the deep return now comes back "broken" and the next call works.
+- *Big request bodies* (the Worker read any size into the one World object): 4 MB at most, read no further; local socket frames 64 KB.
+- *Unbounded fields:* `by`, seeded/taken by, checkpoint labels, titles, all capped. The given name is the server's: a save can't change it, so nobody can join another family by name.
+- *Ludant links* had 24 random bits and show the soma (memory included) to whoever has one: now 64.
+- *Art* is never overwritten, so storage could grow by swapping pictures: 40 MB uploaded per person a day.
+- *Device checks* (`POST reports`) had no limit: 30 per address a day.
+- *Play time* could be faked with heartbeats: credited seconds can't exceed the time since the last one.
+- *The publish check* skipped big pictures and those past the sixth, silently: it now looks at up to 12, and if it couldn't see them all the publication is "unchecked" (it waits for a person to approve it before it's featured), not "clean".
+- *Inference on the install's key* answered anyone with curl: now it needs a signed-in person, and `max_tokens` is capped.
+- *Traffic counters* were keyed by raw paths: made-up paths fill one "other" counter now.
+- *Admin token* compared in constant time; *challenges* are single-use; *the hosted World* refuses to run without SESSION_SECRET; issue threads stay under the row limit; seeding and copying refuse a stranger before counting or writing anything.
+- *Client:* a ludant's own code could put a person's name on its wake events to dodge the "woke itself too often" brake, and think on someone's account without end. Now only the frame says when a person acted. And a ludant was told the person's OpenRouter balance and limit to the cent, which it could copy into memory (which travels with copies): now it hears only "running low" under $2.
+
+**For Robby to decide** (bigger, or contract changes):
+1. *The recovery code reaches the server*, and the vault key is derived from the code alone, so a compromised server (or a bad deploy) could open sealed chats. Fix: derive two values in the browser, one to prove the code (sent), one to open the vault (never sent). Existing vaults would need re-wrapping the next time each person uses their code.
+2. *A pass alone can make a new recovery code and remove devices*: a stolen phone could lock its owner out. Fix: those ask for a fresh device signature (and maybe the old code to remove the last other device).
+3. *A removed device keeps up to 24 hours* on the Worker's direct match routes (its private match views, live sockets, shares), and sockets are never rechecked. Fix: a revocation counter the Worker can read, pass expiry on sockets, and closing a removed person's sockets.
+4. *A match signature doesn't name the person or device*; the server's key lookup does. Fix: add them to the signed text (a match contract change), and keep signers' keys with the archive so old matches still check after a device is removed.
+5. *Lists that load everything* (`GET published`, `ludants?mine`, every flag with its image) could take the World down as storage grows. Fix: small index documents for the hot routes.
+6. *Budgets race*: concurrent requests pass the checks before any is counted. Fix: reserve before the await.
+7. *A built-in on big data* (indexOf over megabytes) runs seconds inside one step. Hosted it holds up only its match; locally it stalls the server. Fix: rules on a worker thread with a timeout, locally.
+8. *Ludants report people without a card* (by design, Part 25: the person would be approving their own report). The auditor suggests consent for the chat it sends. Left as designed.

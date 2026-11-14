@@ -26,6 +26,8 @@ import { createRules } from './rules.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
 const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null);
+const MAX_BODY = 4_000_000;   // the biggest body the API takes (as in worker.mjs)
+const MAX_FRAME = 64_000;     // the biggest socket message
 const DATA = arg('--data') ?? join(HERE, 'data');   // --data <dir>: another place (tools/smoke.mjs uses a scratch one)
 const PORT = Number(arg('--port')) || 7780;
 
@@ -145,7 +147,12 @@ const server = createServer(async (req, res) => {
     let body = {};
     if (req.method === 'POST' || req.method === 'PUT') {
       const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > MAX_BODY) { req.destroy(); return json(res, 413, { error: 'too big' }); }
+        chunks.push(chunk);
+      }
       body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
     }
     json(res, 200, await core.route(req.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, { ip: req.socket.remoteAddress, pass: req.headers['x-gactant-pass'] || '' }));
@@ -184,6 +191,7 @@ server.on('upgrade', async (req, socket) => {
       if (n === 126) { if (buf.length < 4) return; n = buf.readUInt16BE(2); at = 4; } else if (n === 127) { if (buf.length < 10) return; n = Number(buf.readBigUInt64BE(2)); at = 10; }
       const mask = masked ? buf.subarray(at, at + 4) : null;
       if (masked) at += 4;
+      if (n > MAX_FRAME) { socket.destroy(); return; }   // a share is 2,000 characters; nothing here is big
       if (buf.length < at + n) return;
       const data = Buffer.from(buf.subarray(at, at + n));
       if (mask) for (let i = 0; i < data.length; i++) data[i] ^= mask[i % 4];

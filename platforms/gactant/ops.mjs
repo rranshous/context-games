@@ -20,7 +20,7 @@ const TEXT = 400;
 const hourOf = (d = new Date()) => d.toISOString().slice(0, 13).replace(/[-T]/g, '');
 const clip = (s, n = TEXT) => String(s ?? '').slice(0, n);
 // Trouble that differs only in numbers, ids or positions is the same trouble.
-const shape = (s) => String(s).replace(/\b[a-z]+-[0-9a-f]{6}\b/g, '<id>').replace(/\d+(\.\d+)?/g, '#').slice(0, 200);
+const shape = (s) => String(s).replace(/\b[a-z]+-[0-9a-f]{6,16}\b/g, '<id>').replace(/\d+(\.\d+)?/g, '#').slice(0, 200);
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0).toString(16).padStart(8, '0'); };
 
 export function createOps({ store, log = () => {} }) {
@@ -51,7 +51,11 @@ export function createOps({ store, log = () => {} }) {
   /** One API request, by its route's shape (ids left out). */
   function request(method, parts, status, ms) {
     const [a, b, c] = parts;
-    const route = [a, b && (a === 'ludants' || a === 'published' || a === 'log' ? ':id' : b), c].filter(Boolean).join('/');
+    // Only known shapes become counters: anything else is one counter, so made-up paths
+    // can't fill the traffic document. Ids are :id wherever they stand.
+    const known = /^[a-z-]{1,24}$/;
+    const route = !known.test(a ?? '') ? 'other'
+      : [a, b && (known.test(b) && !['ludants', 'published', 'log', 'matches', 'drafts', 'rulebooks', 'thumbs', 'flags'].includes(a) ? b : ':id'), c && (known.test(c) ? c : ':id')].filter(Boolean).join('/');
     count(`api ${method} ${route}`);
     sum(`ms ${method} ${route}`, ms);
     if (status >= 500) count('api 5xx');

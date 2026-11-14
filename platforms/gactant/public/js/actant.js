@@ -198,9 +198,15 @@ export class Actant {
     this.offHooks = [];
   }
 
+  /** The frame says a person did something: the next wake is theirs. */
+  personActed() { this.personSince = true; }
+
   wake(event) {
     if (this.asleepForever) return;
-    const human = this.chassis.isPerson(event?.who) || this.chassis.isPerson(event?.from);
+    // Woken after a person did something (as the frame told it), or by itself? Its own code
+    // can put a person's name on an event, so the name on the event doesn't decide it.
+    const human = this.personSince;
+    this.personSince = false;
     this.restless = human ? 0 : this.restless + 1;
     this.pending.push(event);
     this.note('wake', describeEvent(event));

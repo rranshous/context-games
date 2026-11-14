@@ -25,12 +25,13 @@ const log = [...m.log], keys = { ...m.keys };
 while (m.more) { m = await get(`matches/${match}/log?from=${log.length}`); log.push(...m.log); Object.assign(keys, m.keys); }
 const rb = await get(`rulebooks/${m.rulebook}`);
 if (await sha(rb.source) !== m.rulebook) fail('the rulebook isn\'t the one its hash names');
-console.log(`${match}: ${rb.name} (${m.rulebook.slice(0, 12)}…), ${log.length} actions, seed ${m.seed}`);
+const over = m.seed !== undefined;
+console.log(`${match}: ${rb.name} (${m.rulebook.slice(0, 12)}…), ${log.length} actions, ${over ? `seed ${m.seed}` : 'not over (its seed stays hidden until it is, so the chain and signatures are checked, not the replay)'}`);
 
-let prev = await sha(genesisText({ id: match, rulebook: m.rulebook, seed: m.seed, options: m.options }));
-if (prev !== m.genesis) fail('the genesis doesn\'t match the match\'s id, rulebook, seed and options');
+let prev = over ? await sha(genesisText({ id: match, rulebook: m.rulebook, seed: m.seed, salt: m.salt, options: m.options })) : m.genesis;
+if (prev !== m.genesis) fail('the genesis doesn\'t match the match\'s id, rulebook, seed, salt and options');
 const rules = await createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm'))));
-let state = rules.call(rb.source, 'init', [m.seed, m.options]).value;
+let state = over ? rules.call(rb.source, 'init', [m.seed, m.options]).value : null;
 let unsigned = 0;
 for (const e of log) {
   const text = signedText({ match, n: e.n, prev, kind: e.kind, data: e.data });
@@ -42,13 +43,18 @@ for (const e of log) {
     const key = await crypto.subtle.importKey('jwk', keys[e.device], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text))) fail(`action ${e.n}: the signature isn't ${e.player.name}'s device's`);
   }
-  try { state = rules.call(rb.source, e.kind, [state, e.player, e.data]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
+  if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
   console.log(`  ${String(e.n).padStart(3)} ${e.player.name}${e.through ? ` (through ${e.through.name})` : ''} ${e.kind} ${JSON.stringify(e.data)}`);
   prev = e.hash;
 }
 if (prev !== m.head) fail('the chain doesn\'t end at the match\'s head');
-const result = rules.call(rb.source, 'result', [state]).value ?? null;
-if (JSON.stringify(result) !== JSON.stringify(m.result ?? null)) fail(`replayed, the result is ${JSON.stringify(result)}, not ${JSON.stringify(m.result)}`);
-console.log(`result: ${JSON.stringify(result)}${unsigned ? ` (${unsigned} actions unsigned: devices without keys)` : ''}`);
-console.log(bad.length ? `\n${bad.length} problem(s)` : '\nchecks out: the chain, every signature, and the replay');
+if (over) {
+  const result = rules.call(rb.source, 'result', [state]).value ?? null;
+  if (JSON.stringify(result) !== JSON.stringify(m.result ?? null)) fail(`replayed, the result is ${JSON.stringify(result)}, not ${JSON.stringify(m.result)}`);
+  console.log(`result: ${JSON.stringify(result)}`);
+}
+// An unsigned action is only the server's word (a device without a key, on a local install):
+// nothing here can show who took it.
+if (unsigned) fail(`${unsigned} action(s) unsigned, so who took them can't be checked`);
+console.log(bad.length ? `\n${bad.length} problem(s)` : `\nchecks out: the chain, every signature${over ? ', and the replay' : ''}`);
 process.exit(bad.length ? 1 : 0);

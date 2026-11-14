@@ -223,6 +223,8 @@ try {
   ok('locking the same rules again gives the same hash', (await call('POST', `drafts/${draft.json.id}/lock`, {}, as(pass))).json.rulebook === rb);
   const match = (await call('POST', 'matches', { rulebook: rb }, as(pass))).json;
   ok('a match', match.id && match.n === 0, JSON.stringify(match));
+  const early = (await call('GET', `matches/${match.id}/log`)).json;
+  ok('its seed stays hidden until it\'s over', early.genesis && early.seed === undefined && early.salt === undefined, JSON.stringify(early).slice(0, 200));
   let head = match.head, n = 0;
   const act = async (who, dev, kind, data, extra = {}) => {
     const sig = await dev.sign(signedText({ match: match.id, n, prev: head, kind, data }));
@@ -276,9 +278,9 @@ try {
   ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);
   ok('the rulebook lists its matches', (await call('GET', `rulebooks/${rb}/matches`)).json[0]?.id === match.id);
   // Anyone can check the log: the chain, every signature, and the replay.
-  const { log, seed: mSeed, options, genesis, keys } = (await call('GET', `matches/${match.id}/log`)).json;
+  const { log, seed: mSeed, salt, options, genesis, keys } = (await call('GET', `matches/${match.id}/log`)).json;
   const sha = async (t) => Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))).toString('hex');
-  let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, options }));
+  let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, salt, options }));
   let chain = prev === genesis;
   for (const e of log) {
     const text = signedText({ match: match.id, n: e.n, prev, kind: e.kind, data: e.data });

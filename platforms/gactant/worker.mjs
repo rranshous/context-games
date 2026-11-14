@@ -54,6 +54,25 @@ function docStore(sql) {
  *  archive, practice, check) and by the Worker (look, and live: a socket that hears every
  *  action as it happens). Sockets use the hibernation API, so a quiet match isn't billed
  *  for them; pings are answered without waking it. */
+// The biggest body anything here takes (a ludant's save is up to 1.5M characters, a picture
+// 1.1 MB as base64). Read no further than that, so one huge request can't fill the memory
+// of the object that answers everyone.
+const MAX_BODY = 4_000_000;
+async function readBody(request) {
+  if (Number(request.headers.get('content-length')) > MAX_BODY) throw Object.assign(new Error('too big'), { code: 413 });
+  if (!request.body) return {};
+  const reader = request.body.getReader(), parts = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > MAX_BODY) { reader.cancel().catch(() => {}); throw Object.assign(new Error('too big'), { code: 413 }); }
+    parts.push(value);
+  }
+  try { return JSON.parse(new TextDecoder().decode(await new Blob(parts).arrayBuffer())); } catch { return {}; }
+}
+
 export class Match extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -135,6 +154,9 @@ export class World extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.ctx = ctx; this.env = env;
+    // Without it, passes would be signed with a secret made fresh each time the object
+    // starts, and everyone would be signed out at random: refuse to run instead.
+    if (!env.SESSION_SECRET) throw new Error('SESSION_SECRET is a wrangler secret this needs');
     const sql = ctx.storage.sql;
     sql.exec('CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id))');
     const store = {
@@ -157,7 +179,7 @@ export class World extends DurableObject {
         ...matchHost(env),
         archiveOverMs: env.ARCHIVE_OVER_MS ? Number(env.ARCHIVE_OVER_MS) : undefined,   // for testing under wrangler dev
         version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
-        sessionSecret: env.SESSION_SECRET || '',   // signs challenges and passes (people.mjs); a wrangler secret
+        sessionSecret: env.SESSION_SECRET,   // signs challenges and passes (people.mjs); a wrangler secret
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
         opsLog: (record) => console.warn(record),
         // Workers AI looks at each publication before it goes public (check.mjs).
@@ -178,7 +200,7 @@ export class World extends DurableObject {
     }
     if (url.pathname === '/internal/hourly') return json(200, { ...(await this.core.checkSome()), ...(await this.core.tidy()) });
     try {
-      const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
+      const body = request.method === 'POST' || request.method === 'PUT' ? await readBody(request) : {};
       const from = { ip: request.headers.get('cf-connecting-ip') || '', pass: request.headers.get('x-gactant-pass') || '' };
       return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, from));
     } catch (err) {

@@ -112,7 +112,13 @@ export function createPeople({ store, settings, httpError, limit }) {
     const [t, noise, mac] = String(c ?? '').split('.');
     if (!t || !noise || !mac || !await signed(`challenge.${t}.${noise}`, mac)) throw httpError(400, 'that challenge isn\'t one of ours');
     if (Date.now() - Number(t) > CHALLENGE_MS) throw httpError(400, 'that challenge has expired; ask for a new one');
+    // Each is answered once: a signed answer someone saw (in a log, say) can't be used again.
+    // (One World object answers everything, so this memory is the install's.)
+    for (const [k, at] of usedChallenges) if (Date.now() - at > CHALLENGE_MS) usedChallenges.delete(k);
+    if (usedChallenges.has(noise)) throw httpError(400, 'that challenge has been used; ask for a new one');
+    usedChallenges.set(noise, Date.now());
   }
+  const usedChallenges = new Map();   // a used challenge's noise -> when
 
   /** What a new device offers: its public key (and a signature over the challenge with its
    *  private one), or on an install that allows it, a secret. */
