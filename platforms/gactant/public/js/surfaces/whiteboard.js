@@ -24,7 +24,12 @@ import { el } from '../ui.js';
 import { callName } from '../names.js';
 
 const W = 100, H = 60, SCALE = 10;
-const PALETTE = ['#20242c', '#d9483b', '#e8a33d', '#3f9d5a', '#3b7dd8', '#8a55c9', '#ffffff'];
+const PALETTE = ['#20242c', '#8a8f99', '#ffffff', '#8b5a3c', '#d9483b', '#ef7d32', '#e8a33d', '#f2d14b', '#3f9d5a', '#2bb3a3', '#3b7dd8', '#8a55c9', '#e36aa8'];
+const PAPER = '#fbf8f1';   // the board itself: the eraser draws in it
+const SIZES = [0.3, 0.6, 1.2, 2.5, 5];   // brush widths, in board units
+// What a person draws with: a pen stroke, an eraser stroke, or a shape dragged out.
+const TOOLS = [['pen', '✎', 'pen'], ['eraser', '⌫', 'eraser'], ['line', '╱', 'line'], ['rect', '▭', 'rectangle'], ['circle', '◯', 'circle'], ['text', 'T', 'text']];
+const KEEP = 'gactant-whiteboard';   // this browser's last tool, color, size and fill
 
 export class Whiteboard {
   id = 'whiteboard';
@@ -36,7 +41,8 @@ export class Whiteboard {
     this.seen = {};        // who -> the rev they last saw (by looking, or with a turn)
     this.baton = null;     // who the board is handed to, or null if nobody in particular
     this.note = '';
-    this.color = PALETTE[0];
+    this.pen = { tool: 'pen', color: PALETTE[0], size: 1, fill: false };   // size: an index into SIZES
+    try { Object.assign(this.pen, JSON.parse(localStorage.getItem(KEEP) ?? '{}')); } catch {}
     // Someone's name changed: the board's names follow, so the baton stays theirs.
     frame.bus.on('frame.renamed', ({ from, to }) => {
       if (this.baton === from) this.baton = to;
@@ -180,17 +186,38 @@ export class Whiteboard {
       const r = canvas.getBoundingClientRect();
       return [+((e.clientX - r.left) / r.width * W).toFixed(1), +((e.clientY - r.top) / r.height * H).toFixed(1)];
     };
-    let stroke = null;
+    // A stroke grows as the pointer moves; a shape is dragged out from where it began.
+    let stroke = null, from = null;
+    const width = () => SIZES[this.pen.size] ?? SIZES[1];
     canvas.addEventListener('pointerdown', (e) => {
+      const p = toBoard(e), { tool, color, fill } = this.pen;
+      if (tool === 'text') {
+        const text = prompt('Text for the board:', '');
+        if (text) this.draw(this.frame.seat, { type: 'text', x: p[0], y: p[1], text, color, size: Math.max(2, width() * 2.5) });
+        return;
+      }
       canvas.setPointerCapture(e.pointerId);
-      stroke = { type: 'path', points: [toBoard(e)], color: this.color, width: this.color === '#ffffff' ? 3 : 0.5, by: this.frame.seat };
+      from = p;
+      const by = this.frame.seat;
+      stroke = tool === 'pen' || tool === 'eraser' ? { type: 'path', points: [p], color: tool === 'eraser' ? PAPER : color, width: tool === 'eraser' ? width() * 2 : width(), by }
+        : tool === 'line' ? { type: 'path', points: [p, p], color, width: width(), by }
+        : tool === 'rect' ? { type: 'rect', x: p[0], y: p[1], w: 0, h: 0, color, width: width(), ...(fill ? { fill: color } : {}), by }
+        : { type: 'circle', x: p[0], y: p[1], r: 0, color, width: width(), ...(fill ? { fill: color } : {}), by };
       this.items.push(stroke);
       this.paint();
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!stroke) return;
-      const p = toBoard(e), q = stroke.points.at(-1);
-      if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.4) { stroke.points.push(p); this.paint(); }
+      const p = toBoard(e);
+      if (this.pen.tool === 'line') stroke.points[1] = p;
+      else if (stroke.type === 'rect') Object.assign(stroke, { x: Math.min(from[0], p[0]), y: Math.min(from[1], p[1]), w: Math.abs(p[0] - from[0]), h: Math.abs(p[1] - from[1]) });
+      else if (stroke.type === 'circle') stroke.r = +Math.hypot(p[0] - from[0], p[1] - from[1]).toFixed(1);
+      else {
+        const q = stroke.points.at(-1);
+        if (Math.hypot(p[0] - q[0], p[1] - q[1]) <= 0.4) return;
+        stroke.points.push(p);
+      }
+      this.paint();
     });
     const end = () => {
       if (!stroke) return;
@@ -202,18 +229,36 @@ export class Whiteboard {
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
 
-    const swatches = PALETTE.map((c) => {
-      const b = el('button', { class: 'wb-swatch', style: `background:${c}`, title: c === '#ffffff' ? 'eraser' : c });
-      b.addEventListener('click', () => { this.color = c; swatches.forEach((s) => s.classList.toggle('on', s === b)); });
-      return b;
-    });
-    swatches[0].classList.add('on');
+    // The toolbar: what to draw with, how thick, what color (any, past the swatches), and
+    // whether shapes are filled. Remembered in this browser.
+    const keep = () => { try { localStorage.setItem(KEEP, JSON.stringify(this.pen)); } catch {} };
+    const group = (items, on) => { items.forEach(([b, v]) => b.classList.toggle('on', on(v))); };
+    const tools = TOOLS.map(([id, icon, name]) => [el('button', { class: 'wb-tool', title: name, 'aria-label': name, onclick: () => { this.pen.tool = id; keep(); refresh(); } }, icon), id]);
+    const sizes = SIZES.map((w, i) => [el('button', { class: 'wb-size', title: `brush ${i + 1}`, 'aria-label': `brush size ${i + 1}`, onclick: () => { this.pen.size = i; keep(); refresh(); } },
+      el('i', { style: `width:${4 + i * 3}px;height:${4 + i * 3}px` })), i]);
+    const swatches = PALETTE.map((c) => [el('button', { class: 'wb-swatch', style: `background:${c}`, title: c, 'aria-label': `color ${c}`, onclick: () => { this.pen.color = c; if (this.pen.tool === 'eraser') this.pen.tool = 'pen'; keep(); refresh(); } }), c]);
+    const custom = el('input', { class: 'wb-custom', type: 'color', title: 'any color', value: this.pen.color });
+    custom.addEventListener('input', () => { this.pen.color = custom.value; if (this.pen.tool === 'eraser') this.pen.tool = 'pen'; keep(); refresh(); });
+    const fill = el('button', { class: 'wb-tool', title: 'fill shapes', onclick: () => { this.pen.fill = !this.pen.fill; keep(); refresh(); } }, '◼');
+    const refresh = () => {
+      group(tools, (v) => v === this.pen.tool);
+      group(sizes, (v) => v === this.pen.size);
+      group(swatches, (v) => v === this.pen.color);
+      custom.classList.toggle('on', !PALETTE.includes(this.pen.color));
+      fill.classList.toggle('on', this.pen.fill);
+      for (const [b] of sizes) b.firstChild.style.background = this.pen.tool === 'eraser' ? PAPER : this.pen.color;
+    };
+    refresh();
     this.batonEl = el('div', { class: 'wb-baton' });
     const bar = el('div', { class: 'wb-bar' },
-      ...swatches,
+      el('div', { class: 'wb-group' }, ...tools.map(([b]) => b), fill),
+      el('div', { class: 'wb-group' }, ...sizes.map(([b]) => b)),
+      el('div', { class: 'wb-group wb-colors' }, ...swatches.map(([b]) => b), custom),
       el('button', { class: 'wb-btn', onclick: () => this.undo(this.frame.seat) }, 'undo'),
       el('button', { class: 'wb-btn', onclick: () => { if (confirm('Clear the whiteboard?')) this.clear(this.frame.seat); } }, 'clear'),
+      el('button', { class: 'wb-btn', title: 'a bigger board to draw on (Esc to put it back)', onclick: () => root.classList.toggle('wb-big') }, '⤢'),
       this.batonEl);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') root.classList.remove('wb-big'); });
     const holder = el('div', { class: 'wb-holder' }, canvas);
     root.append(el('div', { class: 'pane-label' }, 'whiteboard: sketch an idea, then hand it over'), holder, bar);
     // Keep the board's shape: as large as fits, centred, so pointer maths stays exact.

@@ -62,7 +62,7 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 |---|---|---|
 | **stage** | a canvas (640×360 to start; a game sets its own size, up to 1920×1080) with a frame clock, input, an on-screen pad on touch screens, fast-forward, a caption; 2D, or 3D with three.js (and its add-ons, and Rapier physics) under a 2D HUD | run its game at frame rate; play itself (`press`, `hold`, `point`, `advance`, `look`) |
 | **chat** | a rolling conversation | talk: people see only the surfaces, so if it isn't said here, it wasn't heard |
-| **whiteboard** | a 100×60 sketch board with a baton | sketch ideas together; a turn brings a picture of the board if it changed |
+| **whiteboard** | a 100×60 sketch board with a baton; people draw with a pen, an eraser, lines, rectangles, circles (filled or not) and text, in five brush sizes and any color, and can enlarge it | sketch ideas together; a turn brings a picture of the board if it changed |
 | **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
 | **art** | pictures painted by an image model, kept with the ludant | sprites, backgrounds, its game reimagined in a style |
 | **choices** | a question with pictured options, over the stage | let people pick instead of type |

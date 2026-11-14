@@ -2754,3 +2754,16 @@ Deployed on Robby's say ("go ahead and push"), as version b1670356. Smoke passed
 - **Quoting to edit.** `old` must be exact and unique, so a ludant quotes generously, and a near-miss costs a whole round. Options: replace by line range (it already sees line numbers from `read_section` and the outline), or forgive whitespace when matching.
 - **Rewrites.** Ludants often `write_section` a whole 10–15k game for a small change: every character goes out as output, the slowest and dearest tokens. Better edits make that rarer; the contract could say when a rewrite is worth it.
 - **The soma every call.** The live soma is drawn fresh after the conversation on every turn, so it's never cached, and text sections come whole each time. With 50 turns a wake that adds up. Showing only what changed since the last call within a wake (or the soma once per wake, with changes after), and keeping big text sections as outlines like code, would cut it. Measure first: tokens in and out per turn from the logs, on a long build.
+
+## Part 30: a better whiteboard
+
+Robby: "im using the whiteboard a lot more. i'd like more colors and able to choose brush size and the like plz". Before, it had seven swatches (white doubling as an eraser) and one pen width.
+- **Tools:** pen, eraser (draws in the paper's color, twice the brush width), line, rectangle, circle, and text (click where it goes; it asks for the words). Rectangles and circles are dragged out, filled or not.
+- **Five brush sizes,** shown as dots in the current color.
+- **Thirteen colors,** plus a picker for any color.
+- **⤢ enlarges the board** over the frame (Esc puts it back). In the layout it's small: on a desktop the enlarged board is 1044×626 instead of about 250 tall.
+- The tool, color, size and fill are remembered in the browser.
+
+Ludants draw as they did (`draw(shapes)` already took colors, widths, fills and every shape), and see erasing as strokes in the paper's color when they look. Checked by drawing with each tool, on a desktop, enlarged, and on a phone (the toolbar wraps into rows).
+
+![whiteboard tools](shots/30-whiteboard-tools.png)

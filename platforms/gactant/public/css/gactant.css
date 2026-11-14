@@ -69,6 +69,7 @@ body.frame-page > .top { flex: none; }
 .pane { background: var(--pane); border: 1px solid var(--line); border-radius: 10px; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .stage-pane { grid-area: stage; background: #08090c; }
 .wb-pane { grid-area: wb; }
+.wb-pane.wb-big { position: fixed; inset: 56px 16px 16px; z-index: 40; box-shadow: 0 10px 40px #000a; }
 .chat-pane { grid-area: chat; }
 .insp-pane { grid-area: insp; }
 
@@ -97,7 +98,13 @@ body.frame-page > .top { flex: none; }
 .wb-canvas { touch-action: none; cursor: crosshair; border-radius: 4px; }
 .wb-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .wb-swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); padding: 0; }
-.wb-swatch.on { border-color: var(--amber); }
+.wb-swatch.on, .wb-custom.on { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.wb-group { display: flex; align-items: center; gap: 4px; padding-right: 6px; border-right: 1px solid var(--line); }
+.wb-colors { flex-wrap: wrap; gap: 3px; max-width: 100%; }
+.wb-tool, .wb-size { min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: var(--pane-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; color: var(--ink-2); font-size: 15px; }
+.wb-tool.on, .wb-size.on { border-color: var(--amber); color: var(--amber); }
+.wb-size i { display: block; border-radius: 50%; border: 1px solid #0006; }
+.wb-custom { width: 26px; height: 24px; padding: 0; border: 2px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
 .wb-btn { background: var(--pane-2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; }
 .wb-btn.primary { background: var(--amber); color: #1a1408; border-color: var(--amber); font-weight: 600; }
 .wb-baton { margin-left: auto; display: flex; gap: 6px; align-items: center; }
