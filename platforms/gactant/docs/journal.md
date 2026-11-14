@@ -2857,3 +2857,5 @@ Robby: "go ahead and deploy. of the 8 lets do them all except 6. i don't underst
 - **Not done: 6** (budgets racing under concurrent requests), as Robby chose.
 
 Smoke passes in Node, and against `wrangler dev` with fresh data except the publish check (Workers AI can't run locally).
+
+Deployed on Robby's say ("yea, deploy"), as version f340513c. Smoke passed first. Checked after: config answers with the new version, the lobby's slim list loads, and recovery.js is served. Existing recovery codes (Robby's included) stop working: the lobby and /me.html ask for a new one.
