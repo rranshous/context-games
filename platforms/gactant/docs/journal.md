@@ -2771,3 +2771,24 @@ Ludants draw as they did (`draw(shapes)` already took colors, widths, fills and 
 Deployed on Robby's say ("deploy it!"). Smoke passed first; the new whiteboard.js is served.
 
 **"just play" means it.** Robby: "when the openrouter popup occurs clicking just play suppresses it the rest of the session". Before, every message to a ludant with no AI connected brought the connect banner back. Now "just play" is remembered in sessionStorage (this browser tab, across reloads and other ludants, until the tab closes), and the banner doesn't come again; the chat notice says so once, and the amber "connect an AI" at the top still connects. Checked on the review server: a message, the banner, "just play", another message (no banner), a reload, a third message (no banner).
+
+## Part 31: terse edits
+
+Robby: "we need to improve the speed the ludants operate at. i'm thinking that we should try and optimize the model output, shorten it. make tools that allow it to be terse when selecting what to overwrite, maybe get the table supporting something similar".
+
+**Measured first** (the local inference logs, 113 calls since Oct 25, all Sonnet 5.5): output runs about 7 ms a token. Rewriting the game section was the slow thing by far: 7–14k characters a time, **35–55 seconds a call**, 11 calls carrying 54k characters. 38 `edit_section` calls carried 19k between them, at about 2.5 s each. Reasoning was a quarter of output tokens. Input was 16k tokens a call, 75% from cache.
+
+**What changed** (`public/js/edits.js`, shared by the soma and the table):
+- `edit_section(section, edits)`: several edits in one call, all or none, each naming its place one of four ways: `old` (exact text, appearing once; failing that, a match that differs only in spacing and indentation), `from` + `to` (from the start of one through the end of the other: a whole function replaced by quoting only its first and last lines), `lines: [a, b]` (as `read_section` numbers them), or `after` (a line number or a piece of text; 0 is the top), each with `new`. They all refer to the text as it was before the call, so line numbers don't shift under each other. Overlaps are refused. It answers with the lines each edit now sits on, so checking doesn't take another read. One edit given flat (`{ section, old, new }`) still works.
+- `write_section` says it's the slowest thing a ludant does, for new sections or near-total rewrites only.
+- The table's `editDraft(id, edits)`: the same edits on a rulebook draft (read, edited, written back by the frame).
+- In the changelog, the tool descriptions, the table's description, the seed's `table` tool and the README.
+
+**Tried on a real ludant** (local, the server's key): a new ludant, Anuna, built a breakout game (5k characters, one `write_section`, 11¢). Then: "make the ball red and twice as fast, give the bricks a rainbow of colors by row, and show the score in the top left". It read the game once and made the whole change in **one `edit_section` with several edits**. Then it played it, told Speedy2, and noted the change in memory with an `after` insert. **22 seconds** from asking to its answer, 8¢. The same kind of change used to be a 35–55 second rewrite before any checking.
+
+**Not done, worth trying next:**
+- **Reasoning effort.** A quarter of the output is reasoning; `reasoning: { effort: 'low' }` for most wakes would be quicker. Measure quality first.
+- **The live soma every call** (from the earlier idea): the soma is drawn fresh after the conversation on every turn, never cached.
+- **A quicker model for small things.** Sonnet for building, Haiku for chat replies, say.
+
+Two test ludants were left in Robby's local data (Woven, Anuna-Breakout).

@@ -108,7 +108,13 @@ whole. A code section too long to show whole is shown as an outline of where thi
 start in it, by line number, and the ludant reads and searches the rest with
 `read_section` and `search_sections`, the way coding agents work in a codebase. (Those
 two, with `write_section` and `edit_section`, are innate: always its own, whatever it does
-to its tools.) So is `report_problem_to_gactant_admins`: when something in its world
+to its tools.) `edit_section` takes several edits in one call, each naming its place
+tersely (`public/js/edits.js`): exact text (spacing forgiven), `from` + `to` (a whole
+function by its first and last lines), `lines: [a, b]`, or `after` (a line or text, to
+insert). They refer to the section as it was before the call and apply together or not
+at all. Writing is the slow part of thinking, so `write_section` is for new sections or
+near-total rewrites; the table's `editDraft` does the same for rulebook drafts.
+`report_problem_to_gactant_admins` is innate too: when something in its world
 doesn't work the way it was told (a surface, the table), it can write up what it was
 trying, what went wrong and what it tried. Its person sees the report and sends it or
 doesn't. With it go the soma, its rules drafts, the matches it's following and its

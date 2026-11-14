@@ -27,6 +27,7 @@
 // halting, say) are allowed a few in a row, then the actant rests until a human acts.
 
 import { recentChanges } from './changes.js';
+import { applyEdits } from './edits.js';
 import { nameOf } from './names.js';
 import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.js';
 
@@ -144,13 +145,12 @@ export class Actant {
     return { section: name, chars: content.length, fault: this.faults[name] ?? null };
   }
 
-  editSection(name, old, replacement, by) {
+  /** Several edits at once (edits.js), each naming its place tersely; all or none. */
+  editSection(name, edits, by) {
     const content = this.soma.sections[name];
     if (content == null) throw new Error(`no section ${name}`);
-    const at = content.indexOf(old);
-    if (!old || at < 0) throw new Error(`text not found in ${name}`);
-    if (content.indexOf(old, at + 1) >= 0) throw new Error(`text appears more than once in ${name}; include more around it`);
-    return this.writeSection(name, content.slice(0, at) + replacement + content.slice(at + old.length), by);
+    const { text, spans } = applyEdits(content, edits);
+    return { ...this.writeSection(name, text, by), changed: spans.map((s) => `edit ${s.edit}: now lines ${s.lines[0]}-${s.lines[1]}`) };
   }
 
   /** Compile code sections and reconnect to the surfaces. Only what changed is rebuilt,
@@ -323,7 +323,8 @@ export class Actant {
     try {
       let out;
       if (name === 'write_section') out = this.writeSection(input.section, input.content, this.name);
-      else if (name === 'edit_section') out = this.editSection(input.section, input.old, input.new, this.name);
+      // Forgiving: one edit given flat ({ section, old, new }) is a list of one.
+      else if (name === 'edit_section') { const { section, edits, ...one } = input; out = this.editSection(section, edits ?? one, this.name); }
       else if (name === 'read_section') out = readSection(this.soma.sections, input);
       else if (name === 'search_sections') out = searchSections(this.soma.sections, input);
       else if (name === REPORT_TOOL) out = await this.me.surfaces.admins.report(input);
@@ -371,10 +372,12 @@ export class Actant {
   toolSchemas() {
     const innate = [
       ...VIEW_TOOLS,
-      { name: 'write_section', description: 'Replace one of your soma sections entirely, or create a new one. Code sections (tools, game, hooks) recompile at once. An empty text section is removed.',
+      { name: 'write_section', description: 'Replace one of your soma sections entirely, or create a new one. Code sections (tools, game, hooks) recompile at once. An empty text section is removed. Writing is the slowest thing you do (a 10,000-character game takes most of a minute), so for an existing section, change what needs changing with edit_section, and write a section whole only when it\'s new or most of it changes.',
         input_schema: { type: 'object', properties: { section: { type: 'string' }, content: { type: 'string' } }, required: ['section', 'content'] } },
-      { name: 'edit_section', description: 'Replace an exact, unique piece of text in one of your soma sections. Code sections recompile at once.',
-        input_schema: { type: 'object', properties: { section: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } }, required: ['section', 'old', 'new'] } },
+      { name: 'edit_section', description: 'Change one of your soma sections in several places at once, saying where as tersely as you can. Each edit names its place one way and gives new (the text that goes there; "" deletes): old (exact text appearing once; a match differing only in spacing will do), from + to (from the start of from through the end of to: replace a whole function by quoting just its first and last lines), lines [a, b] (as read_section numbers them), or after (a line number, or text appearing once: new is inserted on the lines after it; 0 is the top). All of one call\'s edits refer to the section as it was before the call (line numbers too), mustn\'t overlap, and apply together or not at all. It answers with the lines each edit now sits on. Code sections recompile at once.',
+        input_schema: { type: 'object', properties: { section: { type: 'string' }, edits: { type: 'array', items: { type: 'object', properties: {
+          old: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' }, lines: { type: 'array', items: { type: 'number' }, description: '[first, last]' },
+          after: { description: 'a line number, or text appearing once' }, new: { type: 'string' } }, required: ['new'] } } }, required: ['section', 'edits'] } },
       { name: PERSON_TOOL, description: 'Report the person with you to the people who run gactant, for something serious: asking you for anything illegal (above all anything sexual involving a minor), real threats, harassing someone, or pushing you again and again to break the site\'s rules after you\'ve said no. Not for rudeness, or for one thing you turned down: say no kindly first. It\'s sent at once, without asking them, with the last 30 messages of the chat and a picture of the stage, and they\'re shown that you sent it and what you wrote, so write it as you\'d say it to their face: what happened, plainly, and why it crosses the line.',
         input_schema: { type: 'object', properties: { who: { type: 'string', description: 'their name in the chat' }, what: { type: 'string', description: 'what happened' }, why: { type: 'string', description: 'why it crosses the line' } }, required: ['what'] } },
       { name: REPORT_TOOL, description: 'Tell the people who run gactant about a problem with your world that isn\'t yours to fix: a surface or the table not doing what its description says, an error you can\'t get past, something you need that isn\'t there. Say what you were trying to do, what went wrong (the exact error, if there was one) and what you tried. The person here sees it first and decides whether to send it; nothing goes unless they do. Your soma, your rules drafts, the matches you\'re following and your recent tool calls go with it; the chat never does. Waits for their answer. The admins answer with letters, which appear in your soma (section letters_from_gactant_admins); to answer a letter, call this again with about set to that report\'s id and what you want to say in wrong (your soma goes too only if with_soma is true).',
