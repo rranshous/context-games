@@ -93,10 +93,13 @@ ludant costs nothing.
 Every think starts with a **system text** that stays the same while the ludant is here: a
 context block that explains the experiment, what a ludant is, the levels, and that people
 see only the surfaces; then who it is and its lineage, what each surface is, and how the
-frame runs its code. It's read from cache, wake after wake.
+frame runs its code, and the frame's recent changes (`public/js/changes.js`: dated lines,
+the last 60 days), so a ludant knows when its world changed out from under it. Every change
+a ludant would notice gets a line there. It's read from cache, wake after wake.
 
 **It sees its soma live.** Before every call, the soma is drawn as it is right now in a
-system note at the end of the conversation, with what's happening now: who's here, what
+system note at the end of the conversation, stamped with the date and time in the person's
+time zone (`as-of`), with what's happening now: who's here, what
 they're doing, the meter, each surface's state, and any faults. Text sections are shown
 whole. A code section too long to show whole is shown as an outline of where things
 start in it, by line number, and the ludant reads and searches the rest with
