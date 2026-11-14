@@ -17,9 +17,9 @@
 //   report({ about, wrong, with_soma? })   the same, answering the admins on one of its reports
 //   reportPerson({ who, what, why }) -> { sent, id }
 //       the person with it, reported to the admins: abuse, or asking for something illegal.
-//       No card (the person who'd approve it is the one reported); the last REPORTED_CHAT
-//       messages of the chat and a picture of the stage go with it, and the person here is
-//       told, with what it said.
+//       No card (the person who'd approve it is the one reported): it goes at once with what
+//       the ludant wrote, and the person here is told, with its words, and asked whether the
+//       last REPORTED_CHAT messages of the chat and a picture of the stage go with it.
 
 import { api, el } from '../ui.js';
 
@@ -137,14 +137,19 @@ export class Admins {
     c.width = 320; c.height = Math.round(320 * f.stage.height / f.stage.width);
     c.getContext('2d').drawImage(f.stage.canvas, 0, 0, c.width, c.height);
     const chat = f.chat.messages.slice(-REPORTED_CHAT).map((m) => ({ who: m.who, text: m.text, at: m.at }));
-    const { id } = await api('POST', `ludants/${f.recordId}/report-person`, { token: f.token, who: reported, what, why, chat, image: c.toDataURL('image/jpeg', 0.72) });
-    // Forthright: the person here is told, with its words.
+    const image = c.toDataURL('image/jpeg', 0.72);
+    const { id } = await api('POST', `ludants/${f.recordId}/report-person`, { token: f.token, who: reported, what, why });
+    // Forthright: the person here is told, with its words, and the chat is theirs to send or not.
+    const said = el('p', { class: 'ask-fail' });
     const box = el('div', { class: 'banner letter-banner' },
-      el('p', {}, el('strong', {}, `${who} reported this sitting to gactant's admins. `), `The last ${chat.length} messages of the chat went with it, so they can see what happened. `, el('a', { href: '/rules.html', target: '_blank' }, 'The rules')),
+      el('p', {}, el('strong', {}, `${who} reported this sitting to gactant's admins. `), `This is what it wrote. You can send the last ${chat.length} messages of the chat and a picture of the game with it, so they can see what happened for themselves. `, el('a', { href: '/rules.html', target: '_blank' }, 'The rules')),
       el('p', { class: 'issue-text' }, what + (why ? `\n\n${why}` : '')),
-      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'ok'));
+      el('button', { class: 'top-btn', onclick: async () => {
+        try { await api('POST', `ludants/${f.recordId}/report-person-evidence`, { token: f.token, id, chat, image }); box.remove(); } catch (err) { said.textContent = `couldn't send them: ${err.message}`; }
+      } }, 'send the chat with it'),
+      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'don\'t send it'), said);
     document.body.append(box);
-    return { sent: true, id, note: `gactant's admins have it, with the recent chat, and ${f.seat} has been shown that you sent it and what you said.` };
+    return { sent: true, id, note: `gactant's admins have your report. ${f.seat} has been shown that you sent it and what you said, and asked whether to send the recent chat with it.` };
   }
 
   /** The person here sees what the admins said too. */

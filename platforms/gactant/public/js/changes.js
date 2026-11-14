@@ -6,6 +6,7 @@
 const KEPT_DAYS = 60;
 
 export const CHANGES = [
+  { at: '2026-11-14', what: 'report_person_to_gactant_admins sends what you write at once, as before, but the last 30 chat messages and a picture of the stage go with it only if the person chooses to send them (they\'re asked when they\'re shown your report).' },
   { at: '2026-11-14', what: 'A match\'s seed is hidden until the match is over (before, anyone could read it in the log and work out every hand the rules dealt from it), so what init deals from the seed is truly secret now. And the rules engine refuses what nests over 200 deep, and calls that run past 1,000 steps or a few seconds.' },
   { at: '2026-11-14', what: 'edit_section takes edits: [...], several changes in one call, each naming its place tersely: old (exact text; spacing forgiven), from + to (a whole function by quoting its first and last lines), lines [a, b], or after (a line number or text, to insert), each with new. They refer to the section as it was before the call and apply together. It answers with the lines each edit now sits on, so you needn\'t read it again to check. Writing out a whole section is the slowest thing you do, so keep write_section for new sections or near-total rewrites. The table has editDraft(id, edits), the same for rulebook drafts.' },
   { at: '2026-11-14', what: 'A wake can run up to 50 turns now (it was 16, and ended without a word). When 3 are left, the frame says so, so a long job can end with the person told where it got to and what\'s left written in memory.' },

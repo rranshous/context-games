@@ -63,8 +63,10 @@
 //   POST ludants/<id>/issue { token, by, title, trying, wrong, tried, soma, table, doings } -> { id }
 //                                                   a problem the ludant reported and its person sent (surfaces/admins.js)
 //                                                   about: one of its reports, to answer the admins there
-//   POST ludants/<id>/report-person { token, who, what, why, chat, image } -> { id }   the ludant reports the person
-//                                                   with it (with the recent chat); a ⚑ report from a ludant
+//   POST ludants/<id>/report-person { token, who, what, why } -> { id }   the ludant reports the person with it;
+//                                                   a ⚑ report from a ludant
+//   POST ludants/<id>/report-person-evidence { token, id, chat, image } -> { added }   the recent chat and a
+//                                                   picture, if the person reported chooses to send them
 //   GET  ludants/<id>/mail                       -> [{ id, issue, title, at, text }]   letters waiting (its owner)
 //   POST ludants/<id>/mail { token, took }       -> { mail }   the ones its frame has written into its soma
 //   POST ludants/<id>/release { token }          -> {}
@@ -811,8 +813,8 @@ export function createCore({ store, settings }) {
         const counted = limit('report-person', b, PERSON_REPORTS_A_DAY, `that's ${PERSON_REPORTS_A_DAY} reports about people from this ludant today`);
         const what = String(body.what ?? '').trim().slice(0, 4000);
         if (!what) throw httpError(400, 'say what happened');
-        const chat = (Array.isArray(body.chat) ? body.chat : []).slice(-REPORTED_CHAT).map((m) => ({ who: String(m?.who ?? '').slice(0, 60), text: String(m?.text ?? '').slice(0, 2000), at: m?.at ?? null }));
-        const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
+        // What was said goes with it only if the person chooses (report-person-evidence).
+        const chat = [], image = null;
         const id = `f-${hex(4)}`;
         const named = from.person ? (await store.get('people', from.person))?.name ?? null : null;
         await store.put('flags', id, { id, at: now(), status: 'open', reason: 'person', from: 'ludant', note: what, why: String(body.why ?? '').slice(0, 2000),
@@ -821,6 +823,16 @@ export function createCore({ store, settings }) {
         ops.count('flag person');
         settings.opsLog?.({ flag: 'person', ludant: b });
         return { id };
+      }
+      // The person a ludant reported chose to send the recent chat and a picture with it.
+      if (c === 'report-person-evidence' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        const f = await store.get('flags', safe(body.id));
+        if (!f || f.ludant !== b || f.from !== 'ludant' || f.chat?.length || f.image) throw httpError(404, 'no report waiting for that');
+        f.chat = (Array.isArray(body.chat) ? body.chat : []).slice(-REPORTED_CHAT).map((m) => ({ who: String(m?.who ?? '').slice(0, 60), text: String(m?.text ?? '').slice(0, 2000), at: m?.at ?? null }));
+        f.image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
+        await store.put('flags', f.id, f);
+        return { added: true };
       }
       // Letters from the admins waiting for it; took: the ones its frame has written into its soma.
       if (c === 'mail' && method === 'GET') { if (!owns(ludant, from)) throw notYours(ludant); return ludant.mail ?? []; }
