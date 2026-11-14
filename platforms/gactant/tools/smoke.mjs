@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { genesisText, signedText } from '../match.mjs';
+import { recoveryProof } from '../public/js/recovery.js';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 // --base <url>: against a server that's already running (`wrangler dev`, say, with ADMIN_TOKEN
@@ -151,20 +152,21 @@ try {
 
   // Every device lost: the recovery code.
   const A3 = await device();
-  const back = await call('POST', 'people/join', { label: 'smoke A3', key: A3.key, recovery: made.json.recovery.toUpperCase().replace(/-/g, ' '), ...(await A3.prove()) });
+  const back = await call('POST', 'people/join', { label: 'smoke A3', key: A3.key, recoveryProof: await recoveryProof(made.json.recovery.toUpperCase().replace(/-/g, ' ')), ...(await A3.prove()) });
   ok('the recovery code brings them back, and gives a new one', back.json.person?.id === me.id && back.json.recovery && back.json.recovery !== made.json.recovery, JSON.stringify(back.json));
-  ok('the old recovery code stops working', (await call('POST', 'people/join', { label: 'x', key: (await device()).key, recovery: made.json.recovery, ...(await A3.prove()) })).status === 401);
+  ok('the old recovery code stops working', (await call('POST', 'people/join', { label: 'x', key: (await device()).key, recoveryProof: await recoveryProof(made.json.recovery), ...(await A3.prove()) })).status === 401);
 
   // Sealing: the person's key goes between their devices; the server only carries it, sealed.
   const words = () => Array.from({ length: 12 }, () => 'bada').join('-').replace(/bada/g, () => ['ba', 'de', 'fi', 'go', 'hu'][Math.random() * 5 | 0] + ['ka', 'le', 'mi', 'no', 'pu'][Math.random() * 5 | 0]);
   const vault = { iv: 'v-iv', data: 'v-wrapped-key' };
   const K = await device();
-  const sealer = await call('POST', 'people', { name: 'Sealer', label: 'K1', key: K.key, ...(await K.prove()), recovery: words(), vault });
+  const sealer = await call('POST', 'people', { name: 'Sealer', label: 'K1', key: K.key, ...(await K.prove()), recoveryProof: await recoveryProof(words()), vault });
   ok('a browser makes the recovery code and its vault; the server doesn\'t see the code again', sealer.status === 200 && !sealer.json.recovery && sealer.json.person.vault?.data === 'v-wrapped-key', JSON.stringify(sealer.json));
   const kpass = sealer.json.pass;
-  ok('a recovery code that isn\'t twelve words is refused', (await call('POST', 'people/recovery', { recovery: 'abc', vault, ...(await K.prove()) }, as(kpass))).status === 400);
+  ok('a recovery code\'s proof that isn\'t one is refused', (await call('POST', 'people/recovery', { recoveryProof: 'abc', vault, ...(await K.prove()) }, as(kpass))).status === 400);
+  ok('and the code itself is never what\'s sent: a code in its place is refused', (await call('POST', 'people/recovery', { recoveryProof: words(), vault, ...(await K.prove()) }, as(kpass))).status === 400);
   ok('the server won\'t make a code that would lock the key away', (await call('POST', 'people/recovery', { ...(await K.prove()) }, as(kpass))).status === 409);
-  ok('nor take a first key twice', (await call('POST', 'people/recovery', { recovery: words(), vault, first: true, ...(await K.prove()) }, as(kpass))).status === 409);
+  ok('nor take a first key twice', (await call('POST', 'people/recovery', { recoveryProof: await recoveryProof(words()), vault, first: true, ...(await K.prove()) }, as(kpass))).status === 409);
   const { code: kcode } = (await call('POST', 'people/pair', { ...(await K.prove()) }, as(kpass))).json;
   const K2 = await device();
   const kbox = { kty: 'EC', crv: 'P-256', x: 'bx', y: 'by' };
@@ -179,8 +181,8 @@ try {
   ok('which says it took it', !(await call('POST', 'people/took', {}, as(k2.json.pass))).json.devices.some((d) => d.asking || d.handed));
   const K3 = await device();
   const krec = words();
-  await call('POST', 'people/recovery', { recovery: krec, vault: { iv: 'v2-iv', data: 'v2-wrapped' }, ...(await K.prove()) }, as(kpass));
-  const k3 = await call('POST', 'people/join', { label: 'K3', key: K3.key, recovery: krec, ...(await K3.prove()) });
+  await call('POST', 'people/recovery', { recoveryProof: await recoveryProof(krec), vault: { iv: 'v2-iv', data: 'v2-wrapped' }, ...(await K.prove()) }, as(kpass));
+  const k3 = await call('POST', 'people/join', { label: 'K3', key: K3.key, recoveryProof: await recoveryProof(krec), ...(await K3.prove()) });
   ok('with the recovery code, a new device gets the vault to open, and makes the next code itself', k3.json.person?.vault?.data === 'v2-wrapped' && !k3.json.recovery, JSON.stringify(k3.json));
   ok('a sealed person\'s ludants are sealed too: a wipe leaves only sealed ones', typeof (await call('POST', 'admin/wipe-unsealed', { token: TOKEN })).json.wiped === 'number');
   ok('over http, a public site won\'t take a secret instead of a key', (await call('POST', 'people', { name: 'X', secret: 'x'.repeat(40), ...(await A.prove()) })).status === 400);

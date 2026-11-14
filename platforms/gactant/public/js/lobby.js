@@ -283,3 +283,11 @@ renderMe();
 // Another of this person's devices may be waiting for their key: hand it over.
 handOver().catch(() => {});
 render().catch((err) => document.getElementById('lobby').replaceChildren(el('p', { class: 'boot-fault' }, `couldn't load the lobby: ${err.message}`)));
+// A recovery code from before codes were checked by proof doesn't work any more: once a
+// sitting, ask whether theirs is one, and if so, offer a new one like any due code.
+try {
+  if (myName() && !recoveryDue() && !sessionStorage.getItem('gactant-recovery-checked')) {
+    sessionStorage.setItem('gactant-recovery-checked', '1');
+    mine('me').then((me) => { if (me.recoveryStale) { recoveryDue(true); render().catch(() => {}); } }).catch(() => {});
+  }
+} catch {}

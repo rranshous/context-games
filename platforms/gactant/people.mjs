@@ -16,8 +16,9 @@
 // person's content key, so the server keeps only ciphertext (identity.js). The server never
 // sees that key. It keeps two things that let a person's devices share it:
 //   the vault    the key wrapped under a key derived from the recovery code, which the
-//                browser makes (so the server never learns what unlocks it; it keeps only a
-//                hash of the code, as before). A recovery code from a device that has the key
+//                browser makes. The server never sees the code: the browser sends a proof
+//                derived from it apart from the vault key (public/js/recovery.js), and the
+//                server keeps a hash of that. A recovery code from a device that has the key
 //                comes with a new vault.
 //   handing over a device without the key offers a public key of its own (box); a device of
 //                theirs that has the key wraps it for that box (handed). Pairing a device
@@ -48,8 +49,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 const C = 'bdfghjklmnprstvz', V = 'aeiou';
 const word = () => { const r = crypto.getRandomValues(new Uint8Array(4)); return C[r[0] % 16] + V[r[1] % 5] + C[r[2] % 16] + V[r[3] % 5]; };
 const recoveryCode = () => Array.from({ length: 12 }, word).join('-');
-const tidyCode = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
-const isRecoveryCode = (s) => /^([bdfghjklmnprstvz][aeiou]){2}(-([bdfghjklmnprstvz][aeiou]){2}){11}$/.test(tidyCode(s));
 // A device code: eight letters and digits that can't be mistaken for each other.
 const PAIR_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 const pairCode = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => PAIR_CHARS[b % PAIR_CHARS.length]).join('').replace(/^(.{4})/, '$1-');
@@ -67,6 +66,8 @@ export async function readPass(token, secret) {
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
   try { return await crypto.subtle.verify('HMAC', key, unb64u(mac), enc.encode(`pass.v1.${person}.${device}.${until}`)) ? { person, device } : null; } catch { return null; }
 }
+
+import { isRecoveryProof, recoveryProof } from './public/js/recovery.js';
 
 const GUARDED = ['pair', 'remove', 'recovery', 'hand'];   // routes that ask for a fresh proof
 
@@ -87,6 +88,8 @@ export function createPeople({ store, settings, httpError, limit }) {
   const put = async (p) => { cache.set(p.id, p); await store.put('people', p.id, p); };
   const shown = (p, device) => ({
     id: p.id, name: p.name, created: p.created, recoveryAt: p.recoveryAt ?? null, vault: p.vault ?? null,
+    // A code from before the server stopped seeing codes doesn't work any more: make a new one.
+    recoveryStale: p.recoveryV !== 2,
     devices: p.devices.map((d) => ({
       id: d.id, label: d.label, added: d.added, seen: d.seen, kind: d.key ? 'key' : 'secret', current: d.id === device,
       // Asking for the key: its box, for a device that has the key to wrap it for.
@@ -153,23 +156,25 @@ export function createPeople({ store, settings, httpError, limit }) {
   }
 
   /** A new recovery code for them; the old one stops working. Kept as a hash, indexed by it. */
-  async function setRecovery(p, code, vault = null) {
+  async function setRecovery(p, proof, vault = null) {
     if (p.recovery) await store.remove('recoveries', p.recovery);
-    p.recovery = await sha(`recovery.${tidyCode(code)}`);
+    p.recovery = await sha(`recovery.v2.${proof}`);
     p.recoveryAt = new Date().toISOString();
+    p.recoveryV = 2;
     if (vault) p.vault = sealedOf(vault);
     await store.put('recoveries', p.recovery, { person: p.id });
   }
   /** A recovery code the browser made, with the vault it made under it. Without them, the
    *  server makes the code, but not for someone whose key it would lock away (a vault). */
-  function newRecovery(p, body) {
-    if (body.recovery != null || body.vault != null) {
-      if (!isRecoveryCode(body.recovery)) throw httpError(400, 'a recovery code is twelve words');
+  async function newRecovery(p, body) {
+    if (body.recoveryProof != null || body.vault != null) {
+      if (!isRecoveryProof(body.recoveryProof)) throw httpError(400, 'a recovery code\'s proof is 64 hex digits');
       if (!isSealed(body.vault)) throw httpError(400, 'a new recovery code comes with the vault it unlocks');
-      return { code: tidyCode(body.recovery), vault: body.vault, made: false };
+      return { proof: body.recoveryProof, vault: body.vault, made: false };
     }
     if (p.vault) throw httpError(409, 'your recovery code also unlocks your private things, so a new one is made on a device that has them');
-    return { code: recoveryCode(), vault: null, made: true };
+    const code = recoveryCode();
+    return { code, proof: await recoveryProof(code), vault: null, made: true };
   }
 
   // ---------- passes ----------
@@ -204,8 +209,8 @@ export function createPeople({ store, settings, httpError, limit }) {
       if (!name) throw httpError(400, 'a person needs a name');
       const device = await newDevice(body);
       const p = { id: `p-${randomHex(8)}`, name, created: new Date().toISOString(), devices: [device] };
-      const r = newRecovery(p, body);
-      await setRecovery(p, r.code, r.vault);
+      const r = await newRecovery(p, body);
+      await setRecovery(p, r.proof, r.vault);
       await put(p);
       counted();
       return { ...(await pass(p, device)), ...(r.made ? { recovery: r.code } : {}) };
@@ -230,10 +235,10 @@ export function createPeople({ store, settings, httpError, limit }) {
         await store.remove('pairings', id);
         if (!pairing || pairing.until < Date.now()) throw httpError(401, 'that code isn\'t right, or it has expired (they last ten minutes); make a new one');
         p = await get(pairing.person);
-      } else if (body.recovery) {
+      } else if (body.recoveryProof) {
         // Recovery codes are tried a limited number of times from any one place.
         limit('recover', from.ip, 10, 'too many recovery tries from here today; try again tomorrow')();
-        const found = await store.get('recoveries', await sha(`recovery.${tidyCode(body.recovery)}`));
+        const found = isRecoveryProof(body.recoveryProof) && await store.get('recoveries', await sha(`recovery.v2.${body.recoveryProof}`));
         p = found && await get(found.person);
         if (!p) throw httpError(401, 'that recovery code isn\'t right');
       } else throw httpError(400, 'joining takes a code from another of your devices, or your recovery code');
@@ -244,7 +249,7 @@ export function createPeople({ store, settings, httpError, limit }) {
       // A recovery code that's been used is replaced. Where it also unlocks the vault, the
       // new device does that, once it has opened the vault with the old one (people/recovery).
       let recovery;
-      if (body.recovery && !p.vault) { recovery = recoveryCode(); await setRecovery(p, recovery); }
+      if (body.recoveryProof && !p.vault) { recovery = recoveryCode(); await setRecovery(p, await recoveryProof(recovery)); }
       await put(p);
       return { ...(await pass(p, fresh)), ...(recovery ? { recovery } : {}) };
     }
@@ -283,8 +288,8 @@ export function createPeople({ store, settings, httpError, limit }) {
     if (b === 'recovery') {
       // first: the vault's very first key, from a device that found nobody had one yet.
       if (body.first && p.vault) throw httpError(409, 'you already have a key; another of your devices can hand it over');
-      const r = newRecovery(p, body);
-      await setRecovery(p, r.code, r.vault);
+      const r = await newRecovery(p, body);
+      await setRecovery(p, r.proof, r.vault);
       await put(p);
       return r.made ? { recovery: r.code } : { done: true };
     }

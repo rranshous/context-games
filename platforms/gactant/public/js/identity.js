@@ -15,7 +15,8 @@
 // Private things (a ludant's chat, sketches, saves) are sealed here before they're saved, with
 // a content key that's the person's, not the device's: every device of theirs holds it, and
 // the server never does. It travels as a vault (wrapped under a key derived from the
-// recovery code, which is made here so the server never knows what opens it) and from
+// recovery code, which is made here; the server is sent only a proof derived from it apart
+// (recovery.js), so it never knows what opens the vault) and from
 // device to device (wrapped for a public key the asking device offers). See people.mjs.
 //
 //   await contentKey({ fresh })   -> the key, or null: this device hasn't got it yet (it has
@@ -30,6 +31,8 @@
 // Over plain http (a phone on the LAN reaching a local install) browsers won't do the
 // cryptography, so the device keeps a random secret instead; only a local install takes it,
 // and nothing is sealed there.
+
+import { recoveryProof, tidyCode } from './recovery.js';
 
 const DB = 'gactant', STORE = 'device', ME = 'me';
 const PASS = 'gactant-pass';
@@ -165,7 +168,7 @@ export async function become(name) {
   // opens its vault; without one (plain http), the server makes the code.
   const content = device.keys ? await newContentKey() : null;
   const recovery = content ? recoveryCode() : null;
-  const answer = await post('', { name, label: label(), ...offer, ...proved, ...(content ? { recovery, vault: await vaultFor(content, recovery) } : {}) });
+  const answer = await post('', { name, label: label(), ...offer, ...proved, ...(content ? { recoveryProof: await recoveryProof(recovery), vault: await vaultFor(content, recovery) } : {}) });
   await save({ ...device, person: answer.person.id, id: answer.person.devices.find((d) => d.current).id, ...(content ? { content } : {}) });
   keep(answer);
   return { recovery: recovery ?? answer.recovery };
@@ -177,7 +180,7 @@ export async function join({ code, recovery }) {
   // Joining with a code, this device asks for the key at once, so the device that made the
   // code can hand it over while it's still open.
   const asking = device.keys && code ? await askingKeys() : null;
-  const answer = await post('/join', { label: label(), ...offer, ...proved, ...(code ? { code } : { recovery }), ...(asking ? { box: asking.box } : {}) });
+  const answer = await post('/join', { label: label(), ...offer, ...proved, ...(code ? { code } : { recoveryProof: await recoveryProof(recovery) }), ...(asking ? { box: asking.box } : {}) });
   const saved = { ...device, person: answer.person.id, id: answer.person.devices.find((d) => d.current).id, ...(asking ? { asking: asking.keys } : {}) };
   // With the recovery code, the vault opens here; the code has been used, so a new one
   // (and a new vault under it) replaces it.
@@ -186,7 +189,7 @@ export async function join({ code, recovery }) {
     await save(saved);
     keep(answer);
     const fresh = recoveryCode();
-    await mine('recovery', { recovery: fresh, vault: await vaultFor(saved.content, fresh) });
+    await mine('recovery', { recoveryProof: await recoveryProof(fresh), vault: await vaultFor(saved.content, fresh) });
     return { recovery: fresh, name: answer.person.name };
   }
   await save(saved);
@@ -200,7 +203,6 @@ export async function join({ code, recovery }) {
 const C = 'bdfghjklmnprstvz', V = 'aeiou';
 const word = () => { const r = crypto.getRandomValues(new Uint8Array(4)); return C[r[0] % 16] + V[r[1] % 5] + C[r[2] % 16] + V[r[3] % 5]; };
 const recoveryCode = () => Array.from({ length: 12 }, word).join('-');
-const tidyCode = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
 
 const AES = { name: 'AES-GCM', length: 256 };
 const newContentKey = () => crypto.subtle.generateKey(AES, true, ['encrypt', 'decrypt']);
@@ -249,7 +251,7 @@ export async function contentKey({ fresh } = {}) {
     const content = await newContentKey();
     const code = recoveryCode();
     try {
-      await mine('recovery', { recovery: code, vault: await vaultFor(content, code), first: true });
+      await mine('recovery', { recoveryProof: await recoveryProof(code), vault: await vaultFor(content, code), first: true });
       await keepContent(device, content);
       await fresh?.(code);
       return content;
@@ -298,7 +300,7 @@ export async function newRecovery() {
   const device = await load();
   if (!device?.content) return mine('recovery');
   const code = recoveryCode();
-  await mine('recovery', { recovery: code, vault: await vaultFor(device.content, code) });
+  await mine('recovery', { recoveryProof: await recoveryProof(code), vault: await vaultFor(device.content, code) });
   return { recovery: code };
 }
 

@@ -58,7 +58,9 @@ async function render() {
     paired,
 
     el('h2', {}, 'Your recovery code'),
-    el('p', {}, `If you lose every device here, your recovery code gets you and your ludants back, and unlocks what's private to you. Yours was made ${me.recoveryAt ? when(me.recoveryAt) : 'when you started'}. Lost it, or think someone saw it? Make a new one: the old one stops working.`),
+    me.recoveryStale
+      ? el('p', { class: 'keep-box' }, el('strong', {}, 'Your recovery code no longer works. '), 'gactant changed how codes are checked (so the server never sees one), and codes from before can\'t be. Make a new one below and keep it: until you do, losing every device here would lose your ludants.')
+      : el('p', {}, `If you lose every device here, your recovery code gets you and your ludants back, and unlocks what's private to you. Yours was made ${me.recoveryAt ? when(me.recoveryAt) : 'when you started'}. Lost it, or think someone saw it? Make a new one: the old one stops working.`),
     el('button', { class: 'top-btn', onclick: async () => {
       if (!confirm('Make a new recovery code? The old one stops working.')) return;
       const { recovery } = await newRecovery();
