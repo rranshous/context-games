@@ -2840,3 +2840,5 @@ Robby: "lets do a security audit and fix cycle. spin up some sub agents to look 
 6. *Budgets race*: concurrent requests pass the checks before any is counted. Fix: reserve before the await.
 7. *A built-in on big data* (indexOf over megabytes) runs seconds inside one step. Hosted it holds up only its match; locally it stalls the server. Fix: rules on a worker thread with a timeout, locally.
 8. *Ludants report people without a card* (by design, Part 25: the person would be approving their own report). The auditor suggests consent for the chat it sends. Left as designed.
+
+Deployed on Robby's say ("go ahead and deploy"), as version 6388d9fb. Smoke passed first. Checked after: config answers with the new version (so the World started: SESSION_SECRET is there), and the lobby's list loads. Robby: "of the 8 lets do them all except 6. i don't understand 4".
