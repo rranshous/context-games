@@ -172,6 +172,14 @@ export const safe = (id) => { if (!/^[a-z0-9-]+$/.test(String(id))) throw httpEr
 const sameSoma = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Replies from the admins, written into the soma of the ludant that reported (surfaces/admins.js).
 // They're to that ludant: copies and publications go without them.
+/** A document as a slim list has it: what worker.mjs's SLIM keeps, for the local store. */
+export function slimmed(kind, d) {
+  if (kind === 'ludants') { const { surfaces, assets, mail, ...rest } = d; return { ...rest, soma: { ...d.soma, sections: { title: d.soma?.sections?.title ?? null } } }; }
+  if (kind === 'published') { const { soma, assets, ...rest } = d; return rest; }
+  if (kind === 'flags') { const { image, ...rest } = d; return rest; }
+  if (kind === 'reports') { const { report, ...rest } = d; return rest; }
+  return d;
+}
 export const LETTERS = 'letters_from_gactant_admins';
 const withoutLetters = (soma) => { const s = structuredClone(soma); if (s?.sections) delete s.sections[LETTERS]; return s; };
 /** Same body, ignoring title and memory: a new name or remembering being published
@@ -452,7 +460,7 @@ export function createCore({ store, settings }) {
     if (published) {
       const pub = await store.get('published', published);
       if (pub && !pub.hidden && !pub.cleared) {
-        const open = (await store.list('flags')).filter((f) => f.published === published && f.status === 'open');
+        const open = (await store.list('flags', { slim: true })).filter((f) => f.published === published && f.status === 'open');
         // Different people, signed in: a name typed into a report is anyone's to type, so
         // reports without a person wait for a moderator instead of hiding anything.
         const people = open.filter((f) => f.person);
@@ -703,8 +711,8 @@ export function createCore({ store, settings }) {
         // mine=1: every ludant the person asking owns, whichever device they made it on. A
         // public install lists nothing else: anyone else's unpublished ludant is reached by its link.
         let found;
-        if (query.get('mine')) found = from.person ? (await store.list('ludants')).filter((l) => l.owner === from.person && !l.abandoned) : [];
-        else found = isPublic ? [] : (await store.list('ludants')).filter((l) => !l.abandoned);
+        if (query.get('mine')) found = from.person ? (await store.list('ludants', { slim: true })).filter((l) => l.owner === from.person && !l.abandoned) : [];
+        else found = isPublic ? [] : (await store.list('ludants', { slim: true })).filter((l) => !l.abandoned);
         return found.map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
       }
       if (!b && method === 'POST') {
@@ -729,7 +737,7 @@ export function createCore({ store, settings }) {
       }
       if (!c && method === 'GET') {
         // The names its family has already published under, so it knows which are taken.
-        const familyNames = (await store.list('published')).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
+        const familyNames = (await store.list('published', { slim: true })).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
         const { stats, owner, ownedAt, mail, ...rest } = ludant;
         // What was said, sketched and saved is for its owners (every device with its key).
         // Anyone else with the link sees what a copy would get: its game and its art.
@@ -935,9 +943,9 @@ export function createCore({ store, settings }) {
         // Trusted: a person cleared it, or it passed the publish check (on an install with
         // one) and nobody has reported it. The lobby's front rows show only these, to
         // everyone, as soon as they're up; a report takes one off until a person looks.
-        const reported = new Set((await store.list('flags')).filter((f) => f.status !== 'dismissed').map((f) => f.published));
+        const reported = new Set((await store.list('flags', { slim: true })).filter((f) => f.status !== 'dismissed').map((f) => f.published));
         const trusted = (p) => Boolean(p.cleared) || (!reported.has(p.id) && (p.checked === 'clean' || !settings.check));
-        return (await store.list('published')).filter((p) => !p.hidden).map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
+        return (await store.list('published', { slim: true })).filter((p) => !p.hidden).map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') {
@@ -1020,7 +1028,7 @@ export function createCore({ store, settings }) {
    *  reports after 90 days. Hourly, with the checks. */
   async function tidy() {
     let cleared = 0;
-    for (const l of await store.list('ludants')) {
+    for (const l of await store.list('ludants', { slim: true })) {
       if (l.abandoned || (l.checkpoints?.length ?? 0) > 1 || holds.has(l.id)) continue;
       // Nobody came back: no save and no sitting since (playing doesn't always save).
       const last = Math.max(Date.parse(l.updated || l.created), ...Object.values(l.visitors ?? {}).map((v) => Date.parse(v.last) || 0));
@@ -1032,8 +1040,8 @@ export function createCore({ store, settings }) {
       await store.remove('ludants', l.id);
       cleared++;
     }
-    for (const f of await store.list('flags')) if (f.status !== 'open' && Date.now() - Date.parse(f.closed ?? f.at) > 90 * 86400_000) await store.remove('flags', f.id);
-    const reports = (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at));
+    for (const f of await store.list('flags', { slim: true })) if (f.status !== 'open' && Date.now() - Date.parse(f.closed ?? f.at) > 90 * 86400_000) await store.remove('flags', f.id);
+    const reports = (await store.list('reports', { slim: true })).sort((x, y) => y.at.localeCompare(x.at));
     for (const r of reports.slice(200)) await store.remove('reports', r.id);
     if (cleared) ops.count('tidy cleared', cleared);
     // Matches over for an hour, or idle for a month, go to the archive.

@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SANDBOX_POLICY, createCore, pageHeaders, safe, sameOrigin } from './core.mjs';
+import { SANDBOX_POLICY, createCore, pageHeaders, safe, sameOrigin, slimmed } from './core.mjs';
 import { createLocalMatches } from './match.mjs';
 import { createRules } from './rules.mjs';
 
@@ -67,8 +67,9 @@ const store = {
   async put(kind, id, doc) { writeFileSync(file(kind, id), JSON.stringify(doc, null, 1)); },
   async remove(kind, id) { rmSync(file(kind, id), { force: true }); },
   async drop(kind) { rmSync(join(DATA, kind), { recursive: true, force: true }); },
-  async list(kind) {
-    return readdirSync(join(DATA, kind)).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(DATA, kind, f), 'utf8')));
+  async list(kind, { slim } = {}) {
+    const all = readdirSync(join(DATA, kind)).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(DATA, kind, f), 'utf8')));
+    return slim ? all.map((d) => slimmed(kind, d)) : all;
   },
 };
 

@@ -37,6 +37,14 @@ const json = (code, value) => new Response(JSON.stringify(value), { status: code
 
 /** Documents in a Durable Object's own SQLite, one table of them. Made when first written to,
  *  so an object that's only read (or only runs practice) keeps nothing. */
+// What a slim list keeps of each kind (core.mjs's SLIM says the same for the local store).
+const SLIM = {
+  ludants: `json_set(json_remove(json, '$.surfaces', '$.assets', '$.mail', '$.soma.sections'), '$.soma.sections', json_object('title', json_extract(json, '$.soma.sections.title')))`,
+  published: `json_remove(json, '$.soma', '$.assets')`,
+  flags: `json_remove(json, '$.image')`,
+  reports: `json_remove(json, '$.report')`,
+};
+
 function docStore(sql) {
   let made = false;
   const make = () => { if (!made) { sql.exec('CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id))'); made = true; } };
@@ -44,16 +52,18 @@ function docStore(sql) {
   return {
     async get(kind, id) { if (!has()) return null; const rows = sql.exec('SELECT json FROM docs WHERE kind = ? AND id = ?', kind, id).toArray(); return rows.length ? JSON.parse(rows[0].json) : null; },
     async put(kind, id, doc) { make(); sql.exec('INSERT OR REPLACE INTO docs (kind, id, json) VALUES (?, ?, ?)', kind, id, JSON.stringify(doc)); },
-    async list(kind) { return has() ? sql.exec('SELECT json FROM docs WHERE kind = ?', kind).toArray().map((r) => JSON.parse(r.json)) : []; },
+    // slim: only the small fields lists need (SLIM), cut down by SQLite before any of it
+    // reaches this object's memory: a whole kind of full documents could be more than it has.
+    async list(kind, { slim } = {}) {
+      if (!has()) return [];
+      const what = slim && SLIM[kind] ? SLIM[kind] : 'json';
+      return sql.exec(`SELECT ${what} AS json FROM docs WHERE kind = ?`, kind).toArray().map((r) => JSON.parse(r.json));
+    },
     async remove(kind, id) { if (has()) sql.exec('DELETE FROM docs WHERE kind = ? AND id = ?', kind, id); },
     async drop(kind) { if (has()) sql.exec('DELETE FROM docs WHERE kind = ?', kind); },
   };
 }
 
-/** One match (match.mjs), or a person's practice runs. Asked by the World (create, act, log,
- *  archive, practice, check) and by the Worker (look, and live: a socket that hears every
- *  action as it happens). Sockets use the hibernation API, so a quiet match isn't billed
- *  for them; pings are answered without waking it. */
 // The biggest body anything here takes (a ludant's save is up to 1.5M characters, a picture
 // 1.1 MB as base64). Read no further than that, so one huge request can't fill the memory
 // of the object that answers everyone.
@@ -73,6 +83,10 @@ async function readBody(request) {
   try { return JSON.parse(new TextDecoder().decode(await new Blob(parts).arrayBuffer())); } catch { return {}; }
 }
 
+/** One match (match.mjs), or a person's practice runs. Asked by the World (create, act, log,
+ *  archive, practice, check) and by the Worker (look, and live: a socket that hears every
+ *  action as it happens). Sockets use the hibernation API, so a quiet match isn't billed
+ *  for them; pings are answered without waking it. */
 export class Match extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
