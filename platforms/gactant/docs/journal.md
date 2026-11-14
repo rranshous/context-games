@@ -2884,3 +2884,5 @@ Robby: "go ahead and add that step to moderate". `node tools/moderate.mjs csam <
 - keeps a record (`preserved`, listed by `moderate.mjs preserved`): the file, when, the ludants and publications, and the people (name and id; gactant has no emails or addresses to give);
 - prints what the CyberTipline report needs, and the steps: report it, keep what's preserved 90 days or more (nothing deletes it), tell Cloudflare it's removed.
 Smoke checks it: a ludant with a picture is taken down, the picture stops being served, the record and the preserved files exist, and only the admin token can do it.
+
+Deployed on Robby's say ("yes deploy plz"), as version 30fb4456: reports with their matches, and the CSAM step. Smoke passed first. Checked after: config answers with the new version; `moderate.mjs preserved` answers (nothing preserved), and `moderate.mjs` (no open reports).
