@@ -15,7 +15,7 @@
 // copied across as an ArrayBuffer.
 //
 // For game code, `api` is the handle it always was:
-//   ctx, width, height, t, frame, size(w, h), caption, three(), image(name), images(),
+//   ctx, width, height, t, frame, size(w, h), caption, three() (with addons, and a composer to render instead), physics() (Rapier, a promise), image(name), images(),
 //   input { keys, pressed, pointer, pads, players }
 // The ludant's own surfaces.stage is local too, so its tools can test at full speed:
 //   look() and advance() read and run this buffer directly; hold, release and point change
@@ -89,6 +89,7 @@ export class StageBuffer {
       get t() { return stage.t; }, get frame() { return stage.count; },
       size: (w, h) => this.size(w, h),
       three: () => this.three(),
+      physics: () => this.physics(),
       image: (name) => this.images.get(String(name)) ?? null,
       images: () => [...this.images.keys()],
       get caption() { return stage.caption; }, set caption(v) { stage.caption = String(v ?? '').slice(0, 300); },
@@ -198,6 +199,7 @@ export class StageBuffer {
     if (this.gl) {
       this.gl.renderer.setSize(w, h, false);
       if (this.gl.camera?.isPerspectiveCamera) { this.gl.camera.aspect = w / h; this.gl.camera.updateProjectionMatrix(); }
+      this.gl.composer?.setSize?.(w, h);
     }
     this.frame?.send('size', w, h);
   }
@@ -218,22 +220,37 @@ export class StageBuffer {
     const camera = new THREE.PerspectiveCamera(60, this.width / this.height, 0.1, 2000);
     camera.position.set(0, 2, 6);
     camera.lookAt(0, 0, 0);
-    Object.assign(this.gl, { scene, camera, active: true });
+    Object.assign(this.gl, { scene, camera, composer: null, active: true });
     this.ctx.clearRect(0, 0, this.width, this.height);
     const gl = this.gl;
-    return { THREE, scene, renderer, get camera() { return gl.camera; }, set camera(c) { gl.camera = c; } };
+    // The add-ons ride along. A composer (postprocessing: bloom, outlines…), once set, is
+    // what the stage renders each frame instead of the scene.
+    return { THREE, addons: this.libs?.addons ?? {}, scene, renderer,
+      get camera() { return gl.camera; }, set camera(c) { gl.camera = c; },
+      get composer() { return gl.composer; }, set composer(c) { gl.composer = c ?? null; } };
+  }
+
+  /** Rapier, the physics engine: loaded the first time a game asks (it's big), then the same
+   *  module every time after. */
+  physics() {
+    this.rapier ??= import('/vendor/rapier/rapier.js').then(async (m) => {
+      const RAPIER = m.default ?? m;
+      await RAPIER.init();
+      return RAPIER;
+    });
+    return this.rapier;
   }
 
   /** Before a game is (re)built: back to plain 2D until it asks for three() again. */
   beginGame() {
-    if (this.gl) { this.gl.active = false; this.gl.scene = null; }
+    if (this.gl) { this.gl.active = false; this.gl.scene = null; this.gl.composer = null; }
     this.ctx.clearRect(0, 0, this.width, this.height);
   }
 
   render3d() {
     const gl = this.gl;
     if (!gl?.active || !gl.scene || !gl.camera || this.halted) return;
-    try { gl.renderer.render(gl.scene, gl.camera); }
+    try { if (gl.composer) gl.composer.render(); else gl.renderer.render(gl.scene, gl.camera); }
     catch (err) { this.halt(`three.js render: ${err.message}`); }
   }
 

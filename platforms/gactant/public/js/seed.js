@@ -70,8 +70,11 @@ const GAME = `// game: the facet of me that people play. It's a factory: called 
 //        image(name) (my art, made with the art surface, ready for ctx.drawImage; null until loaded),
 //        size(w, h) (logical resolution; it scales up crisply),
 //        caption (a short line about what's happening; every look at the stage reports it),
-//        three() (switch to 3D: returns { THREE, scene, camera, renderer } from three.js; the
-//                 stage renders scene with camera every frame, and ctx becomes a HUD on top),
+//        three() (switch to 3D: returns { THREE, addons, scene, camera, renderer, composer }
+//                 from three.js; the stage renders scene with camera every frame, or composer
+//                 if I set one, and ctx becomes a HUD on top. addons: three's postprocessing,
+//                 GLTFLoader, TextGeometry with fonts, Sky, Water, noise, Octree, Capsule…),
+//        physics() (a promise of Rapier, a physics engine, ready to use),
 //        input: { keys (Set of held keys: 'arrowleft', 'a', ' ', ...), pressed (Set, this frame only),
 //                 pointer: { x, y, down, clicked } }
 // If frame() throws, the stage halts until the code changes or someone restarts it.

@@ -28,6 +28,8 @@ async function loadLibraries() {
   const libs = {};
   try { libs.THREE = await import('/vendor/three/three.module.js'); }
   catch (err) { console.warn('three.js failed to load', err); }
+  try { libs.addons = await import('/vendor/three/addons/all.js'); }
+  catch (err) { console.warn('three.js add-ons failed to load', err); }
   return libs;
 }
 

@@ -16,11 +16,13 @@
 //   input.pressed         Set of keys that went down since the last frame
 //   input.pointer         { x, y, down, clicked } in stage coordinates; clicked lasts one frame
 //   three()               switch on a WebGL layer under the 2D canvas and get
-//                         { THREE, scene, camera, renderer } (three.js, from the frame's
-//                         libraries). The stage renders scene with camera after every frame;
-//                         set view.camera to swap cameras. ctx then draws on a transparent
+//                         { THREE, addons, scene, camera, renderer, composer } (three.js and
+//                         its add-ons, from the frame's libraries). The stage renders scene
+//                         with camera after every frame (or view.composer, once set: an
+//                         EffectComposer, for postprocessing); set view.camera to swap cameras. ctx then draws on a transparent
 //                         layer on top, for a HUD: clear it each frame. Calling three() again
 //                         gives a fresh scene and camera; rebuilding the game turns it off.
+//   physics()             a promise of Rapier (the physics engine), loaded the first time
 // actions (as an actor)
 //   look() -> { text, image }   a picture of the stage right now
 //   restart()                   clear a halt and reset the clock
@@ -128,7 +130,7 @@ export class Stage {
   // What it is (the system text, which stays the same), and how it is now (drawn fresh for
   // every think). Every surface splits these the same way, so the system text is cached.
   describe() {
-    return `stage: a canvas with a frame clock and keyboard/pointer input. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. A game reads controllers through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input (and keys you still hold are let go when you stop thinking), and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").`;
+    return `stage: a canvas with a frame clock and keyboard/pointer input. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three(), with three's add-ons for postprocessing, text, sky, water, noise and collisions), with ctx as a HUD on top, and can have real physics from Rapier (await stage.physics()). A game reads controllers through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input (and keys you still hold are let go when you stop thinking), and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").`;
   }
 
   state() {

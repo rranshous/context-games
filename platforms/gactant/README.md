@@ -28,8 +28,8 @@ For local use, `platforms/gactant/.env` can also hold an `OPENROUTER_API_KEY`, w
 server relays for anyone who hasn't connected their own. You can also set
 `GACTANT_MODEL` (default `anthropic/claude-sonnet-5.5`) and `GACTANT_LOGS=0` to turn off
 inference logs. There are no dependencies and no build: the server
-is plain Node, and the pages are plain ES modules. The only outside code is three.js,
-served from `public/vendor`.
+is plain Node, and the pages are plain ES modules. The only outside code is three.js (r170, with a set of its add-ons) and
+Rapier (physics, `@dimforge/rapier3d-compat`, its WebAssembly inlined), served from `public/vendor`.
 
 The full story, with every finding, decision and quote, is in the journal:
 [docs/journal.md](docs/journal.md).
@@ -60,7 +60,7 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 
 | surface | what it is | the ludant uses it to… |
 |---|---|---|
-| **stage** | a canvas (640×360 to start; a game sets its own size, up to 1920×1080) with a frame clock, input, an on-screen pad on touch screens, fast-forward, a caption; 2D, or 3D with three.js under a 2D HUD | run its game at frame rate; play itself (`press`, `hold`, `point`, `advance`, `look`) |
+| **stage** | a canvas (640×360 to start; a game sets its own size, up to 1920×1080) with a frame clock, input, an on-screen pad on touch screens, fast-forward, a caption; 2D, or 3D with three.js (and its add-ons, and Rapier physics) under a 2D HUD | run its game at frame rate; play itself (`press`, `hold`, `point`, `advance`, `look`) |
 | **chat** | a rolling conversation | talk: people see only the surfaces, so if it isn't said here, it wasn't heard |
 | **whiteboard** | a 100×60 sketch board with a baton | sketch ideas together; a turn brings a picture of the board if it changed |
 | **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
