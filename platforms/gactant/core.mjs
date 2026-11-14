@@ -198,7 +198,12 @@ export function createCore({ store, settings }) {
   // Anything else (from before sealing) isn't handed back.
   const kept = (surfaces = {}) => isPublic ? Object.fromEntries(Object.entries(surfaces).filter(([k]) => SEALED_SURFACES.has(k))) : surfaces;
   const ops = createOps({ store, log: settings.opsLog });
-  const people = createPeople({ store, settings, httpError, limit: (...a) => limit(...a) });
+  // A removed device's live connections to matches close at once: every match its person is
+  // in that isn't archived is told (hosted, the Match objects hold the sockets).
+  const removed = async (person, device) => {
+    for (const m of await store.list('match-index')) if (!m.archived && m.members?.[person] !== undefined) await settings.dropDevice?.(m.id, person, device);
+  };
+  const people = createPeople({ store, settings: { ...settings, removed }, httpError, limit: (...a) => limit(...a) });
   // Games many ludants play together (tables.mjs); each match apart, in settings.matches.
   const tables = createTables({ store, people, httpError, owns: (l, f) => owns(l, f), settings: { ...settings, count: (k, n) => ops.count(k, n), isAdmin: (token) => isAdmin(settings, token) } });
 
@@ -1036,7 +1041,7 @@ export function createCore({ store, settings }) {
     return { cleared, swept };
   }
 
-  return { route, checkSome, tidy, flush: () => ops.flush(true) };
+  return { route, checkSome, tidy, flush: () => ops.flush(true), whoIs: (pass) => people.whoIs(pass) };
 }
 
 // ---------- shared by both hosts ----------

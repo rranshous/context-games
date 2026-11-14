@@ -64,7 +64,7 @@ export async function readPass(token, secret) {
   const [, person, device, until, mac] = parts;
   if (Number(until) < Date.now()) return null;
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  try { return await crypto.subtle.verify('HMAC', key, unb64u(mac), enc.encode(`pass.v1.${person}.${device}.${until}`)) ? { person, device } : null; } catch { return null; }
+  try { return await crypto.subtle.verify('HMAC', key, unb64u(mac), enc.encode(`pass.v1.${person}.${device}.${until}`)) ? { person, device, until: Number(until) } : null; } catch { return null; }
 }
 
 import { isRecoveryProof, recoveryProof } from './public/js/recovery.js';
@@ -283,6 +283,7 @@ export function createPeople({ store, settings, httpError, limit }) {
       if (!p.devices.some((d) => d.id === body.device)) throw httpError(404, 'no such device');
       p.devices = p.devices.filter((d) => d.id !== body.device);
       await put(p);
+      await settings.removed?.(p.id, body.device);   // its live connections close (core.mjs)
       return shown(p, me.device);
     }
     if (b === 'recovery') {

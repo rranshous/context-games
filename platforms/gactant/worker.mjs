@@ -83,7 +83,17 @@ export class Match extends DurableObject {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
 
-  sockets() { return this.ctx.getWebSockets().map((ws) => ({ ws, person: ws.deserializeAttachment()?.person ?? null, send: (t) => ws.send(t) })); }
+  /** The sockets on this match, each with its person. One whose pass has run out is closed
+   *  (the page opens another with a fresh pass), so a socket can't outlive its pass. */
+  sockets() {
+    const out = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() ?? {};
+      if (a.until && a.until < Date.now()) { try { ws.close(4401, 'pass ran out'); } catch {} continue; }
+      out.push({ ws, person: a.person ?? null, send: (t) => ws.send(t) });
+    }
+    return out;
+  }
 
   async webSocketMessage(ws, text) {
     const all = this.sockets();
@@ -101,10 +111,18 @@ export class Match extends DurableObject {
         await (await this.match).op('members');   // 404 if there's no match here
         const [client, server] = Object.values(new WebSocketPair());
         this.ctx.acceptWebSocket(server);
-        server.serializeAttachment({ person: request.headers.get('x-gactant-person') || null });
+        server.serializeAttachment({ person: request.headers.get('x-gactant-person') || null, device: request.headers.get('x-gactant-device') || null, until: Number(request.headers.get('x-gactant-until')) || 0 });
         return new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': 'gactant' } });
       }
       const body = await request.json().catch(() => ({}));
+      // A device its person removed: its sockets close now.
+      if (op === 'drop') {
+        for (const ws of this.ctx.getWebSockets()) {
+          const a = ws.deserializeAttachment() ?? {};
+          if (a.person === body.person && a.device === body.device) { try { ws.close(4401, 'device removed'); } catch {} }
+        }
+        return json(200, {});
+      }
       if (op === 'practice') return json(200, practice(await this.rules, body));
       if (op === 'check') return json(200, (await this.rules).check(String(body.source ?? '')));
       const match = await this.match;
@@ -180,6 +198,8 @@ export class World extends DurableObject {
         archiveOverMs: env.ARCHIVE_OVER_MS ? Number(env.ARCHIVE_OVER_MS) : undefined,   // for testing under wrangler dev
         version: env.VERSION?.id ?? null,   // what this World runs, so a deploy can be checked
         sessionSecret: env.SESSION_SECRET,   // signs challenges and passes (people.mjs); a wrangler secret
+        // A removed device's sockets on a match close (core.mjs).
+        dropDevice: (id, person, device) => env.MATCH.get(env.MATCH.idFromName(id)).fetch('https://match/drop', { method: 'POST', body: JSON.stringify({ person, device }) }).catch(() => {}),
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
         opsLog: (record) => console.warn(record),
         // Workers AI looks at each publication before it goes public (check.mjs).
@@ -199,6 +219,7 @@ export class World extends DurableObject {
       this.ctx.abort('a newer version was deployed');
     }
     if (url.pathname === '/internal/hourly') return json(200, { ...(await this.core.checkSome()), ...(await this.core.tidy()) });
+    if (url.pathname === '/internal/who') return json(200, (await this.core.whoIs((await request.json().catch(() => ({}))).pass)) ?? {});
     try {
       const body = request.method === 'POST' || request.method === 'PUT' ? await readBody(request) : {};
       const from = { ip: request.headers.get('cf-connecting-ip') || '', pass: request.headers.get('x-gactant-pass') || '' };
@@ -229,6 +250,24 @@ async function asset(request, env, path) {
 
 /** The one World, told which version is asking (see World.fetch); asked again once if the
  *  object it reached was an older one letting go. */
+// A pass, checked here (its signature and time) and then, at most once a minute per device
+// in this isolate, asked of the World: is the device still its person's? So a removed device
+// stops seeing its person's matches within a minute, without the World being asked on every
+// look.
+const confirmed = new Map();   // `${person} ${device}` -> when the World last said yes
+async function stillTheirs(env, pass) {
+  const who = env.SESSION_SECRET ? await readPass(pass, env.SESSION_SECRET) : null;
+  if (!who) return null;
+  const k = `${who.person} ${who.device}`;
+  if (Date.now() - (confirmed.get(k) ?? 0) < 60_000) return who;
+  const res = await world(env, new Request('https://internal/internal/who', { method: 'POST', body: JSON.stringify({ pass }) })).catch(() => null);
+  const ok = res?.ok && (await res.json().catch(() => ({}))).person === who.person;
+  if (!ok) { confirmed.delete(k); return null; }
+  if (confirmed.size > 5000) confirmed.clear();
+  confirmed.set(k, Date.now());
+  return who;
+}
+
 async function world(env, request) {
   const again = request.clone();   // the first try reads the body
   const ask = (req) => {
@@ -299,14 +338,16 @@ export default {
       if (live) {
         if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return json(426, { error: 'this is a WebSocket' });
         const offered = (request.headers.get('sec-websocket-protocol') ?? '').split(',').map((x) => x.trim());
-        const who = env.SESSION_SECRET ? await readPass(offered.find((x) => x.startsWith('v1.')), env.SESSION_SECRET) : null;
+        const who = await stillTheirs(env, offered.find((x) => x.startsWith('v1.')));
         const ask = new Request('https://match/live', request);
         ask.headers.set('x-gactant-person', who?.person ?? '');
+        ask.headers.set('x-gactant-device', who?.device ?? '');
+        ask.headers.set('x-gactant-until', String(who?.until ?? 0));
         return env.MATCH.get(env.MATCH.idFromName(live[1])).fetch(ask);
       }
       const look = request.method === 'GET' && url.pathname.match(/^\/api\/matches\/(m-[0-9a-f]{12})$/);
       if (look && env.SESSION_SECRET) {
-        const who = await readPass(request.headers.get('x-gactant-pass'), env.SESSION_SECRET);
+        const who = await stillTheirs(env, request.headers.get('x-gactant-pass'));
         const res = await lookAt(env, look[1], who?.person ?? null, url.searchParams.get('after'));
         if (res.status !== 404) return res;
       }
