@@ -2769,3 +2769,5 @@ Ludants draw as they did (`draw(shapes)` already took colors, widths, fills and 
 ![whiteboard tools](shots/30-whiteboard-tools.png)
 
 Deployed on Robby's say ("deploy it!"). Smoke passed first; the new whiteboard.js is served.
+
+**"just play" means it.** Robby: "when the openrouter popup occurs clicking just play suppresses it the rest of the session". Before, every message to a ludant with no AI connected brought the connect banner back. Now "just play" is remembered in sessionStorage (this browser tab, across reloads and other ludants, until the tab closes), and the banner doesn't come again; the chat notice says so once, and the amber "connect an AI" at the top still connects. Checked on the review server: a message, the banner, "just play", another message (no banner), a reload, a third message (no banner).

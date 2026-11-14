@@ -76,6 +76,8 @@ Most of you runs without thinking: your hooks and game code run at frame rate, a
 This is early and experimental. Things in the frame may be rough or change. If something about your body or the surfaces seems wrong or confusing, it's fine to say so in the chat.
 </context>`;
 
+const JUST_PLAY = 'gactant-just-play';   // sessionStorage: "just play" was chosen this session
+
 class Frame {
   constructor(record, seat) {
     this.recordId = record.id;
@@ -243,12 +245,16 @@ class Frame {
    *  for when it can think. */
   thinkingReady(ask = true) {
     if (this.payer()) return Promise.resolve();
-    if (!ask) return Promise.reject(new Error(NO_THINKING));
+    // "just play" means it: no asking again in this browser tab's session (the amber
+    // button at the top still connects).
+    let declined = false;
+    try { declined = sessionStorage.getItem(JUST_PLAY) === '1'; } catch {}
+    if (!ask || declined) return Promise.reject(new Error(NO_THINKING));
     this.asking ??= new Promise((resolve, reject) => {
       const box = el('div', { class: 'banner' },
         el('p', {}, el('strong', {}, `To answer you or change, ${callName(this.actant.soma)} needs to think. `), 'You can play without that. Ludants think with an AI model, on your own OpenRouter account: it costs real money, usually a few cents at a time. Once you connect, a meter at the top shows what this sitting has cost, and it hears what you said.'),
         el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
-        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; this.chat.notice(`${callName(this.actant.soma)} won't answer until an AI is connected here (the amber button at the top). What you said waits for then.`); reject(new Error(NO_THINKING)); } }, 'just play'));
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; try { sessionStorage.setItem(JUST_PLAY, '1'); } catch {} this.chat.notice(`${callName(this.actant.soma)} won't answer until an AI is connected here (the amber button at the top), and you won't be asked again this session. What you say waits for then.`); reject(new Error(NO_THINKING)); } }, 'just play'));
       document.body.append(box);
     });
     return this.asking;

@@ -22,7 +22,7 @@ node platforms/gactant/server.mjs          # http://lilg:7780/  (phones on the L
 The key stays in the frame's storage, out of the sandbox's reach. The frame calls
 OpenRouter straight from the browser, so the key never touches the server.
 
-**Playing doesn't need a key.** Without one, the game runs, and the ludant simply doesn't think when it wakes by itself (on sit-down, a game event, a timer). The person is asked to connect only when they reach for it: a chat message, a passed whiteboard, a picked choice. They can "just play" instead. What woke it is kept (the last 20 events), so once someone connects, it hears what it missed.
+**Playing doesn't need a key.** Without one, the game runs, and the ludant simply doesn't think when it wakes by itself (on sit-down, a game event, a timer). The person is asked to connect only when they reach for it: a chat message, a passed whiteboard, a picked choice. They can "just play" instead, and then aren't asked again in that browser tab's session. What woke it is kept (the last 20 events), so once someone connects, it hears what it missed.
 
 For local use, `platforms/gactant/.env` can also hold an `OPENROUTER_API_KEY`, which the
 server relays for anyone who hasn't connected their own. You can also set
