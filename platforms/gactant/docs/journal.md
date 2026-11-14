@@ -2734,3 +2734,15 @@ Checked in a real sandbox, on a scratch ludant: a scene with Sky, a RoundedBox f
 **Later: 3D assets.** Robby: "it would be cool if the frame supported 3d assets like it does 2d". The art surface paints pictures; there's nothing for meshes. GLTFLoader is in, so the frame could keep `.glb` files the way it keeps art (R2, scanned, per-ludant budget), and `stage.model(name)` could hand a game a loaded scene. Where models come from is the open part: generated (image-to-3D models on OpenRouter or elsewhere), or a small library the frame offers (simple avatars, props). To look into.
 
 Deployed on Robby's say ("yep! plz deploy"), as version a3b2df74. Smoke passed first; the add-ons and rapier.js are served on gactant.com.
+
+## Part 29: the wake's turn limit
+
+Robby: "do we have a turn limit per wake? my ludant seems to have stalled". Yes: 16 turns (calls to the model), and at the limit the think just ended. No word to the ludant, nothing in the inspector, the status back to "ready", a job half done. Big builds (a 3D lounge with multiplayer rules) take more than 16. His ludant's chat line read "locking multiplayer rules for “lounge-room”", which is the last thing it did while still thinking, so it was mid-wake (a long call, or one that hung), not stopped at the limit.
+
+Robby: "lets add a warning. lets also raise the limit to 50".
+- **50 turns a wake.**
+- **A warning with 3 left,** in the same turn's message: the wake ends after 3 more; if you won't finish, tell the person in the chat where you are and put what's left in memory; the next thing that wakes you starts a fresh wake.
+- **The inspector says so** when the warning goes and when a wake ends at the limit.
+- In the changelog, and in the README with how a message mid-wake joins it ("Meanwhile").
+
+Not done: a timeout on a model call or tool, so a hang shows as an error instead of "thinking…" forever.

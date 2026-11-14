@@ -33,7 +33,8 @@ import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.j
 const CODE = new Set(['tools', 'game', 'hooks']);
 const REPORT_TOOL = 'report_problem_to_gactant_admins';
 const PERSON_TOOL = 'report_person_to_gactant_admins';
-const MAX_TURNS = 16;
+const MAX_TURNS = 50;   // calls in one wake; it's told when it has LAST_TURNS left
+const LAST_TURNS = 3;
 const RESTLESS_LIMIT = 3;
 const UNHEARD_KEPT = 20;   // events kept for when thinking is connected
 const REACHING = ['chat.posted', 'whiteboard.turn', 'choices.picked'];
@@ -245,7 +246,8 @@ export class Actant {
       // happening now come after the conversation, drawn fresh for every call.
       let seen = await this.frame.call('perceive');
       const system = [{ type: 'text', text: this.systemText(seen), cache_control: { type: 'ephemeral' } }];
-      for (let turn = 0; turn < MAX_TURNS && !this.asleepForever; turn++) {
+      let turn = 0;
+      for (; turn < MAX_TURNS && !this.asleepForever; turn++) {
         if (turn) seen = await this.frame.call('perceive');
         // Inference is the frame's: it holds the key and pays (or knows who does).
         const res = await this.frame.call('infer', {
@@ -282,7 +284,16 @@ export class Actant {
             ...(thrown.length ? [{ type: 'text', text: `Meanwhile, your code threw:\n${errorLines(thrown)}` }] : []),
           ] });
         }
+        // A wake has a limit, and running into it unwarned leaves a job half done in silence.
+        if (turn === MAX_TURNS - LAST_TURNS - 1) {
+          const warning = { type: 'text', text: `The frame: this wake ends after ${LAST_TURNS} more turns (a wake is at most ${MAX_TURNS}). If you won't finish by then, use them to tell the person in the chat where you are, and put what's left in your memory, so you can pick it up. The next thing that wakes you (anyone saying something) starts a fresh wake.` };
+          const last = messages.at(-1);
+          if (last.role === 'user' && Array.isArray(last.content)) last.content.push(warning);
+          else messages.push({ role: 'user', content: [warning] });
+          this.note('wake', `frame: told it the wake ends in ${LAST_TURNS} turns`);
+        }
       }
+      if (turn >= MAX_TURNS) this.note('wake', `frame: the wake ended at its limit of ${MAX_TURNS} turns`);
       this.thinking = false;
       this.life('asleep');
     } catch (err) {

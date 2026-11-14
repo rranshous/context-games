@@ -88,7 +88,10 @@ chat suggests what to say, and says what answering takes.
 Most of a ludant runs **without thinking**: hooks and game at frame rate cost nothing.
 Inference happens only when a hook calls `me.wake(event)`, for example when someone speaks
 in the chat, passes the baton, sits down for the first time, or restores it. An idle
-ludant costs nothing.
+ludant costs nothing. A wake is at most 50 turns (calls to the model, each with its tool
+calls). With 3 left, the frame tells it so, so it can say in the chat where it got to and
+note what's left in memory, and the inspector says when a wake ends at the limit. What
+arrives during a wake (a chat message, say) joins it at the next turn, as "Meanwhile".
 
 Every think starts with a **system text** that stays the same while the ludant is here: a
 context block that explains the experiment, what a ludant is, the levels, and that people
