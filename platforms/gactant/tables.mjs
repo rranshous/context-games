@@ -66,7 +66,7 @@ const MAX_DRAFTS = 50;              // drafts one person keeps
 // What one person may do in a day, and at once. Counted in memory: a restart forgives.
 const LOCKS_A_DAY = 30;
 const PRACTICE_A_DAY = 300;
-const MATCHES_A_DAY = 30;           // matches opened
+const MATCHES_A_DAY = 300;          // matches opened
 const ACTIONS_A_DAY = 3_000;
 const ACTIONS_A_MINUTE = 60;
 const STEPS_A_DAY = 50_000;         // steps of rules run for them, practice included
@@ -74,7 +74,7 @@ const OPEN_AT_ONCE = 10;            // matches they're in that aren't over and w
 const OPEN_LATELY_MS = 60 * 60_000;  // one nobody acted in for this long doesn't count (some rules never end a match)
 // The whole install in a day, so tables can't take the rest of the site down with them.
 const WORLD_ACTIONS_A_DAY = 20_000;
-const WORLD_MATCHES_A_DAY = 2_000;
+const WORLD_MATCHES_A_DAY = 5_000;
 const ARCHIVE_OVER_MS = 3600_000;   // a match that's over is archived after this
 const ARCHIVE_IDLE_DAYS = 30;       // any match nobody acted in for this long is archived
 const LISTED = 30;                  // matches listed for a rulebook
