@@ -32,14 +32,14 @@
 //   table.changed { match, n, view, result, last: { kind, by, through, data }, ...the view's fields }   someone acted (you included)
 //   table.refused { match, kind, reason }
 
-import { pass, sign } from '../identity.js';
+import { pass, sign, signer } from '../identity.js';
 import { applyEdits } from '../edits.js';
 import { api } from '../ui.js';
 
 /** The answer with the rules' view's own fields on it too (see the top of this file). */
 const forgiving = (o) => (o && o.view && typeof o.view === 'object' && !Array.isArray(o.view) ? { ...o.view, ...o } : o);
 
-const signedText = ({ match, n, prev, kind, data }) => ['gactant/act/v1', match, n, prev, kind, JSON.stringify(data ?? null)].join('\n');
+const signedText = ({ match, n, prev, person, device, kind, data }) => ['gactant/act/v2', match, n, prev, person, device, kind, JSON.stringify(data ?? null)].join('\n');
 const TRIES = 4;   // an action meets a newer head (someone else acted first): signed again on it
 const FOLLOWED = 20;   // matches one frame follows at once
 
@@ -246,7 +246,7 @@ export class Table {
   async act(who, match, kind, data) {
     let s = this.seen.get(match) ?? await this.fetch(match);
     for (let i = 0; ; i++) {
-      const text = signedText({ match, n: s.n, prev: s.head, kind, data });
+      const text = signedText({ match, n: s.n, prev: s.head, ...(await signer()), kind, data });
       try {
         const out = await api('POST', `matches/${match}/act`, { kind, data, n: s.n, prev: s.head, signature: await sign(text), ludant: this.frame.recordId });
         // The long look sees it too; this makes sure the one acting hears it at once.

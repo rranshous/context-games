@@ -58,6 +58,7 @@ try {
   const made = await call('POST', 'people', { name: 'Smoke', label: 'smoke A', key: A.key, ...(await A.prove()) });
   ok('a new person, with a pass and a recovery code', made.json.pass && made.json.recovery?.split('-').length === 12, JSON.stringify(made.json));
   const pass = made.json.pass, me = made.json.person;
+  Object.assign(A, { person: me.id, id: me.devices[0].id });
   const as = (p) => ({ pass: p });
   ok('a forged signature is refused', (await call('POST', 'people', { name: 'X', key: A.key, ...(await A.prove()), signature: 'AAAA' })).status === 401);
   const renewed = await call('POST', 'people/pass', { person: me.id, device: me.devices[0].id, ...(await A.prove()) });
@@ -68,7 +69,9 @@ try {
   ok('nobody seeds without being someone', (await call('POST', 'ludants', { by: 'anon' })).status === 401);
   const { id } = seed.json;
   const S = await device();
-  const stranger = (await call('POST', 'people', { name: 'Stranger', label: 'S', key: S.key, ...(await S.prove()) })).json.pass;
+  const sMade = (await call('POST', 'people', { name: 'Stranger', label: 'S', key: S.key, ...(await S.prove()) })).json;
+  const stranger = sMade.pass;
+  Object.assign(S, { person: sMade.person.id, id: sMade.person.devices[0].id });
   ok('a stranger can\'t hold it', (await call('POST', `ludants/${id}/hold`, { token: 's', who: 'stranger' }, as(stranger))).json.notYours === true);
   ok('nor can anyone signed out', (await call('POST', `ludants/${id}/hold`, { token: 's', who: '?' })).json.notYours === true);
   ok('a forged pass counts for nothing', (await call('POST', `ludants/${id}/hold`, { token: 's', who: '?' }, as(pass.slice(0, -10) + (pass.at(-10) === 'A' ? 'B' : 'A') + pass.slice(-9)))).status === 401);
@@ -227,7 +230,7 @@ try {
   ok('its seed stays hidden until it\'s over', early.genesis && early.seed === undefined && early.salt === undefined, JSON.stringify(early).slice(0, 200));
   let head = match.head, n = 0;
   const act = async (who, dev, kind, data, extra = {}) => {
-    const sig = await dev.sign(signedText({ match: match.id, n, prev: head, kind, data }));
+    const sig = await dev.sign(signedText({ match: match.id, n, prev: head, person: dev.person, device: dev.id, kind, data }));
     const r = await call('POST', `matches/${match.id}/act`, { kind, data, n, prev: head, signature: sig, ...extra }, as(who));
     if (r.status === 200) { n = r.json.n; head = r.json.head; }
     return r;
@@ -239,8 +242,8 @@ try {
   ok('a signed join', (await act(pass, A, 'join', null)).json.view?.you === 'X');
   const w = await waited;
   ok('a waiting look answers with the next action', w.json.n === 1 && w.at >= joinedAt, JSON.stringify(w.json).slice(0, 200));
-  ok('a join signed by another device is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n, prev: head, signature: await A.sign(signedText({ match: match.id, n, prev: head, kind: 'join', data: null })) }, as(stranger))).status === 401);
-  ok('an action on an old head is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n: 0, prev: match.head, signature: await S.sign(signedText({ match: match.id, n: 0, prev: match.head, kind: 'join', data: null })) }, as(stranger))).status === 409);
+  ok('a join signed by another device is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n, prev: head, signature: await A.sign(signedText({ match: match.id, n, prev: head, person: S.person, device: S.id, kind: 'join', data: null })) }, as(stranger))).status === 401);
+  ok('an action on an old head is refused', (await call('POST', `matches/${match.id}/act`, { kind: 'join', data: null, n: 0, prev: match.head, signature: await S.sign(signedText({ match: match.id, n: 0, prev: match.head, person: S.person, device: S.id, kind: 'join', data: null })) }, as(stranger))).status === 409);
   ok('the second player joins, as O', (await act(stranger, S, 'join', null)).json.view?.you === 'O');
   const wrong = await act(stranger, S, 'move', { cell: 0 });
   ok('the rules refuse a move out of turn', wrong.status === 422 && wrong.json.refused === 'it\'s X\'s turn', JSON.stringify(wrong.json));
@@ -283,7 +286,7 @@ try {
   let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, salt, options }));
   let chain = prev === genesis;
   for (const e of log) {
-    const text = signedText({ match: match.id, n: e.n, prev, kind: e.kind, data: e.data });
+    const text = signedText({ match: match.id, n: e.n, prev, person: e.player.id, device: e.device, kind: e.kind, data: e.data });
     const key = await crypto.subtle.importKey('jwk', keys[e.device], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     chain &&= e.prev === prev && e.hash === await sha(`${text}\n${e.signature}`) && await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text));
     prev = e.hash;
@@ -309,7 +312,7 @@ try {
     const m = (await call('POST', 'matches', { rulebook: soloRb }, as(who))).json;
     let at = 0, prev = m.head;
     for (const [kind, data] of [['join', null], ['move', { points }]]) {
-      const r = await call('POST', `matches/${m.id}/act`, { kind, data, n: at, prev, signature: await dev.sign(signedText({ match: m.id, n: at, prev, kind, data })) }, as(who));
+      const r = await call('POST', `matches/${m.id}/act`, { kind, data, n: at, prev, signature: await dev.sign(signedText({ match: m.id, n: at, prev, person: dev.person, device: dev.id, kind, data })) }, as(who));
       at = r.json.n; prev = r.json.head;
     }
     return m.id;

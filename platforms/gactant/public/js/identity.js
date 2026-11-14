@@ -146,6 +146,12 @@ export async function renew() {
 /** A signature by this device's key over text (base64url), for actions at a table: proof
  *  that this device, and so its person, took them. null where the device keeps a secret
  *  instead of a key; the server then records the action as unsigned. */
+/** Who signs here: this device's person and its id, which a match's signed text names. */
+export async function signer() {
+  const device = await load();
+  return { person: device?.person ?? null, device: device?.id ?? null };
+}
+
 export async function sign(text) {
   const device = await load();
   if (!device?.keys) return null;

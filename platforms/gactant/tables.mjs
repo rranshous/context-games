@@ -170,7 +170,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     const key = await people.deviceKey(person, from.device);
     if (key) {
       let ok = false;
-      try { ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, unb64u(body.signature ?? ''), enc.encode(signedText({ match: id, n, prev, kind, data }))); } catch {}
+      try { ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, unb64u(body.signature ?? ''), enc.encode(signedText({ match: id, n, prev, person, device: from.device, kind, data }))); } catch {}
       if (!ok) throw httpError(401, 'that action isn\'t signed by this device');
     }
     let through = null;
@@ -181,7 +181,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     }
     let out;
     try {
-      out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, player: { id: person, name: from.name }, through }));
+      out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, key: key ? await people.publicKey(person, from.device) : null, player: { id: person, name: from.name }, through }));
     } catch (err) { if (err.extra?.steps) steps(person, err.extra.steps); throw err; }
     steps(person, out.steps);
     add('actions', person); add('actions-minute', person, 1, minute()); add('actions', 'world');
@@ -354,10 +354,10 @@ export function createTables({ store, people, httpError, owns, settings }) {
           const { source, ...kept } = doc;
           m = { ...kept, log: doc.log.slice(start, start + 1000), more: start + 1000 < doc.log.length };
         } else m = await fromMatch(host.op(b, 'log', { from: query.get('from') }));
-        // The public key of each device that signed, so anyone can check the signatures. (A
-        // device its person has since removed is gone, and so is its key.)
+        // The public key of each device that signed, as it was when it signed (kept with each
+        // action), so the signatures check even after a device is removed.
         const keys = {};
-        for (const e of m.log) if (e?.signature && !(e.device in keys)) keys[e.device] = await people.publicKey(e.player.id, e.device);
+        for (const e of m.log) if (e?.key && !(e.device in keys)) keys[e.device] = e.key;
         // The seed deals what the rules keep secret: shown only once the match is over.
         const { seed, salt, ...open } = m;
         return { ...open, keys, ...(m.result ? { seed, salt } : {}) };

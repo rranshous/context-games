@@ -8,11 +8,11 @@
 // Kept in the match's own store:
 //   match/it        { id, rulebook, name, source, seed, options, genesis, at, updated, n, head,
 //                     members: { person: name }, state, result }
-//   actions/<n>     { n, kind, data, player, through, device, at, prev, signature, hash }
+//   actions/<n>     { n, kind, data, player, through, device, key, at, prev, signature, hash }   key: the signer's public key (JWK)
 //
 // Ops (a host calls match.op(name, body)):
 //   create { id, rulebook, name, source, seed, options }   -> summary
-//   act { kind, data, n, prev, signature, device, player, through } -> { ...summary, view, steps }
+//   act { kind, data, n, prev, signature, device, key, player, through } -> { ...summary, view, steps }
 //   look { person?, after?, wait? } -> { id, rulebook, name, at, n, head, view, result, you, last }
 //                                  (after: waits up to WAIT_MS for more than `after` actions;
 //                                  wait: false answers at once, { n, same: true } if nothing's new)
@@ -23,7 +23,10 @@
 // (onlooker: the rules' view for nobody in particular, if it's small).
 //
 // The text a device signs, base64url ECDSA P-256 SHA-256:
-//   gactant/act/v1 \n match \n n \n prev \n kind \n JSON(data)
+//   gactant/act/v2 \n match \n n \n prev \n person \n device \n kind \n JSON(data)
+// It names who acted, so the signature itself says whose move it was: nobody, the server
+// included, can label a real signature as someone else's. Each entry keeps the signing
+// device's public key, so a match still checks after its person removes that device.
 // An entry's hash, which the next entry's prev names: sha256(that text \n signature, or 'unsigned').
 // The first prev is the genesis: sha256(gactant/match/v2 \n id \n rulebook \n seed \n salt \n JSON(options)).
 // The seed decides everything the rules deal (hands, decks), so it stays hidden until the
@@ -45,7 +48,7 @@ const now = () => new Date().toISOString();
 const pad = (n) => String(n).padStart(6, '0');
 const size = (v) => (v === undefined ? 0 : JSON.stringify(v).length);
 
-export const signedText = ({ match, n, prev, kind, data }) => ['gactant/act/v1', match, n, prev, kind, JSON.stringify(data ?? null)].join('\n');
+export const signedText = ({ match, n, prev, person, device, kind, data }) => ['gactant/act/v2', match, n, prev, person, device, kind, JSON.stringify(data ?? null)].join('\n');
 export const genesisText = ({ id, rulebook, seed, salt, options }) => ['gactant/match/v2', id, rulebook, seed, salt, JSON.stringify(options ?? {})].join('\n');
 
 /** An error the host passes on as an answer: code, message, and anything else to say. */
@@ -98,7 +101,7 @@ export function createMatch({ store, rules }) {
     act(body) {
       return inTurn(async () => {
         const m = await it();
-        const { kind, data, n, prev, signature, device, player, through } = body;
+        const { kind, data, n, prev, signature, device, key, player, through } = body;
         if (n !== m.n || prev !== m.head) throw answer(409, 'the match moved on: act on its latest', { n: m.n, head: m.head });
         if (m.n >= MAX_ACTIONS) throw answer(413, `this match is as long as a match gets (${MAX_ACTIONS} actions)`);
         if (m.result && kind === 'move') throw answer(422, 'the match is over', { refused: 'the match is over' });
@@ -111,8 +114,8 @@ export function createMatch({ store, rules }) {
         if (size(out.value) > MAX_STATE) throw answer(413, `the rules made a state too big to keep (over ${MAX_STATE} characters)`, { steps });
         let result = null;
         try { const r = rules.call(m.source, 'result', [out.value]); result = r.value ?? null; steps += r.steps; } catch (err) { steps += said(err).steps; }
-        const text = signedText({ match: m.id, n, prev, kind, data });
-        const entry = { n, kind, data, player, through, device, at: now(), prev, signature: signature ?? null, hash: await sha(`${text}\n${signature ?? 'unsigned'}`) };
+        const text = signedText({ match: m.id, n, prev, person: player.id, device, kind, data });
+        const entry = { n, kind, data, player, through, device, key: key ?? null, at: now(), prev, signature: signature ?? null, hash: await sha(`${text}\n${signature ?? 'unsigned'}`) };
         await store.put('actions', pad(n), entry);
         Object.assign(m, { n: n + 1, head: entry.hash, state: out.value, result, updated: now() });
         m.members[player.id] = player.name;

@@ -34,13 +34,13 @@ const rules = await createRules(await WebAssembly.compile(readFileSync(join(HERE
 let state = over ? rules.call(rb.source, 'init', [m.seed, m.options]).value : null;
 let unsigned = 0;
 for (const e of log) {
-  const text = signedText({ match, n: e.n, prev, kind: e.kind, data: e.data });
+  const text = signedText({ match, n: e.n, prev, person: e.player.id, device: e.device, kind: e.kind, data: e.data });
   if (e.prev !== prev) fail(`action ${e.n}: its prev isn't the hash before it`);
   if (e.hash !== await sha(`${text}\n${e.signature ?? 'unsigned'}`)) fail(`action ${e.n}: its hash doesn't match what it says`);
   if (!e.signature) unsigned++;
-  else if (!keys[e.device]) fail(`action ${e.n}: no key for device ${e.device} (removed since?)`);
+  else if (!e.key) fail(`action ${e.n}: it keeps no key for device ${e.device}`);
   else {
-    const key = await crypto.subtle.importKey('jwk', keys[e.device], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const key = await crypto.subtle.importKey('jwk', e.key, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text))) fail(`action ${e.n}: the signature isn't ${e.player.name}'s device's`);
   }
   if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
