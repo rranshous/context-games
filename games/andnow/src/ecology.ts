@@ -54,7 +54,7 @@ const nameOf = (key: string) => {
   const cells = key ? key.split(';').map((s) => { const [x, y, g] = s.split(','); return { x: +x, y: +y, g }; }) : [];
   const row = cells.filter((c) => c.y === 0).sort((a, b) => a.x - b.x).map((c) => c.g).join('');
   const rest = cells.filter((c) => c.y !== 0).map((c) => c.g).sort().join('');
-  return rest ? `${row}+${rest}` : row || '(all fat)';
+  return rest ? `${row}+${rest}` : row || '(fat only)';
 };
 
 const start: Warrior[] = w.living().slice();
@@ -137,6 +137,11 @@ wrap('die', (orig) => (wr, reason) => {
   const h = lastHarm.get(v.id);
   deaths.set(v.id, { t: w.t, reason: String(reason).replace(/ by .*/, '').replace(/ \(.*/, ''), by: h && w.t - h.t <= CONFIG.creditWindow ? h.by : undefined });
   return orig(wr, reason);
+});
+wrap('destroy', (orig) => (i, by, cause) => {
+  const o: number = w.owner[i as number];
+  if (o >= 0) plan(body(o)); // (before the cold or a bite takes its cells one by one: a newborn can freeze in its first tick)
+  return orig(i, by, cause);
 });
 wrap('toDebris', (orig) => (i) => {
   const o: number = w.owner[i as number];
