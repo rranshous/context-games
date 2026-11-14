@@ -299,6 +299,26 @@ try {
   const kept = (await call('GET', `matches/${match.id}/log`)).json;
   ok('its log is kept whole, with the keys', kept.log?.length === 7 && kept.log.at(-1).hash === head && Object.keys(kept.keys ?? {}).length === 2);
   ok('an archived match takes no actions', (await act(stranger, S, 'move', { cell: 8 })).status === 410);
+  // A one-player game with a high-score table: a match per run, and the best kept in standings.
+  const solo = 'function init() { return { points: 0, done: false, who: null } }\nfunction join(s, p) { if (s.who) throw new Error(\'one player\'); s.who = p.id; return s }\nfunction move(s, p, a) { s.points = a.points; s.done = true; return s }\nfunction view(s) { return s }\nfunction result(s) { return s.done ? { scores: { [s.who]: s.points } } : null }';
+  const soloDraft = (await call('POST', 'drafts', { name: 'solo', source: solo }, as(pass))).json;
+  const soloRb = (await call('POST', `drafts/${soloDraft.id}/lock`, {}, as(pass))).json.rulebook;
+  const run = async (who, dev, points) => {
+    const m = (await call('POST', 'matches', { rulebook: soloRb }, as(who))).json;
+    let at = 0, prev = m.head;
+    for (const [kind, data] of [['join', null], ['move', { points }]]) {
+      const r = await call('POST', `matches/${m.id}/act`, { kind, data, n: at, prev, signature: await dev.sign(signedText({ match: m.id, n: at, prev, kind, data })) }, as(who));
+      at = r.json.n; prev = r.json.head;
+    }
+    return m.id;
+  };
+  const bestRun = await run(pass, A, 420);
+  await run(pass, A, 300);
+  await run(stranger, S, 500);
+  const scored = (await call('GET', `rulebooks/${soloRb}/standings?by=best`, undefined, as(pass))).json;
+  ok('scores keep each player\'s best, ranked by it, with the match that made it', scored.players?.[0]?.best === 500 && scored.players[1]?.id === me.id && scored.players[1].best === 420 && scored.players[1].scored === 2 && scored.players[1].bestMatch === bestRun && scored.you?.rank === 2, JSON.stringify(scored));
+  ok('a scored run is no win or loss', scored.players[1].played === 0);
+  ok('a board with no scores has nobody ranked by best', (await call('GET', `rulebooks/${rb}/standings?by=best`, undefined, as(pass))).json.players?.length === 0);
   // Practice runs say what each call did and cost, and where broken rules broke.
   const broken = (await call('POST', 'drafts', { name: 'broken', source: 'function init() { return { n: 0 } }\nfunction join(s) { return s }\nfunction move(s, p, a) {\n  return s.board.length;\n}\nfunction view(s) { return s }\nfunction result() { return null }' }, as(pass))).json;
   const ran = (await call('POST', `drafts/${broken.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'move', as: 'a', data: {} }] }, as(pass))).json;

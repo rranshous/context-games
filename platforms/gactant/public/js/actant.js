@@ -26,6 +26,7 @@
 // Waking is costly, so a governor watches: wakes that no human caused (its own game
 // halting, say) are allowed a few in a row, then the actant rests until a human acts.
 
+import { recentChanges } from './changes.js';
 import { nameOf } from './names.js';
 import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.js';
 
@@ -62,6 +63,12 @@ const compile = (src) => new Function(`return (${src}\n)`)();
 // compiled code are two more than the section's.
 const HEADER_LINES = 2;
 const KEEP_ERRORS = 12;
+
+/** Now, as the person here reads a clock: "Sat, Nov 14, 2026, 1:24 PM (America/Chicago)". */
+function asOf() {
+  const d = new Date();
+  return `${d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`;
+}
 
 export class Actant {
   /** chassis: { bus, stage, surfaces, frame (the bridge's caller), people, isPerson(who) } */
@@ -340,14 +347,14 @@ export class Actant {
    *  it's related to people; the chassis adds the surfaces and how its code is run. */
   systemText(seen) {
     const surfaces = seen.surfaces.filter(Boolean).map((d) => `- ${d}`).join('\n');
-    return `${seen.context}\n\n<soma name="${this.name}">\n(Shown in the system note at the end of the conversation, as it is right now, drawn fresh every time you think.)\n</soma>\n\n<frame>\n${seen.company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\nYour soma is shown as it is right now in the system note at the end of the conversation, with what's happening now: an edit you make shows there the next time you think.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
+    return `${seen.context}\n\n<soma name="${this.name}">\n(Shown in the system note at the end of the conversation, as it is right now, drawn fresh every time you think.)\n</soma>\n\n<frame>\n${seen.company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${recentChanges()}\nYour soma is shown as it is right now in the system note at the end of the conversation, with what's happening now: an edit you make shows there the next time you think.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
   }
 
   /** The soma as it is right now, and what's happening now: after the conversation, so
    *  the system text and the conversation before it are read from cache. */
   nowText(seen) {
     const faults = Object.entries(this.faults).map(([k, v]) => `- ${k}: ${v}`).join('\n');
-    return `<soma name="${this.name}" as-of="now">\n${somaView(this.soma.sections)}\n</soma>\n${seen.now}${faults ? `\nFaults in your code sections right now:\n${faults}` : ''}`;
+    return `<soma name="${this.name}" as-of="${asOf()}">\n${somaView(this.soma.sections)}\n</soma>\n${seen.now}${faults ? `\nFaults in your code sections right now:\n${faults}` : ''}`;
   }
 
   toolSchemas() {

@@ -34,9 +34,11 @@
 //   POST drafts/<id>/remove              -> {}
 //   GET  rulebooks/<hash>                -> { id, name, source, by, at, from, weight }
 //   GET  rulebooks/<hash>/matches        -> [{ id, at, updated, n, over, players, view }]   newest first; view: an onlooker's
-//   GET  rulebooks/<hash>/standings?n=20 -> { rulebook, name, matches, players: [{ rank, id, name, wins, losses, draws,
-//                                             played, last }], you }   every match of it that ended with winners,
-//                                           whichever ludant it was played through; you: your line, if you're on it
+//   GET  rulebooks/<hash>/standings?n=20&by=best -> { rulebook, name, matches, players: [{ rank, id, name, wins, losses,
+//                                             draws, played, scored, best, bestAt, bestMatch, last }], you }   every match
+//                                           of it that ended with winners or scores, whichever ludant it was played
+//                                           through; by=best ranks those with a score by their best (highest first);
+//                                           you: your line, if you're on it
 //   POST matches { rulebook, options? }  -> { id, n, head }                 a new match, nobody in it yet
 //   GET  matches/<id>?after=<n>          -> { id, rulebook, name, at, n, head, view, result, you, last, archived? }
 //                                           view: yours. With after, it waits (up to 50 seconds) until the
@@ -184,7 +186,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     add('actions', person); add('actions-minute', person, 1, minute()); add('actions', 'world');
     settings.count?.('table actions');
     const before = await read('match-index', id);
-    if (!before.result && out.result) await ended(before.rulebook, out.result, out.members);
+    if (!before.result && out.result) await ended(before.rulebook, out.result, out.members, id);
     await store.put('match-index', id, indexed(before, out));
     return { n: out.n, head: out.head, view: out.view, result: out.result, ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
   }
@@ -193,16 +195,29 @@ export function createTables({ store, people, httpError, owns, settings }) {
 
   /** A match just ended: count it, if its result names who won (winners: [player ids], []
    *  for a draw). Everyone who took part and didn't win lost; nobody won, everybody drew. */
-  async function ended(rulebook, result, members) {
-    if (!Array.isArray(result?.winners)) return;
+  // A result counts here with winners: [player ids] (a win, a loss or a draw for everyone in
+  // it), or scores: { player id: number } (each player's best is kept, with the match that
+  // made it, whose log anyone can check), or both.
+  async function ended(rulebook, result, members, match) {
+    const won = Array.isArray(result?.winners) ? new Set(result.winners.map(String)) : null;
+    const scores = Object.fromEntries(Object.entries(result?.scores && typeof result.scores === 'object' ? result.scores : {})
+      .filter(([person, v]) => members?.[person] !== undefined && Number.isFinite(v)));
+    if (!won && !Object.keys(scores).length) return;
     const s = (await store.get('standings', rulebook)) ?? { rulebook, matches: 0, players: {} };
-    const won = new Set(result.winners.map(String));
     for (const [person, name] of Object.entries(members ?? {})) {
-      const p = s.players[person] ??= { name, wins: 0, losses: 0, draws: 0 };
+      const score = scores[person];
+      if (!won && score === undefined) continue;
+      const p = s.players[person] ??= { name, wins: 0, losses: 0, draws: 0, scored: 0, best: null };
       p.name = name ?? p.name;
-      if (!won.size) p.draws++;
-      else if (won.has(person)) p.wins++;
-      else p.losses++;
+      if (won) {
+        if (!won.size) p.draws++;
+        else if (won.has(person)) p.wins++;
+        else p.losses++;
+      }
+      if (score !== undefined) {
+        p.scored = (p.scored ?? 0) + 1;
+        if (p.best == null || score > p.best) Object.assign(p, { best: score, bestAt: now(), bestMatch: match });
+      }
       p.last = now();
     }
     s.matches++;
@@ -214,10 +229,14 @@ export function createTables({ store, people, httpError, owns, settings }) {
   }
 
   /** Most wins first; then the fewest losses; then the most played. */
-  function ranked(s) {
-    return Object.entries(s?.players ?? {}).map(([id, p]) => ({ id, ...p, played: p.wins + p.losses + p.draws }))
-      .sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.played - a.played || a.name?.localeCompare?.(b.name))
-      .map((p, i) => ({ rank: i + 1, ...p }));
+  /** Ranked by wins (then fewest losses, then most played), or by=best: those with a score,
+   *  by their best (the earlier first on a tie). */
+  function ranked(s, by) {
+    const all = Object.entries(s?.players ?? {}).map(([id, p]) => ({ id, ...p, played: p.wins + p.losses + p.draws }));
+    const order = by === 'best'
+      ? all.filter((p) => p.best != null).sort((a, b) => b.best - a.best || a.bestAt.localeCompare(b.bestAt))
+      : all.sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.played - a.played || a.name?.localeCompare?.(b.name));
+    return order.map((p, i) => ({ rank: i + 1, ...p }));
   }
 
   /** A match moved to the archive: its log whole, its object gone, its summary kept. */
@@ -285,7 +304,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
       const rb = await read('rulebooks', b);
       if (!c) { const { owner, ...shown } = rb; return shown; }
       if (c === 'standings') {
-        const all = ranked(await store.get('standings', rb.id));
+        const all = ranked(await store.get('standings', rb.id), query.get('by'));
         const n = Math.min(SHOWN, Math.max(1, Number(query.get('n')) || 20));
         const mine = from.person ? all.find((p) => p.id === from.person) ?? null : null;
         return { rulebook: rb.id, name: rb.name, matches: (await store.get('standings', rb.id))?.matches ?? 0, players: all.slice(0, n), you: mine };
