@@ -2767,3 +2767,5 @@ Robby: "im using the whiteboard a lot more. i'd like more colors and able to cho
 Ludants draw as they did (`draw(shapes)` already took colors, widths, fills and every shape), and see erasing as strokes in the paper's color when they look. Checked by drawing with each tool, on a desktop, enlarged, and on a phone (the toolbar wraps into rows).
 
 ![whiteboard tools](shots/30-whiteboard-tools.png)
+
+Deployed on Robby's say ("deploy it!"). Smoke passed first; the new whiteboard.js is served.
