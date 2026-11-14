@@ -2794,3 +2794,9 @@ Robby: "we need to improve the speed the ludants operate at. i'm thinking that w
 Two test ludants were left in Robby's local data (Woven, Anuna-Breakout).
 
 Deployed on Robby's say ("yea, go ahead and deploy"), with "just play" from Part 30. Smoke passed first; edits.js and the new frame.js are served.
+
+**Who runs gactant.** Robby set up admin@gactant.com, forwarding to his own email (the to-do from Part 26). Now:
+- **Privacy:** an "In short" line ("gactant is run by Robby Ranshous. Write to admin@gactant.com about anything here."), and a closing section, *Who runs gactant*: run by Robby Ranshous, as an experiment built with Claude; write for questions, problems, something that should come down, or anything on the page.
+- **Rules:** if something of yours is here without your say, or you can't use ⚑, write to admin@gactant.com.
+- **Home page footer:** the address beside the rules and privacy.
+Still open: age guidance (the Children section says families play together and nobody is asked their age).
