@@ -2792,3 +2792,5 @@ Robby: "we need to improve the speed the ludants operate at. i'm thinking that w
 - **A quicker model for small things.** Sonnet for building, Haiku for chat replies, say.
 
 Two test ludants were left in Robby's local data (Woven, Anuna-Breakout).
+
+Deployed on Robby's say ("yea, go ahead and deploy"), with "just play" from Part 30. Smoke passed first; edits.js and the new frame.js are served.
