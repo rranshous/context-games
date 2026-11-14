@@ -2748,3 +2748,9 @@ Robby: "lets add a warning. lets also raise the limit to 50".
 Not done: a timeout on a model call or tool, so a hang shows as an error instead of "thinking…" forever.
 
 Deployed on Robby's say ("go ahead and push"), as version b1670356. Smoke passed first; the new actant.js is served.
+
+**Idea for later: faster, cheaper section edits.** Robby: "what tools does the ludant have to edit sections? could we optimize them for speed and lower token usage?" Today, four innate tools: `write_section` (replace a section whole), `edit_section` (replace one exact, unique piece of text), `read_section` (numbered lines, 400 at a time) and `search_sections` (regex, a line either side). Edits answer small (`{ section, chars, fault }`). Where the tokens go, and what might help:
+- **One change per call.** A ten-place fix is ten tool calls, each re-quoting its context. `edit_section` could take a list of edits, applied together (all or none), as one call.
+- **Quoting to edit.** `old` must be exact and unique, so a ludant quotes generously, and a near-miss costs a whole round. Options: replace by line range (it already sees line numbers from `read_section` and the outline), or forgive whitespace when matching.
+- **Rewrites.** Ludants often `write_section` a whole 10–15k game for a small change: every character goes out as output, the slowest and dearest tokens. Better edits make that rarer; the contract could say when a rewrite is worth it.
+- **The soma every call.** The live soma is drawn fresh after the conversation on every turn, so it's never cached, and text sections come whole each time. With 50 turns a wake that adds up. Showing only what changed since the last call within a wake (or the soma once per wake, with changes after), and keeping big text sections as outlines like code, would cut it. Measure first: tokens in and out per turn from the logs, on a long build.
