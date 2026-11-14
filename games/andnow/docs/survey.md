@@ -150,7 +150,7 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 ![](img/survey/giants.png)
 
-Every giant has a `G` (grow) in its program. Each pass of its loop adds a fat cell at the end of a line, in the direction on its stack, so a giant is a growth mutant. It is nearly all fat: 97–99% of its cells.
+Every giant's IP runs a `G` (grow): in its code row, or below it, reached by a turn (`v`, `|`) that sends the IP down a column. That's how the giants' IPs leave the top row. Each pass of the loop adds a fat cell at the end of a line, in the direction on its stack, so a giant is a growth mutant. s2's biggest on 2026-11-14 had two `G`s down its mast and grew two parallel threads, 443 and 390 cells long. It is nearly all fat: 97–99% of its cells.
 
 The direction decides the shape:
 - **Poles** grow straight down or up. s3's record at 6.5M was 1,299 cells in a column 1,288 tall and 5 wide.
