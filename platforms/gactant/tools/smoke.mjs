@@ -236,6 +236,14 @@ try {
   ok('and its reshared link now has only its own versions', (await call('GET', `lines/${reline.id}`)).json.latest?.id !== v2.latest.id);
   const refollow = (await call('POST', `ludants/${copy.json.id}/follow`, { token: 'c' }, as(stranger))).json;
   ok('it can go back to following, and gets the newest', refollow.following === true && refollow.version === 2 && (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json.soma.sections.game.endsWith('// v2'));
+  // A copy made its own is a spin-off of the game it came from, counted once however often
+  // it goes back and leaves again; not shared in the lobby, it's only counted.
+  await call('PUT', `ludants/${copy.json.id}`, { token: 'c', soma: theirs, surfaces: {}, madeOwn: true }, as(stranger));
+  const mineNow = (await call('GET', 'ludants?mine=1', undefined, as(pass))).json.find((l) => l.id === id);
+  ok('your own say how their shared game is doing: following, and spin-offs', mineNow?.shared?.line === line && mineNow.shared.spinoffs === 1 && mineNow.shared.followers === 0, JSON.stringify(mineNow?.shared));
+  const tree = (await call('GET', `lines/${line}/tree`)).json;
+  ok('a game\'s tree: its versions, and a private spin-off only counted', tree.versions?.length === 2 && tree.spinoffs?.unlisted === 1 && tree.spinoffs.listed.length === 0, JSON.stringify(tree).slice(0, 300));
+  ok('a spin-off\'s tree says what it\'s based on', (await call('GET', `lines/${reline.id}/tree`)).json.from?.title != null);
   await call('POST', `ludants/${copy.json.id}/release`, { token: 'c' }, as(stranger));
   ok('an old version\'s link gives the newest, following', (await call('GET', `ludants/${(await call('POST', `published/${v1}/copy`, { by: 'player' }, as(stranger))).json.id}`, undefined, as(stranger))).json.soma.sections.game.endsWith('// v2'));
   const linkCopy = await call('POST', `ludants/${id}/copy`, { by: 'stranger' }, as(stranger));

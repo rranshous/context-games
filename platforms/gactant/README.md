@@ -235,9 +235,12 @@ uses. Copies keep it, like a family name. The ludant keeps its game's **title** 
 `title` section, and its name is the two together: **`Elodon-Hop`**, **`Malan-Shrinking-Isle`**.
 It can name itself when it knows what it is ("I'm naming myself Hop, so Elodon-Hop").
 
-In the lobby, a card for a game shared from a copy says what it's **based on**. (The lobby
-used to draw whole family trees of publications. With sharing it lists only each game's
-newest version, so the trees had nothing to connect, and were dropped.)
+In the lobby, a card for a game shared from a copy says what it's **based on**. A shared
+game's family is walked one step at a time on its **tree page** (`/line.html`): who follows
+it, and its **spin-offs**, the copies people made their own (a line records each copy once,
+when its person says yes to changing it, however often it goes back to following and leaves
+again). Spin-offs shared in the lobby are cards that open their own tree page, and each page
+links back up to what it's based on. The rest are private, so they're only counted.
 
 ## Sharing
 
@@ -409,9 +412,10 @@ sideways, and ✕ to come back.
 
 | URL | what |
 |---|---|
-| `/` | home, in plain words (it says games; "ludant" once, in the intro): a banner up top to start a new game (making is half of what this is), what these games are (a before and after of Little Catch, plain to painted, `img/demo-plain.jpg` and `demo-painted.jpg`, linking to how it works), your games, New and Popular. A game's copies and hours played are counted across all its versions, so an update doesn't make it new again |
+| `/` | home, in plain words (it says games; "ludant" once, in the intro): a banner up top to start a new game (making is half of what this is), what these games are (a before and after of Little Catch, plain to painted, `img/demo-plain.jpg` and `demo-painted.jpg`, linking to how it works), your games, New and Popular. Your games are the ones you shape (ones you started, and copies you've made your own); each shared one shows two counts, following and spin-offs, that open its tree page. A copy still following someone's game isn't listed there: its card in New or Popular (or its link) opens it again. A game's copies and hours played are counted across all its versions, so an update doesn't make it new again |
 | `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
-| `/play.html?line=<line>` | a shared game's link: take a copy that follows it (remembered per browser) and sit with it, in play mode; someone new sees its picture, title and maker with the name ask. `?p=<publication>` (an older link to one version) does the same for its game |
+| `/line.html?id=<line>` | a shared game's tree: what it's based on, who follows it and how each version has been played (`#following`), and its spin-offs (`#spinoffs`), the shared ones as cards into their own trees |
+| `/play.html?line=<line>` | a shared game's link: take a copy that follows it (or open the one you have: remembered per browser, else the following copy you own) and sit with it, in play mode; someone new sees its picture, title and maker with the name ask. `?p=<publication>` (an older link to one version) does the same for its game |
 
 ## For Claude: the explorer seat and shards
 

@@ -1,6 +1,8 @@
 // A shared game's link takes a copy for this browser's person, then opens it. The copy
-// follows the game it came from (its updates arrive as it's opened). The copy is remembered
-// per link, so coming back finds the same one.
+// follows the game it came from (its updates arrive as it's opened). Coming back finds the
+// same one: remembered per link here, or, from another device, the copy of it they own
+// that still follows it. It's how people get back to the games they follow,
+// which the lobby lists by their cards, not among the ones they shape.
 //   play.html?line=<id>   a shared game (an invite, or a card in the lobby)
 //   play.html?p=<id>      an older link to one version: the same, by the game it's a version of
 import { api, askName, el, remember } from './ui.js';
@@ -17,6 +19,9 @@ try {
   let id = null;
   try { id = localStorage.getItem(key); } catch {}
   if (id) await api('GET', `ludants/${id}`).catch(() => { id = null; });
+  if (!id && line) {
+    id = (await api('GET', 'ludants?mine=1').catch(() => [])).find((l) => l.following && l.lineage?.from?.line === line)?.id ?? null;
+  }
   if (!id) {
     const game = line ? await api('GET', `lines/${line}`) : null;
     document.getElementById('msg').textContent = '';

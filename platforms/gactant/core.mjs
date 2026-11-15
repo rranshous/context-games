@@ -43,7 +43,8 @@
 // API (JSON, under /api)
 //   GET  config                                  -> { version, model, hasKey, logs, public, sandbox }   version: what's running (hosted)
 //   GET  ludants?mine=1                          -> [{ id, name, updated, checkpoints, lineage, people, spent }]   mine: and
-//                                                   every one the person asking owns
+//                                                   every one the person asking owns, each shared one with
+//                                                   shared: { line, public, versions, followers, spinoffs }
 //                                                   (without ids: every ludant, unless the install is public)
 //   POST ludants        { by }                   -> { id }          seed a new one, with a fresh given name, owned by the
 //                                                   person asking
@@ -86,6 +87,8 @@
 //   POST ludants/<id>/follow { token }            -> { following, version }   go back to following the line it came from
 //   GET  lines/<id>                               -> { id, public, by, followers, versions, title, given, latest, note, picture }
 //   POST lines/<id>/copy { by }                   -> { id }          a copy of its newest version, following it
+//   GET  lines/<id>/tree                          -> { ...lines/<id>, from, versions: [{ version, at, players, hours }],
+//                                                   spinoffs: { listed: [{ line, title, by, picture, followers, spinoffs }], unlisted } }
 //   (GET ludants/<id> for its owner also says { line: { ..., behind, followers }, follows: { line, following, by, title },
 //    updatedTo? }: a following copy takes its line's newest version as it's opened; PUT answers { behind, followers };
 //    a following copy's game changes, and a restore, only with madeOwn: its person said yes)
@@ -122,7 +125,7 @@
 //   POST log/<who>      { record }               -> {}             a think the browser made itself
 //   GET  log/<who>?n=20                          -> last n inference records
 
-import { nameOf, randomGiven, titleSlug } from './public/js/names.js';
+import { nameOf, randomGiven, titled, titleSlug } from './public/js/names.js';
 import { ART_MODELS, buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
 import { publicText } from './check.mjs';
@@ -149,6 +152,7 @@ const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each c
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
 const SEED_A_DAY = 20;           // new ludants one address may seed in a day
 const COPY_A_DAY = 40;           // copies one address may take in a day
+const MAX_SPINOFFS = 2000;       // spin-offs a line remembers (past that, new ones go uncounted)
 const ART_BUDGET = 15_000_000;   // bytes of pictures one ludant keeps, all told
 const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its first)
 // Ludants nobody came back to: still exactly as they began (one checkpoint), with no save
@@ -394,6 +398,13 @@ export function createCore({ store, settings }) {
     if (pub && (ludant.follows || sameBody(pub.soma, ludant.soma))) { pub.play = add(pub.play, u.seconds, u.spent); await store.put('published', pub.id, pub); }
   }
 
+  /** Whether a publication can be shown to everyone: a person cleared it, or it passed the
+   *  publish check (on an install with one) and nobody has reported it. -> (pub) => boolean */
+  async function trustCheck() {
+    const reported = new Set((await store.list('flags', { slim: true })).filter((f) => f.status !== 'dismissed').map((f) => f.published));
+    return (p) => Boolean(p.cleared) || (!reported.has(p.id) && (p.checked === 'clean' || !settings.check));
+  }
+
   const perHour = (stats) => (stats?.seconds > 600 ? { rate: stats.spent / (stats.seconds / 3600), hours: stats.seconds / 3600 } : null);
 
   const summary = (x) => ({
@@ -587,6 +598,50 @@ export function createCore({ store, settings }) {
   async function countFollower(lineId, by) {
     const line = await store.get('lines', lineId);
     if (line) { line.followers = Math.max(0, (line.followers ?? 0) + by); await store.put('lines', line.id, line); }
+  }
+
+  /** A copy made its own: it no longer follows its line, and is one of that line's spin-offs
+   *  (each copy once, however often it goes back to following and leaves again). */
+  async function stopFollowing(ludant) {
+    const line = await store.get('lines', ludant.follows.line);
+    delete ludant.follows;
+    if (!line) return;
+    line.followers = Math.max(0, (line.followers ?? 0) - 1);
+    const spun = line.spinoffs ?? [];
+    if (!spun.includes(ludant.id) && spun.length < MAX_SPINOFFS) line.spinoffs = [...spun, ludant.id];
+    await store.put('lines', line.id, line);
+  }
+
+  /** A game's tree from one line: who it's based on, how its versions have been played, and
+   *  its spin-offs (copies made their own). Spin-offs shared in the lobby are listed, each
+   *  with its own tree a click away; the rest are private, so only counted. */
+  async function lineTree(line) {
+    const head = await lineHead(line.id);
+    const trusted = await trustCheck();
+    const picture = async (pubId) => urlOf((await store.get('thumbs', `p-${pubId}`))?.file ?? null);
+    const versions = [];
+    for (const id of line.versions) {
+      const p = await store.get('published', id);
+      if (p && !p.hidden) versions.push({ version: p.version, at: p.at, note: p.note || null, players: p.copies ?? 0, hours: +((p.play?.seconds ?? 0) / 3600).toFixed(2) });
+    }
+    const shown = async (l) => {
+      const h = l?.public ? await lineHead(l.id) : null;
+      return h && trusted(h) ? { line: l.id, title: (titled(h.title) || h.name), by: h.by ?? null, at: h.at, picture: await picture(h.id), followers: l.followers ?? 0, spinoffs: l.spinoffs?.length ?? 0 } : null;
+    };
+    const listed = [];
+    let unlisted = 0;
+    for (const id of line.spinoffs ?? []) {
+      const l = await store.get('ludants', id);
+      if (!l || l.abandoned) continue;
+      const card = l.line ? await shown(await store.get('lines', l.line)) : null;
+      if (card) listed.push(card); else unlisted++;
+    }
+    const ludant = await store.get('ludants', line.ludant);
+    const fromLine = ludant?.lineage?.from?.line;
+    const from = fromLine ? await shown(await store.get('lines', fromLine)) : null;
+    return { ...(await lineInfo(line)), title: head ? (titled(head.title) || head.name) : null, note: head?.note || null, picture: head ? await picture(head.id) : null,
+      from: from ?? (ludant?.lineage?.from ? { title: ludant.lineage.from.name, by: ludant.lineage.from.by ?? null } : null),
+      versions, spinoffs: { listed: listed.sort((x, y) => y.at.localeCompare(x.at)), unlisted } };
   }
 
   /** Whether its line's followers are behind it: it has changed since the last update it
@@ -954,7 +1009,16 @@ export function createCore({ store, settings }) {
         let found;
         if (query.get('mine')) found = from.person ? (await store.list('ludants', { slim: true })).filter((l) => l.owner === from.person && !l.abandoned) : [];
         else found = isPublic ? [] : (await store.list('ludants', { slim: true })).filter((l) => !l.abandoned);
-        return found.map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
+        // Your own get how their shared game is doing: who follows it, and its spin-offs.
+        const out = found.map(summary);
+        if (query.get('mine')) {
+          for (const s of out) {
+            const lineId = found.find((l) => l.id === s.id).line;
+            const line = lineId && await store.get('lines', lineId);
+            if (line) s.shared = { line: line.id, public: Boolean(line.public), versions: line.versions.length, followers: line.followers ?? 0, spinoffs: line.spinoffs?.length ?? 0 };
+          }
+        }
+        return out.sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
       }
       if (!b && method === 'POST') {
         ownedBy({}, from);   // refused before anything is counted or written
@@ -1009,7 +1073,7 @@ export function createCore({ store, settings }) {
           if (at && !sameGame(at.soma, soma)) {
             if (!body.madeOwn) throw httpError(423, 'this game follows another person\'s version: changing it needs its person\'s OK first (reload the page)', { following: true });
             follows = undefined;
-            await countFollower(ludant.follows.line, -1);
+            await stopFollowing(ludant);
           }
         }
         const next = { ...ludant, soma, surfaces: body.surfaces, fresh: false, updated: now() };
@@ -1234,8 +1298,7 @@ export function createCore({ store, settings }) {
         if (!soma) throw httpError(404, `no checkpoint ${body.n}`);
         if (ludant.follows) {
           if (!body.madeOwn) throw httpError(423, 'this game follows another person\'s version: going back makes it your own (the frame asks first)', { following: true });
-          await countFollower(ludant.follows.line, -1);
-          delete ludant.follows;
+          await stopFollowing(ludant);
         }
         await checkpoint(ludant, `how it was just before ${body.by || 'someone'} went back to #${cp.n}`, body.by);
         // The body goes back; the memory stays. Being put back is something that happened to
@@ -1262,14 +1325,14 @@ export function createCore({ store, settings }) {
         return { ...(await lineInfo(line)), note: head.note || null, picture: urlOf(thumb ?? null) };
       }
       if (c === 'copy' && method === 'POST') return copyFrom(head, line.id, body, from);
+      if (c === 'tree' && method === 'GET') return lineTree(line);
     }
     if (a === 'published') {
       if (!b && method === 'GET') {
         // Trusted: a person cleared it, or it passed the publish check (on an install with
         // one) and nobody has reported it. The lobby's front rows show only these, to
         // everyone, as soon as they're up; a report takes one off until a person looks.
-        const reported = new Set((await store.list('flags', { slim: true })).filter((f) => f.status !== 'dismissed').map((f) => f.published));
-        const trusted = (p) => Boolean(p.cleared) || (!reported.has(p.id) && (p.checked === 'clean' || !settings.check));
+        const trusted = await trustCheck();
         // A public game is its line's newest version that nobody's hidden; private games and
         // older versions aren't listed.
         const open = new Set((await store.list('lines')).filter((l) => l.public).map((l) => l.id));

@@ -3,6 +3,7 @@
 // back find their own first. ("Ludant" is said once, in the intro: it's the name for what
 // they are, not a word anyone needs to start.)
 
+import { ago, hours, playLink, stat, thumb, treeLink } from './cards.js';
 import { handOver, newRecovery } from './identity.js';
 import { titled } from './names.js';
 import { PadNav, Pads } from './pads.js';
@@ -14,37 +15,10 @@ watchPage('lobby');
 const FEATURED = 6;
 const POPULAR_FROM = 3;   // copies (and hours played, three each) before a game counts as popular
 
-const ago = (iso) => {
-  if (!iso) return '';
-  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  return m < 2 ? 'just now' : m < 90 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
-};
-const hours = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h.toFixed(h < 10 ? 1 : 0)} h`);
 const costLine = (cost) => (cost ? `about $${cost.rate.toFixed(2)} an hour to play` : null);
 
-/** What's worth trying first: played and copied the most, with a little room for the new. */
 /** How much it's been played: copies taken, and hours spent playing. */
 const played = (p) => (p.copies ?? 0) + 3 * (p.cost?.hours ?? 0);
-
-/** A picture of its stage, fetched when it scrolls near, or a placeholder in the meantime. */
-function thumb(kind, id, name) {
-  // Until its picture comes (or if it has none), a colour of its own, from its name.
-  let h = 0;
-  for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 360;
-  const box = el('div', { class: 'thumb', style: `--hue: ${h}` }, el('span', { class: 'thumb-name' }, String(name).trim()[0]?.toUpperCase() ?? ''));
-  new IntersectionObserver(async ([e], obs) => {
-    if (!e.isIntersecting) return;
-    obs.disconnect();
-    try {
-      const { url } = await api('GET', `thumbs/${kind}/${id}`);
-      if (url) box.replaceChildren(el('img', { src: url, alt: `${name}, as it looks` }));
-    } catch {}
-  }, { rootMargin: '200px' }).observe(box);
-  return box;
-}
-
-/** A shared game's link: by its line, so a copy follows it. */
-const playLink = (p) => (p.line ? `/play.html?line=${p.line}` : `/play.html?p=${p.id}`);
 
 function pubCard(p, big = false, fresh = false) {
   const facts = [
@@ -77,49 +51,27 @@ function mineCard(l, pubs = []) {
       el('span', { class: 'card-facts' }, [from, l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · '))));
 }
 
-/** Your games as trees, so what's what is visible: the one you shape at the root, the game
- *  it's shared as beneath it, and any copy you took under the shared game it came from
- *  (by game, not version: a copy that's taken updates still sits under it). A copy of
- *  someone else's shared game is rooted at theirs. */
-function yourTrees(yours, published) {
-  const mineIds = new Set(yours.map((l) => l.id));
-  const pubByLine = new Map(published.map((p) => [p.line, p]));
-  const lineOf = (l) => l.lineage?.from?.line ?? published.find((p) => p.id === l.lineage?.from?.published)?.line;
-  const byTime = (a, b) => (a.at ?? a.updated ?? '').localeCompare(b.at ?? b.updated ?? '');
-  const copiesOf = (line) => yours.filter((l) => lineOf(l) === line);
-  const pubsOf = (ludantId) => published.filter((p) => p.ludant === ludantId).sort(byTime);
-
-  const row = (kind, href, thumbKind, id, name, tag, facts, kids = []) => el('li', { class: 'ytree-node' },
-    el('a', { class: `ytree-row ${kind}`, href },
-      thumb(thumbKind, id, name),
-      el('div', { class: 'ytree-text' },
-        el('strong', {}, name),
-        el('span', { class: `ytree-tag ${kind}` }, tag),
-        facts ? el('span', { class: 'card-facts' }, facts) : null)),
-    kids.length ? el('ul', { class: 'ytree' }, ...kids) : null);
-
-  const ludantNode = (l, tag) => row(l.lineage?.from ? 'copy' : 'mine', `/frame.html?l=${l.id}`, 'l', l.id, l.name, tag,
-    [l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · '),
-    pubsOf(l.id).map(pubNode));
-  const pubNode = (p) => row('pub', playLink(p), 'p', p.id, p.name,
-    mineIds.has(p.ludant) ? `shared: the version others get${p.version > 1 ? ` (version ${p.version})` : ''}` : `shared by ${p.by ?? 'someone'}`,
-    [`${p.copies} ${p.copies === 1 ? 'player' : 'players'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · '),
-    copiesOf(p.line).map((c) => ludantNode(c, c.following ? 'your copy: following it' : 'your copy: your own version')));
-
-  // Roots: ludants of yours that aren't copies of a publication shown under one of yours,
-  // and the publications (someone else's) that your copies came from.
-  const roots = [];
-  for (const l of yours.slice().sort(byTime)) {
-    const from = lineOf(l), pub = from && pubByLine.get(from);
-    if (!l.lineage?.from) roots.push(ludantNode(l, 'yours: you\'re shaping this'));
-    else if (!pub) roots.push(ludantNode(l, `your copy of ${l.lineage.from.name}${l.following ? ', following it' : ''}`));
-    else if (!mineIds.has(pub.ludant) && !roots.some((r) => r.dataset?.pub === from)) {
-      const node = pubNode(pub);
-      node.dataset.pub = from;
-      roots.push(node);
-    }
-  }
-  return el('div', { class: 'ytrees' }, ...roots.map((r) => el('ul', { class: 'ytree root' }, r)));
+/** The games you shape: the ones you started, and copies you've made your own. (A copy
+ *  that's still following someone's game is theirs to shape; its card in the lobby opens
+ *  it.) Under each one you've shared, who follows it and its spin-offs, each a way into
+ *  its tree. */
+function yourGames(yours) {
+  const row = (l) => {
+    const s = l.shared;
+    const where = !s ? 'not shared yet' : `${s.public ? 'in the lobby' : 'shared by link'}${s.versions > 1 ? `, version ${s.versions}` : ''}`;
+    return el('li', { class: 'yours' },
+      el('a', { class: 'yours-row', href: `/frame.html?l=${l.id}` },
+        thumb('l', l.id, l.name),
+        el('div', { class: 'yours-text' },
+          el('strong', {}, l.name),
+          l.lineage?.from ? el('span', { class: 'card-from' }, `based on ${l.lineage.from.name}`) : null,
+          el('span', { class: `yours-where${s ? ' shared' : ''}` }, where),
+          el('span', { class: 'card-facts' }, [l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · ')))),
+      s ? el('div', { class: 'stats' },
+        stat(s.followers, 'following', 'following', treeLink(s.line, 'following')),
+        stat(s.spinoffs, 'spin-off', 'spin-offs', treeLink(s.line, 'spinoffs'))) : null);
+  };
+  return el('ul', { class: 'yours-list' }, ...yours.map(row));
 }
 
 const section = (title, hint, ...body) => el('section', { class: 'lobby-section' },
@@ -148,23 +100,23 @@ async function render() {
   const order = new Map(ids.map((id, i) => [id, i]));
   yours.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
 
-  // For someone coming back, "new" means not theirs: not ones they have a copy of, and not
-  // their own ludants' publications.
-  const have = new Set(yours.map((l) => l.lineage?.from?.line).filter(Boolean));
+  // For someone coming back, "new" means not theirs: not their own ludants' publications.
+  // (Games they follow stay: a game's card is the way back to their copy of it.)
   const mineIds = new Set(yours.map((l) => l.id));
   const pubsOf = (id) => published.filter((p) => p.ludant === id).sort((a, b) => a.at.localeCompare(b.at));
   const returning = yours.length > 0;
+  const shaping = yours.filter((l) => !l.following);
   // The front rows are the same for everyone, your own included, so the page you'd point
   // someone to is the page they'll see: only publications that passed the publish check
   // with no open report (or a person cleared). New is the latest snapshot of each ludant,
   // newest first. Popular is the most played of the rest, leaving out, for someone back,
-  // what they already have.
+  // the ones they shape.
   const trusted = published.filter((p) => p.trusted);
   const latest = new Map();
   for (const p of trusted) if (!latest.has(p.ludant) || p.at > latest.get(p.ludant).at) latest.set(p.ludant, p);
   const fresh = [...latest.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, FEATURED);
   const inFresh = new Set(fresh.map((p) => p.id));
-  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !have.has(p.line) && !mineIds.has(p.ludant))
+  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !mineIds.has(p.ludant))
     .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
   const parts = [];
 
@@ -219,7 +171,7 @@ async function render() {
       el('button', { class: 'top-btn', onclick: () => box.remove() }, 'not now'));
     parts.push(box);
   }
-  if (returning) parts.push(section('Your games', 'The ones you shape, what you\'ve shared, and the copies you play.', yourTrees(yours, published)));
+  if (shaping.length) parts.push(section('Your games', 'The ones you shape: the games you started, and copies you\'ve made your own.', yourGames(shaping)));
   if (fresh.length) {
     parts.push(section('New', 'Just shared, newest first.',
       el('div', { class: 'cards-grid' }, ...fresh.map((p) => pubCard(p, !returning, true)))));

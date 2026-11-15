@@ -3026,3 +3026,27 @@ The simpler shape for us, if we do it:
 The work is mostly risk: stolen cards burning tokens (Radar, small first top-ups, rate
 limits), disputed charges, sales tax (Stripe Tax, or a merchant of record), and we'd be
 responsible for every generation and for our own spend. Robby: hold off for now.
+
+## Part 39: Your games are the ones you shape, with following and spin-offs
+
+Robby: the home page's My Games needed work; show only my ludants, with stat boxes for how
+many follow and how many spin-offs there are, linking to bigger views. Copies being followed
+should just disappear from it. Spin-offs: direct ones only, but clickable so you can walk
+down the tree.
+- **Your games** lists only the ones you shape: ones you started, and copies you've made your own (a
+  following copy is someone else's to shape). Each shared one has two counts: following
+  (`line.followers`) and spin-offs. An unshared one says so.
+- **Spin-offs** weren't tracked. Now `stopFollowing()` (both ways a copy goes its own: a
+  changed game, or a restore) drops the follower and adds the copy's id to
+  `line.spinoffs`, once per copy (max 2,000). Existing lines start at 0, with no back-fill:
+  nobody knew which copies had gone their own.
+- **`/line.html?id=`**, a game's tree, via `GET lines/<id>/tree`. It shows what the game is
+  based on (linked up when that's listed), each version's copies and hours played, and its
+  spin-offs. Spin-offs that are public and trusted (`trustCheck()`, pulled out of
+  `GET published`) are cards that open their own tree. The rest are counted as private.
+  Direct spin-offs only, so each page stays one level deep and walking happens by clicking.
+- Followed games have to stay findable. Popular no longer leaves out games you have a copy
+  of, and `play.html` opens the following copy you own if this browser hasn't remembered
+  one (another device). Caveat: a followed game that isn't in New or Popular is reached only
+  by its link.
+- Nothing a ludant sees changed, so there's no changes.js line. Smoke tests got three checks.
