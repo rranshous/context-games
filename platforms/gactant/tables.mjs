@@ -69,7 +69,8 @@ const LOCKS_A_DAY = 30;
 const PRACTICE_A_DAY = 300;
 const MATCHES_A_DAY = 300;          // matches opened
 const ACTIONS_A_DAY = 3_000;
-const ACTIONS_A_MINUTE = 60;
+const ACTIONS_A_SECOND = 2;        // a person's actions refill at this rate (120 a minute)
+const ACTIONS_AT_ONCE = 10;        // and up to this many can go in a burst
 const STEPS_A_DAY = 50_000;         // steps of rules run for them, practice included
 const OPEN_AT_ONCE = 10;            // matches they're in that aren't over and were played in lately
 const OPEN_LATELY_MS = 60 * 60_000;  // one nobody acted in for this long doesn't count (some rules never end a match)
@@ -110,7 +111,20 @@ export function createTables({ store, people, httpError, owns, settings }) {
 
   const used = new Map();   // `${day} ${what} ${who}` -> count
   const day = () => now().slice(0, 10);
-  const minute = () => now().slice(0, 16);
+  // The pace of a person's actions: a bucket of ACTIONS_AT_ONCE that refills ACTIONS_A_SECOND,
+  // so a burst is fine and a steady stream isn't, and no turn of the minute lets 120 through
+  // at once.
+  const buckets = new Map();   // person -> { tokens, at }
+  const pace = (person) => {
+    const t = Date.now(), b = buckets.get(person) ?? { tokens: ACTIONS_AT_ONCE, at: t };
+    b.tokens = Math.min(ACTIONS_AT_ONCE, b.tokens + (t - b.at) / 1000 * ACTIONS_A_SECOND);
+    b.at = t;
+    if (b.tokens < 1) throw httpError(429, `that's faster than ${ACTIONS_A_SECOND} actions a second (bursts of ${ACTIONS_AT_ONCE}); slow down a little`, { retryAfterMs: Math.ceil((1 - b.tokens) / ACTIONS_A_SECOND * 1000), budget: budget(person) });
+    b.tokens -= 1;
+    buckets.set(person, b);
+    if (buckets.size > 5000) for (const [k, v] of buckets) if (t - v.at > 60_000) buckets.delete(k);
+    return () => { b.tokens = Math.min(ACTIONS_AT_ONCE, b.tokens + 1); };   // give it back
+  };
   const tally = (what, who, at = day()) => used.get(`${at} ${what} ${who}`) ?? 0;
   const add = (what, who, n = 1, at = day()) => {
     const k = `${at} ${what} ${who}`;
@@ -121,7 +135,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
   function budget(person) {
     return {
       steps: { used: tally('steps', person), allowed: STEPS_A_DAY },
-      actions: { used: tally('actions', person), allowed: ACTIONS_A_DAY, perMinute: ACTIONS_A_MINUTE },
+      actions: { used: tally('actions', person), allowed: ACTIONS_A_DAY, perSecond: ACTIONS_A_SECOND, burst: ACTIONS_AT_ONCE },
       matches: { opened: tally('matches', person), allowed: MATCHES_A_DAY, openAtOnce: OPEN_AT_ONCE },
       practice: { used: tally('practice', person), allowed: PRACTICE_A_DAY },
       locks: { used: tally('locks', person), allowed: LOCKS_A_DAY },
@@ -160,7 +174,6 @@ export function createTables({ store, people, httpError, owns, settings }) {
     if (JSON.stringify(data).length > MAX_ACTION) throw httpError(413, `an action is up to ${MAX_ACTION} characters of JSON`);
     const person = from.person;
     within('actions', person, ACTIONS_A_DAY, `that's the ${ACTIONS_A_DAY} actions you may take in a day; more tomorrow`);
-    within('actions-minute', person, ACTIONS_A_MINUTE, `that's ${ACTIONS_A_MINUTE} actions in a minute; slow down a little`, minute());
     within('actions', 'world', WORLD_ACTIONS_A_DAY, 'tables are resting for today: the whole site has played as much as it can; tomorrow');
     enoughSteps(person);
     if (kind === 'join' && idx.members?.[person] === undefined && await openAtOnce(person) >= OPEN_AT_ONCE) {
@@ -179,12 +192,20 @@ export function createTables({ store, people, httpError, owns, settings }) {
       if (!l || !owns(l, from)) throw httpError(403, 'you play through a ludant of your own');
       through = { id: l.id, name: `${l.soma?.given ?? ''}${l.soma?.sections?.title ? `-${l.soma.sections.title}` : ''}` };
     }
+    // Paced here, after everything that's the asker's mistake rather than a try: a refused
+    // action counts like any other (else refusals are free questions about hidden state),
+    // but one that met a newer head (someone else acted first) is given back, to try again.
+    const giveBack = pace(person);
     let out;
     try {
       out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, key: key ? await people.publicKey(person, from.device) : null, player: { id: person, name: from.name }, through }));
-    } catch (err) { if (err.extra?.steps) steps(person, err.extra.steps); throw err; }
+    } catch (err) {
+      if (err.extra?.steps) steps(person, err.extra.steps);
+      if (err.code === 422) { add('actions', person); add('actions', 'world'); } else giveBack();
+      throw err;
+    }
     steps(person, out.steps);
-    add('actions', person); add('actions-minute', person, 1, minute()); add('actions', 'world');
+    add('actions', person); add('actions', 'world');
     settings.count?.('table actions');
     const before = await read('match-index', id);
     if (!before.result && out.result) await ended(before.rulebook, out.result, out.members, id);

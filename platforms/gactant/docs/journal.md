@@ -3441,3 +3441,25 @@ frame following it automatically.
    rules apply what's legal). Cheapest fix: say in the docs that a move can be a list (apply
    what's legal, keep a movement allowance), plus a token bucket of about 120 a minute with
    bursts of 10. Add server-side batches only if rulebooks keep writing the same loop.
+
+### Batching, built per the review (no server-side batches)
+- **Pacing:** a bucket of 10 per person that refills at 2 a second (120 a minute), replacing
+  "60 in each calendar minute". Refused actions (422) now count toward the pace and the day,
+  so refusals aren't free questions about hidden state. An action that met a newer head, or
+  any error that isn't the asker's doing, is given back. A 429 says how long to wait
+  (`retryAfterMs`).
+- **`table.queue(match, { every = 250, max = 20, key })`**, in the game (`move-queue.js`, wired
+  in chassis.js, since a game can't hold objects across the bridge):
+  - gathered moves go as one move `{ batch: [...] }`, kept under 3,500 characters
+  - one flush at a time, in order
+  - `add` resolves with that move's answer, rejects with its refusal, or resolves
+    `{ replaced: true }` when a later action with the same key replaced it
+  - `flush`, `stop`, `pending`; a plain move on the same match waits for the queue
+- The description tells rules to apply a batch in order, stop at the first action that isn't
+  allowed (keeping what came before), refuse only if none applies, keep trades as single
+  actions, and check movement against an allowance, since a batch shares one time.
+  Changelog line. Smoke tests: the queue directly (batch, keyed replace, refusal, max), and
+  pacing (refusals count; past the burst everything is 429).
+Robby on inheriting: it shouldn't close the old match. A snapshot copy instead: the old world
+runs on (a fork, the opener's choice), with no handover race, no seed leak, and nothing to
+reopen.

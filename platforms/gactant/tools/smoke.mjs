@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { entryHash, genesisText, signedText } from '../match.mjs';
 import { recoveryProof } from '../public/js/recovery.js';
 import { markText } from '../public/js/marks.js';
+import { moveQueue } from '../public/js/move-queue.js';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 // --base <url>: against a server that's already running (`wrangler dev`, say, with ADMIN_TOKEN
@@ -278,6 +279,18 @@ try {
   ok('a draft changes', (await call('PUT', `drafts/${draft.json.id}`, { source: ttt }, as(pass))).json.missing?.length === 0);
   const tried = await call('POST', `drafts/${draft.json.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'join', as: 'b' }, { do: 'move', as: 'b', data: { cell: 0 } }, { do: 'move', as: 'a', data: { cell: 4 } }] }, as(pass));
   ok('a practice run: joins, a refusal, a move', tried.json.steps?.map((x) => x.ok).join() === 'true,true,false,true' && tried.json.steps[2].error === 'it\'s X\'s turn', JSON.stringify(tried.json).slice(0, 300));
+  // The queue (in the game): gathered moves go as one { batch }, in order, one at a time; a
+  // keyed action replaces the one waiting; a refusal reaches every action in its batch.
+  {
+    const sent = [];
+    const q = moveQueue(async (data) => { sent.push(data.batch); if (data.batch.includes('bad')) throw new Error('no'); return { n: sent.length }; }, { every: 30, max: 3, key: (a) => (a?.goto ? 'goto' : null) });
+    const a1 = q.add({ goto: [1, 1] }), a2 = q.add({ goto: [2, 2] }), a3 = q.add('step');
+    const [r1, r2, r3] = await Promise.all([a1, a2, a3]);
+    const b = q.add('bad'); const bErr = await b.catch((e) => e.message);
+    const c = q.add('x'), d = q.add('y'), e = q.add('z'), f = q.add('w');
+    await Promise.all([c, d, e, f]);
+    ok('the queue sends gathered moves as one batch, the latest of a key, in order', r1.replaced && r2.n === 1 && r3.n === 1 && JSON.stringify(sent[0]) === JSON.stringify([{ goto: [2, 2] }, 'step']) && bErr === 'no' && sent.slice(2).map((x) => x.join('')).join('|') === 'xyz|w', JSON.stringify(sent));
+  }
   // Time: every call gets { now, started }; a practice run's clock moves only by wait.
   const timed = (await call('POST', 'drafts', { name: 'cooldown', source: `function init(seed, o, t) { return { started: t.started, last: t.now }; }
 function join(s, p, r, t) { return { ...s, last: t.now }; }
@@ -347,6 +360,11 @@ function result(s, t) { return null; }` }, as(pass))).json;
   const won = await act(pass, A, 'move', { cell: 2 }, { ludant: id });
   ok('X wins, and the result names the person who won', won.json.result?.winner === 'X' && won.json.result.winners?.[0] === me.id, JSON.stringify(won.json));
   ok('a move after the end is refused', (await act(stranger, S, 'move', { cell: 8 })).status === 422);
+  // Pacing: a burst of 10, then 2 a second; refused actions count too.
+  const burst = [];
+  for (let i = 0; i < 12; i++) burst.push((await act(stranger, S, 'move', { cell: 8 })).status);
+  ok('actions are paced: refused ones count, and past the burst it says slow down', burst[0] === 422 && burst.includes(429) && burst.slice(burst.indexOf(429)).every((x) => x === 429), burst.join());
+  await new Promise((r) => setTimeout(r, 5500));   // let the bucket fill again for what follows
   const board = (await call('GET', `rulebooks/${rb}/standings`, undefined, as(stranger))).json;
   ok('standings count the match: a win and a loss', board.matches === 1 && board.players?.[0]?.id === me.id && board.players[0].wins === 1 && board.players[1]?.losses === 1, JSON.stringify(board));
   ok('and say where you stand', board.you?.rank === 2 && board.you.losses === 1);
