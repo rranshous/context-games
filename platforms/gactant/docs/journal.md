@@ -3122,3 +3122,31 @@ So now:
   contributions are theirs to mark.
 
 Deployed (version 08552780): how I made this, marks and mark.html are live on gactant.com.
+
+## Part 42: matches can't hear from each other (MMO experiment, notes)
+
+Robby is pushing a ludant to see whether an MMORPG can be built here, to find what the platform
+would need. One limit it flagged early: matches can't pass data to each other. If a dungeon
+run is its own match, its result can't reach the main world in a trusted way. Rules are pure,
+and see only their own state and moves. A player could claim "I cleared it", but the world's
+rules can't check that.
+
+The proposal (not built, held for later): **citing**.
+- A move or join may name finished matches: `{ cite: ['m-…'] }`, capped at around 10.
+- The World resolves each one from its own index. The archived summary already keeps
+  rulebook, result and members.
+- The rules get it as a 4th argument: `move(state, player, action, cited)` (and join), with
+  `cited = [{ match, rulebook, result, players, endedAt }]`.
+- Trust is by rulebook hash. A locked rulebook is exact code, so a match with the dungeon's
+  hash really ran the dungeon. The server supplies the result, so it can't be forged, and the
+  move is signed, so who claimed it is provable. Not paying out twice is the citing rules' job
+  (`state.claimed[match]`).
+- It also fixes the MMO's other limit. A match is capped at 200 KB of state and 20,000
+  actions, so a world can't be one match forever. A new world match can cite the last one's
+  result ("season 2 from season 1") and carry characters over.
+- Catch: trust by exact hash means changing the dungeon's rules means relocking the world
+  with the new hash. Later options: families of trusted rulebooks, or a world that opens
+  child matches and has their results delivered back to it.
+- When built: a changes.js line (new rules ability), the table surface's describe text, and
+  smoke checks (a forged cite refused, a cite of an unfinished match refused, a cite by
+  someone who wasn't in it left to the rules).
