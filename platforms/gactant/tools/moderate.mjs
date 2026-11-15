@@ -12,6 +12,7 @@
 //                                                           take down what used it, and print what a
 //                                                           CyberTipline report needs
 //   node tools/moderate.mjs [site] preserved                what's been preserved that way
+//   node tools/moderate.mjs [site] lines                    once: turn publications from before sharing into lines
 //
 // site defaults to https://gactant.com. Needs GACTANT_ADMIN_TOKEN in .env.
 
@@ -67,6 +68,9 @@ Now, by law (18 U.S.C. § 2258A), as soon as you can:
      Don't download or open the picture to describe it; the report doesn't need you to.
   2. Keep what's preserved for at least 90 days (it's in the archive bucket; nothing deletes it).
   3. Tell Cloudflare it's removed: Security Center > Blocked Content.`);
+} else if (action === 'lines') {
+  // Once, after sharing replaced publishing: each ludant's publications become one public line.
+  console.log(`made ${(await call('lines', {})).lines} line(s) from publications`);
 } else if (action === 'preserved') {
   for (const r of await call('preserved', {})) console.log(`${r.id}  ${r.at.slice(0, 16)}  ${r.file}  ludants ${r.ludants.map((l) => l.id).join(', ') || '-'}  publications ${r.publications.map((p) => p.id).join(', ') || '-'}`);
 } else {
