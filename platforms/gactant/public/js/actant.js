@@ -36,6 +36,7 @@ const REPORT_TOOL = 'report_problem_to_gactant_admins';
 const PERSON_TOOL = 'report_person_to_gactant_admins';
 const MAX_TURNS = 50;   // calls in one wake; it's told when it has LAST_TURNS left
 const LAST_TURNS = 3;
+const FREE = new Set(['memory', 'letters_from_gactant_admins']);   // sections a following copy changes freely
 const RESTLESS_LIMIT = 3;
 const UNHEARD_KEPT = 20;   // events kept for when thinking is connected
 const REACHING = ['chat.posted', 'whiteboard.turn', 'choices.picked'];
@@ -136,6 +137,9 @@ export class Actant {
 
   writeSection(name, content, by) {
     if (typeof content !== 'string') throw new Error(`section content must be a string, got ${typeof content}`);
+    // A copy following another person's version changes its game only with its person's OK
+    // (askToChange, from the tools); code writing a section can't ask, so it can't.
+    if (this.following && !FREE.has(name)) throw new Error(`you follow ${this.following}'s version, so changing your ${name} first needs your person's OK: use write_section or edit_section, and the frame will ask them`);
     if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`section names are lowercase words: ${name}`);
     if (content === '' && !CODE.has(name)) delete this.soma.sections[name];
     else this.soma.sections[name] = content;
@@ -328,6 +332,15 @@ export class Actant {
     const brief = JSON.stringify(input);
     try {
       let out;
+      if ((name === 'write_section' || name === 'edit_section') && this.following && !FREE.has(input.section)) {
+        // The frame asks the person: changing it makes it their own version.
+        if (!await this.frame.call('askToChange', input.section)) {
+          out = { refused: `${this.chassis.people.join(', ') || 'Your person'} chose to keep following ${this.following}'s version, so your ${input.section} can't change. Tell them what you'd change instead; they can say yes next time.` };
+          this.note('did', `${name} ${brief.slice(0, 160)}\n→ refused: kept following`);
+          return { text: JSON.stringify(out) };
+        }
+        this.following = null;
+      }
       if (name === 'write_section') out = this.writeSection(input.section, input.content, this.name);
       // Forgiving: one edit given flat ({ section, old, new }) is a list of one.
       else if (name === 'edit_section') { const { section, edits, ...one } = input; out = this.editSection(section, edits ?? one, this.name); }

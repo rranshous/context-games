@@ -11,7 +11,8 @@
 //   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]     remove(kind, id)
 // Kinds: ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
 // names in use, so a new seed's is fresh), thumbs (where the small picture of a ludant's or a
-// publication's stage is, `l-<id>` or `p-<id>`, kept apart so lists stay light).
+// publication's stage is, `l-<id>` or `p-<id>`, kept apart so lists stay light), lines (a
+// shared game: { id, ludant, owner, by, public, versions: [publication ids], followers }).
 //
 // Pictures (art and thumbs) aren't documents. They're files in settings.art, served from
 // settings.artBase: hosted, an R2 bucket behind its own custom domain, so they go through
@@ -77,12 +78,19 @@
 //   POST ludants/<id>/abandon { token, by }      -> { abandoned }    let it go: it, its checkpoints, art and
 //                                                   chat are no longer kept; what it was published as stays.
 //                                                   Its link then answers 410 { abandoned: { by, at, name } }
-//   GET  published                               -> [{ id, name, given, title, by, note, ludant, n, from, fromName, at, copies, cost }]   cost: per hour of play, from copies
-//   POST published      { ludant, by, note? }    -> { id, name, held? }   publishes it as it is now, under its name
-//                                                   (held: the publish check hid it until someone looks);
-//                                                   409 if this snapshot or this name is already published
+//   GET  published                               -> [{ id, name, given, title, by, note, ludant, line, version, n, from, fromName, at, copies, cost }]
+//                                                   the newest version of each public line (the lobby); cost: per hour of play, from copies
+//   POST ludants/<id>/share { token, by, public?, note? } -> line info (+ held)   share it: its line, made the first
+//                                                   time with a first version (checked; held: the check hid it); public: in the lobby
+//   POST ludants/<id>/update { token, by, note? }  -> line info (+ held)   send an update: a new version for its followers
+//   POST ludants/<id>/follow { token }            -> { following, version }   go back to following the line it came from
+//   GET  lines/<id>                               -> { id, public, by, followers, versions, title, given, latest, note, picture }
+//   POST lines/<id>/copy { by }                   -> { id }          a copy of its newest version, following it
+//   (GET ludants/<id> for its owner also says { line: { ..., behind, followers }, follows: { line, following, by, title },
+//    updatedTo? }: a following copy takes its line's newest version as it's opened; PUT answers { behind, followers };
+//    a following copy's game changes, and a restore, only with madeOwn: its person said yes)
 //   GET  published/<id>                          -> metadata
-//   POST published/<id>/copy { by }              -> { id }          a new ludant, descended from it
+//   POST published/<id>/copy { by }              -> { id }          an old version's link: a copy of its line's newest, following it
 //   POST ludants/<id>/thumb { token, image }     -> {}             a picture of its stage now (a small JPEG data URL)
 //   GET  ludants/<id>/assets                     -> [{ name, w, h, prompt, by, at, url }]   its art
 //   POST ludants/<id>/assets { token, name, image, w, h, prompt, by } -> meta   keep a picture (replaces one of that name)
@@ -189,6 +197,13 @@ const withoutLetters = (soma) => { const s = structuredClone(soma); if (s?.secti
  *  doesn't make a different ludant. Something else has to change. */
 const sameBody = (a, b) => {
   const strip = (x) => ({ ...x, sections: { ...x?.sections, memory: undefined, title: undefined, [LETTERS]: undefined } });
+  return sameSoma(strip(a), strip(b));
+};
+
+/** The same game, for a copy following a line: everything but its memory, its letters and
+ *  its given name (which is the copy's own) has to match. A new title is a change. */
+const sameGame = (a, b) => {
+  const strip = (x) => ({ ...x, given: undefined, sections: { ...x?.sections, memory: undefined, [LETTERS]: undefined } });
   return sameSoma(strip(a), strip(b));
 };
 
@@ -382,6 +397,7 @@ export function createCore({ store, settings }) {
   const summary = (x) => ({
     id: x.id, name: nameOf(x.soma), given: x.soma?.given, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
     lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}), spent: +(x.stats?.spent ?? 0).toFixed(4),
+    following: Boolean(x.follows), shared: Boolean(x.line),
   });
 
   // ---------- inference on the install's key ----------
@@ -436,6 +452,166 @@ export function createCore({ store, settings }) {
     holds.delete(id);
     unwritten.delete(id);
     return abandoned;
+  }
+
+  // ---------- lines: a game's shared versions, and the copies that follow them ----------
+  //
+  // People share games; underneath, a ludant shared has a line (one per ludant): a list of
+  // versions, each a publication (a snapshot, checked before anyone gets it). Its invite link
+  // is the line's. A copy taken from a line follows it: whenever its person opens it and
+  // the line has a newer version, the copy takes that body, keeping its own memory, chat and
+  // saves. A copy stops following once its person OKs a change to its game (the frame asks),
+  // and can go back. A line whose ludant is itself following passes its upstream's versions
+  // through, so a game reshared from a follower reaches the follower's friends too. Public
+  // lines are in the lobby; private ones only travel by link.
+
+  /** The version a line is at: its own latest that nobody's hidden, or, while its ludant
+   *  follows another line, that line's. -> the publication, or null */
+  async function lineHead(lineId, depth = 0) {
+    const line = await store.get('lines', lineId);
+    if (!line) return null;
+    const ludant = depth < 10 ? await store.get('ludants', line.ludant) : null;
+    if (ludant && !ludant.abandoned && ludant.follows) return lineHead(ludant.follows.line, depth + 1);
+    for (const id of [...line.versions].reverse()) {
+      const pub = await store.get('published', id);
+      if (pub && !pub.hidden) return pub;
+    }
+    return null;
+  }
+
+  /** A new version on a ludant's line: a snapshot, checked like any publication. Its name
+   *  is the ludant's; versions don't need names of their own. -> { pub, held? } */
+  async function newVersion(ludant, line, { by, note = '' }, from) {
+    const counted = limit('publish', from.ip, PUBLISH_A_DAY, `that's ${PUBLISH_A_DAY} updates from here today; more tomorrow`);
+    const last = line.versions.length ? await store.get('published', line.versions.at(-1)) : null;
+    if (last && sameGame(last.soma, ludant.soma)) throw httpError(409, 'nothing has changed since the last update');
+    const name = nameOf(ludant.soma);
+    const title = (ludant.soma.sections?.title ?? '').trim() || ludant.soma.given;
+    const look = await lookAt({ name, title, note, soma: ludant.soma }, await picturesOf(`l-${ludant.id}`, ludant.assets));
+    counted();
+    const n = await checkpoint(ludant, `shared as version ${line.versions.length + 1}`, by);
+    await store.put('ludants', ludant.id, ludant);
+    const id = newId(name);
+    const pub = {
+      id, name, given: ludant.soma.given, title: title.slice(0, MAX_TITLE), by: short(by), note: String(note).slice(0, 500),
+      ludant: ludant.id, n, line: line.id, version: line.versions.length + 1,
+      from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
+      copies: 0, soma: withoutLetters(ludant.soma), assets: ludant.assets ?? [], checked: look.checked,
+      ...(look.why ? { hidden: { by: 'check', at: now(), note: look.why } } : {}),
+    };
+    await store.put('published', id, pub);
+    if (look.why) {
+      const fid = `f-${hex(4)}`;
+      await store.put('flags', fid, { id: fid, at: now(), status: 'open', reason: 'check', note: look.why.replace(/^the publish check: /, ''), by: 'the publish check', ludant: ludant.id, published: id, image: null });
+    }
+    // Its picture is the ludant's latest, so a card can show what it looks like.
+    const thumb = (await store.get('thumbs', `l-${ludant.id}`))?.file;
+    const pic = thumb ? await art.get(thumb) : null;
+    if (pic) await keepThumb(`p-${id}`, { bytes: pic.bytes, type: pic.type, ext: thumb.split('.').pop() });
+    line.versions.push(id);
+    line.updated = now();
+    await store.put('lines', line.id, line);
+    return { pub, ...(look.why ? { held: look.why } : {}) };
+  }
+
+  /** A copy that follows a line takes its newest version, keeping its own memory, letters
+   *  and given name. A checkpoint first, so the update can be undone. -> the version, or null */
+  async function catchUp(ludant) {
+    if (!ludant.follows) return null;
+    const head = await lineHead(ludant.follows.line);
+    if (!head || head.id === ludant.follows.version) return null;
+    await checkpoint(ludant, `before updating to ${head.by ?? 'its maker'}'s latest`, null);
+    const sections = { ...head.soma.sections, memory: ludant.soma.sections?.memory ?? '' };
+    if (ludant.soma.sections?.[LETTERS]) sections[LETTERS] = ludant.soma.sections[LETTERS];
+    ludant.soma = { ...head.soma, given: ludant.soma.given, sections };
+    ludant.assets = head.assets ?? [];
+    ludant.follows = { ...ludant.follows, version: head.id };
+    ludant.updated = now();
+    await store.put('ludants', ludant.id, ludant);
+    return head;
+  }
+
+  /** What a line is, for its owner's share panel and anyone with its link. */
+  async function lineInfo(line) {
+    const head = await lineHead(line.id);
+    return { id: line.id, public: Boolean(line.public), by: line.by ?? null, followers: line.followers ?? 0, versions: line.versions.length,
+      title: head?.title ?? null, given: head?.given ?? null, latest: head ? { id: head.id, at: head.at, version: head.version, by: head.by } : null };
+  }
+
+  /** A copy of a version, for the person asking. Taken through a line, it follows that line.
+   *  The soma comes whole; the surfaces start fresh: what was said and sketched belonged to
+   *  the people who were there. */
+  async function copyFrom(pub, lineId, body, from) {
+    ownedBy({}, from);
+    limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
+    const id = newId(pub.given);
+    const ludant = {
+      id, soma: structuredClone(pub.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
+      lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ludant: pub.ludant, ...(lineId ? { line: lineId } : {}) }, takenBy: short(body.by) },
+      ...(lineId ? { follows: { line: lineId, version: pub.id } } : {}),
+    };
+    await checkpoint(ludant, `as received: ${pub.name}`, short(body.by));
+    ludant.assets = pub.assets ?? [];
+    ownedBy(ludant, from);
+    await store.put('ludants', id, ludant);
+    pub.copies = (pub.copies ?? 0) + 1;
+    await store.put('published', pub.id, pub);
+    if (lineId) await countFollower(lineId, 1);
+    return { id };
+  }
+
+  /** Publications from before lines: each ludant's become the versions of one public line,
+   *  oldest first. Copies taken before don't follow (nobody knows what they've changed).
+   *  Once, after the change (admin/lines); it skips what already has a line. */
+  async function linesFromPublications() {
+    const byLudant = new Map();
+    for (const p of await store.list('published', { slim: true })) if (!p.line) byLudant.set(p.ludant, [...(byLudant.get(p.ludant) ?? []), p]);
+    let made = 0;
+    for (const [ludantId, pubs] of byLudant) {
+      pubs.sort((x, y) => x.at.localeCompare(y.at));
+      const ludant = await store.get('ludants', ludantId);
+      const line = { id: `line-${hex(8)}`, ludant: ludantId, owner: ludant?.owner ?? null, by: pubs[0].by ?? null, public: true, versions: pubs.map((p) => p.id), followers: 0, created: pubs[0].at, updated: pubs.at(-1).at };
+      await store.put('lines', line.id, line);
+      for (const [i, slim] of pubs.entries()) {
+        const p = await store.get('published', slim.id);
+        await store.put('published', p.id, { ...p, line: line.id, version: i + 1 });
+      }
+      if (ludant && !ludant.abandoned && !ludant.line) await store.put('ludants', ludantId, { ...ludant, line: line.id });
+      made++;
+    }
+    return { lines: made };
+  }
+
+  async function countFollower(lineId, by) {
+    const line = await store.get('lines', lineId);
+    if (line) { line.followers = Math.max(0, (line.followers ?? 0) + by); await store.put('lines', line.id, line); }
+  }
+
+  /** Whether its line's followers are behind it: it has changed since the last update it
+   *  sent. -> { behind, followers } (nothing if it isn't shared) */
+  async function behind(ludant) {
+    if (!ludant.line) return {};
+    const line = await store.get('lines', ludant.line);
+    if (!line) return {};
+    const last = line.versions.length ? await store.get('published', line.versions.at(-1)) : null;
+    return { behind: !last || !sameGame(last.soma, ludant.soma), followers: line.followers ?? 0 };
+  }
+
+  /** Where a ludant stands, for its frame: the line it shares (and whether followers are
+   *  behind), and the line it follows, if it does (or could go back to). */
+  async function standing(ludant) {
+    const out = {};
+    if (ludant.line) {
+      const line = await store.get('lines', ludant.line);
+      if (line) out.line = { ...(await lineInfo(line)), ...(await behind(ludant)) };
+    }
+    const fromLine = ludant.lineage?.from?.line;
+    if (fromLine) {
+      const line = await store.get('lines', fromLine);
+      const head = line ? await lineHead(fromLine) : null;
+      out.follows = { line: fromLine, following: Boolean(ludant.follows), by: head?.by ?? ludant.lineage.from.by ?? null, title: head?.title ?? null };
+    }
+    return out;
   }
 
   // ---------- apparent CSAM: preserve it, take it down, and say what a report needs ----------
@@ -627,10 +803,11 @@ export function createCore({ store, settings }) {
     if (tabled !== undefined) return tabled;
     if (a === 'events' && method === 'POST') return ops.events(body);
     if (a === 'flags' && method === 'POST') return flag(body, from);
-    if (a === 'admin' && (b === 'flags' || b === 'moderate' || b === 'csam' || b === 'preserved') && method === 'POST') {
+    if (a === 'admin' && (b === 'flags' || b === 'moderate' || b === 'csam' || b === 'preserved' || b === 'lines') && method === 'POST') {
       if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
       if (b === 'moderate') return moderate(body);
       if (b === 'csam') return csam(body);
+      if (b === 'lines') return linesFromPublications();
       if (b === 'preserved') return (await store.list('preserved')).sort((x, y) => y.at.localeCompare(x.at));
       const all = (await store.list('flags')).sort((x, y) => y.at.localeCompare(x.at));
       return body.all ? all.slice(0, 200) : all.filter((f) => f.status === 'open');
@@ -806,7 +983,12 @@ export function createCore({ store, settings }) {
         if (!owns(ludant, from)) {
           return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false, unclaimed: !ludant.owner };
         }
-        return { ...rest, surfaces: kept(rest.surfaces), familyNames, yours: true, mail: mail ?? [] };
+        // A copy following a line takes its newest version as it's opened.
+        const updated = !holdState(b) ? await catchUp(ludant) : null;
+        const fresh = updated ? await store.get('ludants', b) : null;
+        const shown = fresh ? (({ stats: _s, owner: _o, ownedAt: _a, mail: _m, ...r }) => r)(fresh) : rest;
+        return { ...shown, surfaces: kept(shown.surfaces), familyNames, yours: true, mail: mail ?? [], ...(await standing(fresh ?? ludant)),
+          ...(updated ? { updatedTo: { version: updated.version, by: updated.by, at: updated.at, note: updated.note || null } } : {}) };
       }
       if (!c && method === 'PUT') {
         await requireHold(ludant, body, from);
@@ -817,8 +999,21 @@ export function createCore({ store, settings }) {
         // title is a name, not a document.
         const soma = { ...body.soma, given: ludant.soma.given };
         if (soma.sections && typeof soma.sections.title === 'string') soma.sections = { ...soma.sections, title: soma.sections.title.slice(0, MAX_TITLE) };
-        await store.put('ludants', b, { ...ludant, soma, surfaces: body.surfaces, fresh: false, updated: now() });
-        return {};
+        // A copy following a line changes its game only once its person has said yes (the
+        // frame asks, and says so: madeOwn). Then it's its own, and stops following.
+        let follows = ludant.follows;
+        if (follows) {
+          const at = await store.get('published', follows.version);
+          if (at && !sameGame(at.soma, soma)) {
+            if (!body.madeOwn) throw httpError(423, 'this game follows another person\'s version: changing it needs its person\'s OK first (reload the page)', { following: true });
+            follows = undefined;
+            await countFollower(ludant.follows.line, -1);
+          }
+        }
+        const next = { ...ludant, soma, surfaces: body.surfaces, fresh: false, updated: now() };
+        if (follows) next.follows = follows; else delete next.follows;
+        await store.put('ludants', b, next);
+        return await behind(next);
       }
       if (c === 'hold' && method === 'POST') {
         // A ludant from before owners belongs to nobody until it's claimed (admin/own): no
@@ -957,6 +1152,46 @@ export function createCore({ store, settings }) {
         await writePlay(b);
         return {};
       }
+      // Sharing: its line, made the first time (with a first version), and whether it's in
+      // the lobby. A public game needs a title.
+      if (c === 'share' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        let line = ludant.line ? await store.get('lines', ludant.line) : null;
+        if (!line) {
+          line = { id: `line-${hex(8)}`, ludant: b, owner: ludant.owner ?? null, by: short(body.by), public: false, versions: [], followers: 0, created: now() };
+          ludant.line = line.id;
+          await store.put('ludants', b, ludant);
+          await store.put('lines', line.id, line);
+        }
+        if (typeof body.public === 'boolean') {
+          if (body.public && !titleSlug(ludant.soma.sections?.title)) throw httpError(400, 'a game in the lobby needs a title first');
+          line.public = body.public;
+          await store.put('lines', line.id, line);
+        }
+        let held = null;
+        if (!line.versions.length) ({ held } = await newVersion(ludant, line, { by: body.by, note: body.note }, from));
+        return { ...(await lineInfo(line)), ...(held ? { held } : {}) };
+      }
+      // Send an update: a new version on its line, for everyone following it.
+      if (c === 'update' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        const line = ludant.line ? await store.get('lines', ludant.line) : null;
+        if (!line) throw httpError(404, 'it isn\'t shared yet');
+        const { held } = await newVersion(ludant, line, { by: body.by, note: body.note }, from);
+        return { ...(await lineInfo(line)), ...(held ? { held } : {}) };
+      }
+      // Go back to following the line it came from: its game becomes that line's newest again
+      // (its memory stays). Its person says so (the frame asks).
+      if (c === 'follow' && method === 'POST') {
+        await requireHold(ludant, body, from);
+        const target = ludant.lineage?.from?.line;
+        if (!target || !await store.get('lines', target)) throw httpError(404, 'it didn\'t come from a shared game it could follow');
+        if (ludant.follows) return { following: true };
+        ludant.follows = { line: target, version: null };
+        await countFollower(target, 1);
+        const head = await catchUp(ludant);
+        return { following: true, version: head?.version ?? null };
+      }
       // Someone sits down. Remember them, and keep the ludant as it was right now, so
       // whatever changes while they're here can be undone.
       if (c === 'copy' && method === 'POST') {
@@ -995,6 +1230,11 @@ export function createCore({ store, settings }) {
         const cp = ludant.checkpoints.find((x) => x.n === Number(body.n));
         const soma = cp && await checkpointSoma(ludant, cp.n);
         if (!soma) throw httpError(404, `no checkpoint ${body.n}`);
+        if (ludant.follows) {
+          if (!body.madeOwn) throw httpError(423, 'this game follows another person\'s version: going back makes it your own (the frame asks first)', { following: true });
+          await countFollower(ludant.follows.line, -1);
+          delete ludant.follows;
+        }
         await checkpoint(ludant, `how it was just before ${body.by || 'someone'} went back to #${cp.n}`, body.by);
         // The body goes back; the memory stays. Being put back is something that happened to
         // it, and a ludant that forgot every restore would be forever surprised.
@@ -1010,6 +1250,17 @@ export function createCore({ store, settings }) {
 
     // Publishing: anyone sitting with a ludant can publish it. Anyone can take a copy of a
     // publication, and that copy can be published again.
+    // A shared game, by its link: what it is (for the card before taking a copy), and a copy.
+    if (a === 'lines' && b) {
+      const line = await read('lines', b);
+      const head = await lineHead(line.id);
+      if (!head) throw httpError(404, 'nothing has been shared on this link yet, or it has been taken down');
+      if (!c && method === 'GET') {
+        const thumb = (await store.get('thumbs', `p-${head.id}`))?.file;
+        return { ...(await lineInfo(line)), note: head.note || null, picture: urlOf(thumb ?? null) };
+      }
+      if (c === 'copy' && method === 'POST') return copyFrom(head, line.id, body, from);
+    }
     if (a === 'published') {
       if (!b && method === 'GET') {
         // Trusted: a person cleared it, or it passed the publish check (on an install with
@@ -1017,70 +1268,23 @@ export function createCore({ store, settings }) {
         // everyone, as soon as they're up; a report takes one off until a person looks.
         const reported = new Set((await store.list('flags', { slim: true })).filter((f) => f.status !== 'dismissed').map((f) => f.published));
         const trusted = (p) => Boolean(p.cleared) || (!reported.has(p.id) && (p.checked === 'clean' || !settings.check));
-        return (await store.list('published', { slim: true })).filter((p) => !p.hidden).map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
+        // A public game is its line's newest version that nobody's hidden; private games and
+        // older versions aren't listed.
+        const open = new Set((await store.list('lines')).filter((l) => l.public).map((l) => l.id));
+        const newest = new Map();
+        for (const p of await store.list('published', { slim: true })) {
+          if (p.hidden || !open.has(p.line)) continue;
+          if (!newest.has(p.line) || p.version > newest.get(p.line).version) newest.set(p.line, p);
+        }
+        return [...newest.values()].map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
-      if (!b && method === 'POST') {
-        const counted = limit('publish', from.ip, PUBLISH_A_DAY, `that's ${PUBLISH_A_DAY} publications from here today; more can go up tomorrow`);
-        // A published name belongs to exactly one snapshot. So a snapshot can't be published
-        // twice, and publishing again takes both a change and a new title.
-        const ludant = await read('ludants', body.ludant);
-        await requireHold(ludant, body, from);
-        const name = nameOf(ludant.soma);
-        if (!titleSlug(ludant.soma.sections?.title)) throw httpError(400, `${name} needs a title before it can be published: its name is its given name and its game's title together`);
-        const pubs = await store.list('published');
-        const same = pubs.find((p) => sameBody(p.soma, ludant.soma));
-        if (same) throw httpError(409, `this exact ${same.given} is already published as ${same.name}. Change something first, then give it a new title`);
-        const clash = pubs.find((p) => p.name.toLowerCase() === name.toLowerCase());
-        if (clash) throw httpError(409, `${name} already names another snapshot. It has changed since, so it needs a new title`);
-        // A look before it goes public: its words and pictures (check.mjs). Something the
-        // check doesn't like is published but hidden, waiting for a person to look.
-        const title = ludant.soma.sections.title.trim(), note = String(body.note || '').slice(0, 500);
-        const look = await lookAt({ name, title, note, soma: ludant.soma }, await picturesOf(`l-${ludant.id}`, ludant.assets));
-        counted();
-        const n = await checkpoint(ludant, `published as ${name}`, body.by);
-        await store.put('ludants', ludant.id, ludant);
-        const id = newId(name);
-        await store.put('published', id, {
-          id, name, given: ludant.soma.given, title: title.slice(0, MAX_TITLE), by: short(body.by), note,
-          ludant: ludant.id, n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
-          copies: 0, soma: withoutLetters(ludant.soma), checked: look.checked,
-          ...(look.why ? { hidden: { by: 'check', at: now(), note: look.why } } : {}),
-        });
-        if (look.why) {
-          const fid = `f-${hex(4)}`;
-          await store.put('flags', fid, { id: fid, at: now(), status: 'open', reason: 'check', note: look.why.replace(/^the publish check: /, ''), by: 'the publish check', ludant: ludant.id, published: id, image: null });
-        }
-        // Its art goes with it: the snapshot draws with the pictures it had.
-        const pubDoc = await store.get('published', id);
-        pubDoc.assets = ludant.assets ?? [];
-        await store.put('published', id, pubDoc);
-        // Its picture is the ludant's latest, so the lobby can show what it looks like.
-        const thumb = (await store.get('thumbs', `l-${ludant.id}`))?.file;
-        const pic = thumb ? await art.get(thumb) : null;
-        if (pic) await keepThumb(`p-${id}`, { bytes: pic.bytes, type: pic.type, ext: thumb.split('.').pop() });
-        return { id, name, ...(look.why ? { held: look.why } : {}) };
-      }
+      if (!b && method === 'POST') throw httpError(410, 'games are shared now (POST ludants/<id>/share), not published one snapshot at a time');
       const pub = await read('published', b);
       if (pub.hidden) throw httpError(451, `${pub.name} has been taken down`, { hidden: true });
       if (!c && method === 'GET') { const { soma, stats, play, ...meta } = pub; return { ...meta, cost: perHour(play) }; }
-      if (c === 'copy' && method === 'POST') {
-        limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
-        const id = newId(pub.given);
-        // The soma comes whole; the surfaces start fresh. What was said and sketched belonged
-        // to the people who were there.
-        const ludant = {
-          id, soma: structuredClone(pub.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
-          lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ludant: pub.ludant }, takenBy: body.by || null },
-        };
-        await checkpoint(ludant, `as received: ${pub.name}`, body.by);
-        ludant.assets = pub.assets ?? [];
-        ownedBy(ludant, from);
-        await store.put('ludants', id, ludant);
-        pub.copies = (pub.copies ?? 0) + 1;
-        await store.put('published', pub.id, pub);
-        return { id };
-      }
+      // An old link to one version: a copy of its game's newest, following it.
+      if (c === 'copy' && method === 'POST') return copyFrom(pub.line ? (await lineHead(pub.line)) ?? pub : pub, pub.line ?? null, body, from);
     }
 
     throw httpError(404, `no route ${method} /api/${parts.join('/')}`);

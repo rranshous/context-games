@@ -68,6 +68,7 @@ async function boot() {
       if (state.stage?.width) { stage.width = stage.canvas.width = state.stage.width; stage.height = stage.canvas.height = state.stage.height; }
       chassis.surfaces = surfaces(state.actions);
       actant = new Actant(chassis, state.soma);
+      actant.following = state.following ?? null;   // whose version this copy follows, if it does
       actant.rebuild();
       actant.report();
       return { name: actant.name };
@@ -103,6 +104,7 @@ async function boot() {
       return { name: actant.name };
     },
     idle(ms) { return actant.idle(ms); },
+    following(by) { if (actant) actant.following = by ?? null; },
     wake(e) { if (chassis.isPerson(e?.who) || chassis.isPerson(e?.from)) actant?.personActed(); actant?.wake(e); },
     sleep() { actant?.sleepForever(); stage.halted = 'moved'; },
     gameState() { return JSON.parse(JSON.stringify(actant?.game?.state ?? null)); },

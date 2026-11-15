@@ -55,11 +55,11 @@ The idea behind it is a ladder of how an actant can relate to the program it wor
 5. Faceted: it is the program. The game is a facet of the actant's own embodiment.
 You are level 5. The test: does changing the game mean you have changed yourself? For you, yes.
 
-How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, an inspector, and lights at the top showing who's here and whether you're awake). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can publish you, and others take copies that go on with their own people. There are no separate phases for making you and playing you; both happen in every sitting.
+How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, an inspector, and lights at the top showing who's here and whether you're awake). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can share you, by a link or in the lobby, and others take copies that go on with their own people; a copy follows the version it came from (getting its updates) until its person makes it their own. There are no separate phases for making you and playing you; both happen in every sitting.
 
 What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the frame's lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
 
-Talking with them: the words in this text (frame, stage, surface, table, rulebook, hash, soma, section, hooks, sandbox, steps) are names for your insides and this place's machinery, and the people here don't know them. In the chat, talk about what they see and do: the game, the screen, the chat, the whiteboard, publishing you, taking a copy, playing together online (to them, that's all the table is). A limit or catch is still worth telling them, said in their words.
+Talking with them: the words in this text (frame, stage, surface, table, rulebook, hash, soma, section, hooks, sandbox, steps, line) are names for your insides and this place's machinery, and the people here don't know them. In the chat, talk about what they see and do: the game, the screen, the chat, the whiteboard, sharing you, sending an update, taking a copy, following someone's version, making it their own, playing together online (to them, that's all the table is). A limit or catch is still worth telling them, said in their words.
 
 Who can open you: only the person you belong to, on their own devices, and in one window at a time. Anyone else who opens your link is offered a copy of you as you are now, to play and shape as their own. So two people at two computers each have their own copy, and their copies play together through the table; two people on one screen can share you.
 
@@ -105,6 +105,10 @@ class Frame {
     // the LAN reaches this over plain http.)
     this.token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
     this.lost = null;                   // set once another window takes the ludant
+    // A copy following someone's shared version: whose (their name), until its person makes
+    // it their own (madeOwn goes with the next saves, so the server lets its game change).
+    this.following = record.follows?.following ? (record.follows.by ?? 'its maker') : null;
+    this.madeOwn = false;
     this.tabs = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gactant-tabs') : null;
   }
 
@@ -305,14 +309,18 @@ class Frame {
   perception() {
     const soma = this.actant.soma, name = this.actant.name;
     const r = this.record, l = r.lineage ?? {};
-    const lineage = l.from
-      ? `You are a copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
-      : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
+    const f = r.follows, line = r.line;
+    const lineage = (l.from
+      ? `You are a copy of ${l.from.name}, shared by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
+      : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`)
+      + (this.following ? ` You follow ${this.following}'s line: when they send an update, your body becomes their newest version the next time your person opens you (your memory stays yours). Changing anything else of yours makes you your own version and stops their updates, so the frame asks your person first when you try; if they say no, tell them what you'd change instead. In the chat, call it "${this.following}'s version".`
+        : f ? ` You were following ${f.by ?? 'its maker'}'s line, and your person made you their own version; they can go back to following it (Share).` : '')
+      + (line ? ` Your person has shared you (${line.public ? 'public: in the lobby too' : 'private: by link'}); ${line.followers ? `${line.followers} ${line.followers === 1 ? 'copy follows' : 'copies follow'} your line, and get your body when your person sends an update (Share)` : 'no copies follow your line yet'}.` : '');
     const known = Object.keys(r.visitors ?? {});
     const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone (your memory you kept), though the chat may still mention it.` : '';
-    const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${soma.given}) has already been published under: ${r.familyNames.join(', ')}.` : '';
+    const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${soma.given}) has been shared under: ${[...new Set(r.familyNames)].join(', ')}.` : '';
     const titled = nameOf(soma) !== soma.given;
-    const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Your title section is your game's name where it counts: it makes your name, and it's what the publish box offers whoever publishes you. A name the game has only on the stage or in the chat isn't your title until it's written there. Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
+    const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Your title section is your game's name where it counts: it makes your name, and it's what people see when you're shared. A name the game has only on the stage or in the chat isn't your title until it's written there.`;
     const busy = this.stage.personPlaying() ? ` ${this.seat} is playing your game right now (they gave it input moments ago): a change to your game section restarts it under their hands, so it may be kind to say so first, or wait for a pause.` : '';
     const away = document.hidden ? ` Nobody is looking at the frame right now (its window is in the background): your game keeps running only while you're busy, and what you post waits until ${this.seat} comes back.` : '';
     const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (${this.stage.touch ? 'filling their phone\'s screen, with on-screen buttons over it' : 'and the lights at the top'}). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
@@ -324,7 +332,7 @@ class Frame {
     const room = least < 2 ? ` Their OpenRouter key or account is running low (under $2 left), so thinking may stop soon.` : '';
     const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}.${room} The people here can see that meter.`;
     const company = `${naming}\n${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored} Your thinking has a cost, and the people here can see a meter of it; what it has come to in this sitting is shown with what's happening now, at the end of the conversation.
-Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
+Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and share you (a link, and the lobby if they make you public) so others get copies that follow you. A checkpoint is taken whenever someone sits down.`;
     const states = this.surfaces.map((s) => s.state?.(name)).filter(Boolean).map((d) => `- ${d}`).join('\n');
     const now = `Here with you now: ${[...this.people].join(', ')}.${view}${busy}${away} ${cost}${states ? `\nThe surfaces now:\n${states}` : ''}`;
     const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
@@ -364,15 +372,18 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     try {
       // Everything but the stage's size is sealed with its person's key before it leaves.
       if (this.sealing) { const { stage, ...rest } = surfaces; surfaces = { stage, sealed: await seal(rest, this.recordId) }; }
-      await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token });
+      const out = await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token, ...(this.madeOwn ? { madeOwn: true } : {}) });
+      // Shared: whether the people following it have its latest.
+      if (this.record.line && 'behind' in (out ?? {})) { Object.assign(this.record.line, { behind: out.behind, followers: out.followers }); this.renderShare(); }
     }
     catch (err) {
-      if (err.status === 409) this.lose(err.body?.heldBy);
+      if (err.status === 423) this.inspector.note('fault', `saving failed: ${err.message}`);
+      else if (err.status === 409) this.lose(err.body?.heldBy);
       else this.inspector.note('fault', `saving failed: ${err.message}`);
     }
   }
 
-  /** Checkpoints and publishing wait for the ludant to finish what it's doing, so they
+  /** Checkpoints and sharing wait for the ludant to finish what it's doing, so they
    *  never catch it halfway through answering the very message that asked for them. */
   async settled(why) {
     if (this.actant.thinking || this.actant.pending) this.status.setLife(this.status.life, `waiting for ${this.actant.name} to finish before ${why}…`);
@@ -388,38 +399,158 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     return { n };
   }
 
-  /** Publish the ludant as it is now, under its name. A title given here is written into
-   *  its title section first (by whoever is publishing), which renames it. */
-  async publish(note = '', title = null, by = this.seat) {
-    await this.settled('publishing');
+  /** Share it: its link (made the first time, with a first version everyone who takes the
+   *  link gets), and whether it's in the lobby. A title given here is written into its title
+   *  section first. -> the line */
+  async share({ title = null, public: open, note = '' } = {}, by = this.seat) {
+    await this.settled('sharing');
     await this.sendThumb();
-    const before = this.actant.soma.sections.title ?? '';
-    const retitled = title != null && title.trim() !== before.trim();
-    if (retitled) {
-      await this.actant.writeSection('title', title.trim(), by);
+    if (title != null && title.trim() && title.trim() !== (this.actant.soma.sections.title ?? '').trim()) {
+      if (await this.actant.writeSection('title', title.trim(), by) === null) throw new Error('kept following: the title stays as it is');
       await this.save();
     }
     try {
-      const { id, name, held } = await api('POST', 'published', { ludant: this.recordId, note, by, token: this.token });
-      const url = `${location.origin}/play.html?p=${id}`;
-      this.record.familyNames = [...(this.record.familyNames ?? []), name];
-      this.inspector.note('changed', held ? `${by} published ${name}, but it's held for a person to look at first (${held})` : `${by} published ${name}: ${url}`);
-      this.bus.emit('frame.published', { who: by, name, url, ...(held ? { held } : {}) });
-      return { id, name, url, held };
-    } catch (err) {
-      // A refused publish leaves the name as it was.
-      if (retitled) { await this.actant.writeSection('title', before, by); await this.save(); }
-      throw err;
-    } finally {
-      this.status.setLife(this.status.life);
-    }
+      const line = await api('POST', `ludants/${this.recordId}/share`, { token: this.token, by, note, ...(typeof open === 'boolean' ? { public: open } : {}) });
+      return this.shared(line, by);
+    } finally { this.status.setLife(this.status.life); }
+  }
+
+  /** Send an update: everyone following gets the game as it is now, next time they open it. */
+  async sendUpdate(note = '', by = this.seat) {
+    await this.settled('sending the update');
+    await this.sendThumb();
+    try { return this.shared(await api('POST', `ludants/${this.recordId}/update`, { token: this.token, by, note }), by); }
+    finally { this.status.setLife(this.status.life); }
+  }
+
+  shared(line, by) {
+    this.record.line = { ...line, behind: false };
+    const url = `${location.origin}/play.html?line=${line.id}`;
+    this.inspector.note('changed', line.held ? `${by} shared version ${line.latest?.version ?? '?'}, but it's held for a person to look at first (${line.held})` : `${by} shared version ${line.latest?.version}: ${url}`);
+    this.bus.emit('frame.published', { who: by, name: this.actant.name, url, version: line.latest?.version ?? null, public: line.public, ...(line.held ? { held: line.held } : {}) });
+    this.renderShare();
+    return { ...line, url };
+  }
+
+  /** A copy following someone's version: changing its game makes it the person's own (it
+   *  stops getting their updates). They say so, here, before anything changes. */
+  askToChange(section = null) {
+    if (!this.following) return Promise.resolve(true);
+    this.askingChange ??= new Promise((resolve) => {
+      const by = this.following;
+      const done = async (yes) => { box.remove(); this.askingChange = null; if (yes) await this.makeOwn(); resolve(yes); };
+      const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
+        el('p', {}, el('strong', {}, 'Changing this makes it your own version. '),
+          `${section ? `${callName(this.actant.soma)} wants to change its game. ` : ''}Right now it follows ${by}'s version, and gets their updates when they send them. Once it changes, it's yours, and their updates stop. You can go back to following ${by} later, but your changes would be replaced.`),
+        el('button', { class: 'top-btn primary', onclick: () => done(true) }, 'make it mine'),
+        el('button', { class: 'top-btn', onclick: () => done(false) }, `keep following ${by}`)));
+      document.body.append(box);
+    });
+    return this.askingChange;
+  }
+
+  async makeOwn() {
+    const by = this.following;
+    this.following = null;
+    this.madeOwn = true;
+    await this.sandbox.call('following', null);
+    if (this.record.follows) this.record.follows.following = false;
+    this.chat.notice(`This is your own version now: it no longer gets ${by}'s updates. (Share has a way back.)`);
+    this.bus.emit('frame.madeOwn', { who: this.seat, from: by });
+    this.renderShare();
+  }
+
+  /** An update arrived as it was opened: the person sees it, and so does the ludant. */
+  showUpdated(u) {
+    const by = u.by ?? 'its maker';
+    const box = el('div', { class: 'banner' },
+      el('p', {}, el('strong', {}, `Updated to ${by}'s latest. `), `This game follows ${by}'s version, and they sent an update${u.note ? `: "${u.note}"` : '.'} ${callName(this.actant.soma)} kept its memory of you.`),
+      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'ok'));
+    document.body.append(box);
+    this.inspector.note('changed', `updated to ${by}'s version ${u.version}`);
+    this.bus.emit('frame.updated', { who: this.seat, by, version: u.version, note: u.note ?? null });
+  }
+
+  /** The share button says when there's an update ready for people following. */
+  renderShare() {
+    const b = this.shareBtn;
+    if (!b) return;
+    const ready = Boolean(this.record.line?.behind && this.record.line.followers > 0);
+    b.classList.toggle('ready', ready);
+    b.textContent = ready ? 'share •' : 'share';
+    b.title = ready ? `you've changed it since your last update: send ${this.record.line.followers === 1 ? 'the person' : `the ${this.record.line.followers} people`} following it the new version` : 'share this game: a link for friends, or the lobby';
+  }
+
+  /** The share panel: the link, private or in the lobby, followers, and sending an update.
+   *  For a copy: whose version it follows, or the way back to following it. */
+  async askShare() {
+    document.querySelector('.share-panel')?.remove();
+    const panel = el('div', { class: 'cover share-panel' });
+    const box = el('div', { class: 'cover-box' });
+    panel.append(box);
+    document.body.append(panel);
+    const close = () => panel.remove();
+    const said = el('p', { class: 'ask-fail' });
+    const fail = (err) => { said.textContent = err.message; };
+    const name = callName(this.actant.soma);
+    const draw = () => {
+      const line = this.record.line, f = this.record.follows;
+      const follows = f ? (this.following
+        ? el('p', { class: 'share-follow' }, `This game follows ${f.by ?? 'its maker'}'s version: when they send an update, it updates too. Changing it makes it your own.`)
+        : el('p', { class: 'share-follow' }, `Your own version of ${f.by ?? 'its maker'}'s game. `, el('button', { class: 'link-btn inline', onclick: async () => {
+          if (!confirm(`Go back to following ${f.by ?? 'its maker'}'s version? Its game becomes their newest again, and your changes to it are replaced (they're kept in history). ${name} keeps its memory.`)) return;
+          try { await this.settled('following again'); await api('POST', `ludants/${this.recordId}/follow`, { token: this.token }); location.reload(); } catch (err) { fail(err); }
+        } }, `go back to following ${f.by ?? 'them'}`))) : null;
+      if (!line) {
+        const title = el('input', { class: 'name-input', value: this.actant.soma.sections.title ?? '', placeholder: 'its title', maxlength: 80, ...(this.following ? { disabled: true } : {}) });
+        let open = false;
+        const vis = this.visibility(false, (v) => { open = v; });
+        box.replaceChildren(
+          el('p', {}, el('strong', {}, 'Share this game. '), 'You get a link to text or email. Whoever opens it gets their own copy, alive, and it follows yours: when you send an update, theirs updates too, until they change theirs.'),
+          ...[follows].filter(Boolean), title, vis, said,
+          el('button', { class: 'top-btn primary', onclick: async () => {
+            try { await this.share({ title: title.value, public: open }); draw(); } catch (err) { fail(err); }
+          } }, 'share'),
+          el('button', { class: 'top-btn', onclick: close }, 'cancel'));
+        return;
+      }
+      const url = `${location.origin}/play.html?line=${line.id}`;
+      const link = el('input', { class: 'name-input share-link', value: url, readonly: true, onclick: () => link.select() });
+      const copyBtn = el('button', { class: 'top-btn', onclick: async () => { try { await navigator.clipboard.writeText(url); copyBtn.textContent = 'copied'; } catch { link.select(); } } }, 'copy link');
+      const followers = line.followers ?? 0;
+      const update = el('button', { class: `top-btn${line.behind ? ' primary' : ''}`, disabled: !line.behind, onclick: async () => {
+        update.disabled = true;
+        try { const r = await this.sendUpdate(); if (r.held) said.textContent = `Held back: a check thought something in it might break the rules (${r.held.replace(/^the publish check: /, '')}). A person will look soon; until then, followers keep the version they have.`; draw(); }
+        catch (err) { update.disabled = false; fail(err); }
+      } }, 'send update');
+      box.replaceChildren(
+        el('p', {}, el('strong', {}, `${this.actant.soma.sections.title || name}, shared. `), `${followers ? `${followers} ${followers === 1 ? 'person follows' : 'people follow'} it. ` : 'Nobody follows it yet. '}${line.behind ? 'You\'ve changed it since your last update.' : 'Everyone following has your latest.'} Updates reach them the next time they open it.`),
+        el('div', { class: 'share-row' }, link, copyBtn),
+        this.visibility(line.public, async (v) => {
+          try { this.record.line = { ...this.record.line, ...(await api('POST', `ludants/${this.recordId}/share`, { token: this.token, by: this.seat, public: v })) }; draw(); } catch (err) { fail(err); draw(); }
+        }),
+        ...[follows].filter(Boolean), said, update,
+        el('button', { class: 'top-btn', onclick: close }, 'close'));
+    };
+    draw();
+  }
+
+  /** Private (by link only) or public (in the lobby too). */
+  visibility(open, onChange) {
+    const option = (value, label, text) => el('label', { class: 'share-vis' },
+      el('input', { type: 'radio', name: 'share-vis', ...(open === value ? { checked: true } : {}), onchange: () => onChange(value) }),
+      el('strong', {}, label), ` ${text}`);
+    return el('div', { class: 'share-vis-row' },
+      option(false, 'Private', 'only people you send the link to'),
+      option(true, 'Public', 'also in the lobby, for anyone'));
   }
 
   /** Put the ludant back to a checkpoint, in place: the stage keeps running, the people
    *  stay seated, and the ludant's body is swapped for the one it had then. */
   async restore(n, by = this.seat) {
+    if (!await this.askToChange()) return { restored: null };
     await this.settled('restoring');
-    await api('POST', `ludants/${this.recordId}/restore`, { n, by, token: this.token });
+    await api('POST', `ludants/${this.recordId}/restore`, { n, by, token: this.token, ...(this.madeOwn ? { madeOwn: true } : {}) });
     const record = await api('GET', `ludants/${this.recordId}`);
     this.record = { ...this.record, ...record, surfaces: this.record.surfaces };
     await this.actant.load(record.soma);
@@ -484,7 +615,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       } catch (err) { send.disabled = false; alert(`couldn't send the report: ${err.message}`); }
     } }, 'send report');
     const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box report-box' },
-      el('p', {}, el('strong', {}, 'Report what you saw here. '), from ? `This is a copy of ${from.name}${from.by ? `, published by ${from.by}` : ''}. The report covers both.` : `The report is about ${this.actant.name}.`, ' ', el('a', { href: '/rules.html', target: '_blank' }, 'What isn\'t allowed')),
+      el('p', {}, el('strong', {}, 'Report what you saw here. '), from ? `This is a copy of ${from.name}${from.by ? `, shared by ${from.by}` : ''}. The report covers both.` : `The report is about ${this.actant.name}.`, ' ', el('a', { href: '/rules.html', target: '_blank' }, 'What isn\'t allowed')),
       ...reasons.map(([value, label]) => el('label', { class: 'report-reason' },
         el('input', { type: 'radio', name: 'report-reason', value, onchange: () => { reason = value; send.disabled = false; } }), label)),
       note, send,
@@ -703,17 +834,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     };
     root.append(
       el('button', { class: 'top-btn more', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
-      el('button', { class: 'top-btn more', onclick: async () => {
-        const given = this.actant.soma.given;
-        const title = prompt(`Publish under the name ${given}-<title>. Each name belongs to one snapshot, so a new publication needs a new title. Title:`, this.actant.soma.sections.title ?? '');
-        if (!title?.trim()) return;
-        const note = prompt('A note for whoever takes a copy (optional):', '') ?? '';
-        try {
-          const { url, name, held } = await this.publish(note, title);
-          if (held) alert(`${name} is published, but held back: a check before publications go public thought something in it might break the rules (${held.replace(/^the publish check: /, '')}). A person will look at it soon, and it shows up once they have. Your ludant is as it was.`);
-          else prompt(`Published as ${name}. Anyone can take a copy here:`, url);
-        } catch (err) { alert(err.message); }
-      } }, 'publish'),
+      this.shareBtn = el('button', { class: 'top-btn share-btn', onclick: () => this.askShare() }, 'share'),
       el('a', { class: 'top-btn', href: '/', title: 'more games, and your own' }, 'home'),
       this.playBtn = el('button', { class: 'top-btn', title: 'just the game, or the game with its chat and whiteboard', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show chat' : 'just the game'),
       el('button', { class: 'top-btn more', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
@@ -727,8 +848,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       el('button', { class: 'top-btn more', title: 'report something that doesn\'t belong here', 'aria-label': 'report', onclick: () => this.askReport() }, '⚑'),
       history,
       // On a narrow screen, the less everyday ones fold behind this.
-      el('button', { class: 'top-btn more-btn', title: 'more: history, publish, inside, report', 'aria-label': 'more', onclick: () => root.classList.toggle('more-open') }, '⋯'),
+      el('button', { class: 'top-btn more-btn', title: 'more: history, inside, report', 'aria-label': 'more', onclick: () => root.classList.toggle('more-open') }, '⋯'),
     );
+    this.renderShare();
   }
 
   /** Who the ludant is to the person who just sat down, in a sentence. */
@@ -736,7 +858,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     const who = this.seat, l = this.record.lineage ?? {};
     if (this.record.fresh && l.from) {
       const took = l.takenBy && l.takenBy !== who ? `${l.takenBy} took this copy; ${who} is here with you.` : `${who} took this copy and is here with you.`;
-      const whence = l.from.published ? `published by ${l.from.by ?? 'someone'}` : 'taken from its link, as it was then';
+      const whence = l.from.published ? `shared by ${l.from.by ?? 'someone'}${this.following ? `, and you follow their version` : ''}` : 'taken from its link, as it was then';
       return `You are a new copy of ${l.from.name}, ${whence}. ${took}`;
     }
     if (this.record.fresh) return `You have just been seeded by ${who}. They are here with you.`;
@@ -750,7 +872,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     const actions = Object.fromEntries(this.surfaces.filter((s) => s.id !== 'stage' && s.id !== 'inspector').map((s) => [s.id, Object.keys(s.actions(''))]));
     await this.art.fetch();
     await this.sandbox.call('init', {
-      soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, people: [...this.people], actions,
+      soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, people: [...this.people], actions, following: this.following,
       art: this.art.forSandbox(),
     });
     await this.sandbox.checkPictures();
@@ -760,6 +882,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.record.visitors = Object.fromEntries(arrival.people.map((p) => [p, true]));
     this.bus.emit('frame.arrived', { who: this.seat, firstVisit: arrival.firstVisit, visits: arrival.visits, fresh: Boolean(this.record.fresh), note: this.arrivalNote(arrival) });
     if (this.record.fresh) this.changed();
+    if (this.record.updatedTo) this.showUpdated(this.record.updatedTo);
     this.table.resume();
     this.admins.deliver(this.record.mail);
   }

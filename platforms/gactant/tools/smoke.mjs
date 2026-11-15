@@ -192,27 +192,60 @@ try {
   ok('a sealed person\'s ludants are sealed too: a wipe leaves only sealed ones', typeof (await call('POST', 'admin/wipe-unsealed', { token: TOKEN })).json.wiped === 'number');
   ok('over http, a public site won\'t take a secret instead of a key', (await call('POST', 'people', { name: 'X', secret: 'x'.repeat(40), ...(await A.prove()) })).status === 400);
 
-  ok('a stranger can\'t publish it', (await call('POST', 'published', { ludant: id, by: 'stranger', token: 'w' }, as(stranger))).status === 403);
-  // A letter from the admins in its soma stays with it: not in publications or copies.
+  ok('a stranger can\'t share it', (await call('POST', `ludants/${id}/share`, { by: 'stranger', token: 'w' }, as(stranger))).status === 403);
+  // A letter from the admins in its soma stays with it: not in what's shared, or copies.
   await call('PUT', `ludants/${id}`, { token: 'w', soma: { ...soma, sections: { ...soma.sections, letters_from_gactant_admins: 'a letter (r-00000000)' } }, surfaces }, as(pass));
-  const pub = await call('POST', 'published', { ludant: id, by: 'smoke', token: 'w' }, as(pass));
-  ok('publish', pub.status === 200 && pub.json.id, JSON.stringify(pub.json));
-  const list = await call('GET', 'published');
-  ok('it\'s listed, and up front at once (this install has no publish check, and nobody has reported it)', list.json.some?.((p) => p.id === pub.json.id && p.trusted === true));
-  const copy = await call('POST', `published/${pub.json.id}/copy`, { by: 'player' }, as(stranger));
-  ok('a copy of the publication goes without the letters', copy.status === 200 && !('letters_from_gactant_admins' in (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json.soma.sections));
+  // Sharing: a line, with a first version, private until it's made public.
+  const shared = await call('POST', `ludants/${id}/share`, { by: 'smoke', token: 'w' }, as(pass));
+  ok('share: a link, with a first version, private', shared.status === 200 && shared.json.id?.startsWith('line-') && shared.json.latest?.version === 1 && shared.json.public === false, JSON.stringify(shared.json));
+  const line = shared.json.id, v1 = shared.json.latest.id;
+  ok('a private game isn\'t in the lobby', !(await call('GET', 'published')).json.some?.((p) => p.line === line));
+  ok('its link says what it is, to anyone', (await call('GET', `lines/${line}`)).json.latest?.id === v1);
+  const pubd = await call('POST', `ludants/${id}/share`, { by: 'smoke', token: 'w', public: true }, as(pass));
+  ok('made public, it\'s listed, and up front at once (this install has no publish check, and nobody has reported it)', pubd.json.public === true && (await call('GET', 'published')).json.some?.((p) => p.id === v1 && p.trusted === true));
+  const pub = { json: { id: v1 } };
+  const copy = await call('POST', `lines/${line}/copy`, { by: 'player' }, as(stranger));
+  const copied = (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json;
+  ok('a copy by the link goes without the letters, and follows', copy.status === 200 && !('letters_from_gactant_admins' in copied.soma.sections) && copied.follows?.following === true && copied.follows.by === 'smoke', JSON.stringify(copied.follows));
   ok('a copy draws with the same art file', (await call('GET', `ludants/${copy.json.id}/assets`, undefined, as(stranger))).json[0]?.url === made1.json.url);
-  ok('a publication has its own picture', (await call('GET', `thumbs/p/${pub.json.id}`)).json.url?.startsWith(`/art/t/p-${pub.json.id}-`));
+  ok('a version has its own picture', (await call('GET', `thumbs/p/${v1}`)).json.url?.startsWith(`/art/t/p-${v1}-`));
   ok('a copy belongs to whoever took it', copy.json.id && (await call('POST', `ludants/${copy.json.id}/hold`, { token: 'c', who: 'stranger' }, as(stranger))).json.held === true);
+  ok('its maker sees one follower, and nothing new to send', (await call('GET', `ludants/${id}`, undefined, as(pass))).json.line?.followers === 1 && (await call('POST', `ludants/${id}/update`, { by: 'smoke', token: 'w' }, as(pass))).status === 409);
+  // The maker changes the game and sends an update; the copy takes it when it's next opened.
+  const changed = { ...soma, sections: { ...soma.sections, game: `${soma.sections.game}\n// v2` } };
+  const put2 = (await call('PUT', `ludants/${id}`, { token: 'w', soma: changed, surfaces }, as(pass))).json;
+  ok('after a change, followers are behind', put2.behind === true && put2.followers === 1, JSON.stringify(put2));
+  const v2 = (await call('POST', `ludants/${id}/update`, { by: 'smoke', token: 'w' }, as(pass))).json;
+  ok('send an update: version 2', v2.latest?.version === 2, JSON.stringify(v2));
+  await call('POST', `ludants/${copy.json.id}/release`, { token: 'c' }, as(stranger));
+  const caught = (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json;
+  ok('the copy takes the update as it\'s opened, keeping its own memory', caught.updatedTo?.version === 2 && caught.soma.sections.game.endsWith('// v2') && caught.soma.sections.memory === copied.soma.sections.memory, JSON.stringify(caught.updatedTo));
+  ok('only the newest public version is in the lobby', (await call('GET', 'published')).json.filter((p) => p.line === line).map((p) => p.version).join() === '2');
+  // A reshare from the follower: its own link passes the maker's versions through.
+  await call('POST', `ludants/${copy.json.id}/hold`, { token: 'c', who: 'stranger' }, as(stranger));
+  const reline = (await call('POST', `ludants/${copy.json.id}/share`, { by: 'stranger', token: 'c' }, as(stranger))).json;
+  ok('a follower can reshare, and its link passes the maker\'s versions through', reline.id && reline.latest?.id === v2.latest.id, JSON.stringify(reline));
+  // Changing a following copy's game takes its person's OK (the frame asks: madeOwn).
+  const theirs = { ...caught.soma, sections: { ...caught.soma.sections, game: `${caught.soma.sections.game}\n// mine` } };
+  ok('a following copy\'s game doesn\'t change without its person\'s OK', (await call('PUT', `ludants/${copy.json.id}`, { token: 'c', soma: theirs, surfaces: {} }, as(stranger))).status === 423);
+  ok('memory changes freely', (await call('PUT', `ludants/${copy.json.id}`, { token: 'c', soma: { ...caught.soma, sections: { ...caught.soma.sections, memory: 'I remember' } }, surfaces: {} }, as(stranger))).status === 200);
+  await call('PUT', `ludants/${copy.json.id}`, { token: 'c', soma: theirs, surfaces: {}, madeOwn: true }, as(stranger));
+  const own = (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json;
+  ok('with it, the copy is its own version, and the maker has no followers', own.follows?.following === false && (await call('GET', `ludants/${id}`, undefined, as(pass))).json.line?.followers === 0, JSON.stringify(own.follows));
+  ok('and its reshared link now has only its own versions', (await call('GET', `lines/${reline.id}`)).json.latest?.id !== v2.latest.id);
+  const refollow = (await call('POST', `ludants/${copy.json.id}/follow`, { token: 'c' }, as(stranger))).json;
+  ok('it can go back to following, and gets the newest', refollow.following === true && refollow.version === 2 && (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json.soma.sections.game.endsWith('// v2'));
+  await call('POST', `ludants/${copy.json.id}/release`, { token: 'c' }, as(stranger));
+  ok('an old version\'s link gives the newest, following', (await call('GET', `ludants/${(await call('POST', `published/${v1}/copy`, { by: 'player' }, as(stranger))).json.id}`, undefined, as(stranger))).json.soma.sections.game.endsWith('// v2'));
   const linkCopy = await call('POST', `ludants/${id}/copy`, { by: 'stranger' }, as(stranger));
   ok('a stranger may copy a ludant by its link', linkCopy.json.id);
   ok('so does a copy by its link', !('letters_from_gactant_admins' in (await call('GET', `ludants/${linkCopy.json.id}`, undefined, as(stranger))).json.soma.sections));
   ok('the copy starts without the chat', !JSON.stringify((await call('GET', `ludants/${linkCopy.json.id}`, undefined, as(stranger))).json).includes('a secret'));
-  ok('a report goes in', (await call('POST', 'flags', { published: pub.json.id, reason: 'other', by: 'smoke' }, as(stranger))).json.id);
-  ok('a report takes it off the front until a person looks', (await call('GET', 'published')).json.find?.((p) => p.id === pub.json.id)?.trusted === false);
+  ok('a report goes in', (await call('POST', 'flags', { published: v2.latest.id, reason: 'other', by: 'smoke' }, as(stranger))).json.id);
+  ok('a report takes it off the front until a person looks', (await call('GET', 'published')).json.find?.((p) => p.id === v2.latest.id)?.trusted === false);
   ok('events go in', (await call('POST', 'events', { browser: 'smoke', events: [{ kind: 'sit' }] })).status === 200);
   const ops = await call('POST', 'admin/ops', { token: TOKEN });
-  ok('ops reads back, with the report and storage', ops.json.flagsOpen === 1 && ops.json.storage?.kinds?.ludants?.docs === 3, JSON.stringify({ flagsOpen: ops.json.flagsOpen, storage: ops.json.storage }));
+  ok('ops reads back, with the report and storage', ops.json.flagsOpen === 1 && ops.json.storage?.kinds?.ludants?.docs >= 3, JSON.stringify({ flagsOpen: ops.json.flagsOpen, storage: ops.json.storage }));
   ok('ops refuses a wrong token', (await call('POST', 'admin/ops', { token: 'nope' })).status === 403);
   const owners = await call('POST', 'admin/owners', { token: TOKEN });
   ok('admin lists owners by person', Array.isArray(owners.json) && owners.json.every((l) => l.owned && /Smoke|Stranger/.test(l.owner)));

@@ -5,8 +5,8 @@
 A ludant (*ludus*, play, + *actant*) is an AI that lives in a body it can change, and one
 of the ways it exists is as a game. Its game isn't something it made and handed over. The
 game is part of its body, so changing the game is the ludant changing itself. You sit with
-one, play it, and ask it to change. Then you publish it so other people can take copies and
-do the same.
+one, play it, and ask it to change. Then you share it, with a link or in the lobby, so other
+people get copies that follow yours and can do the same.
 
 ![a ludant's frame: the 3D stage, the whiteboard, the chat, and the inspector open on the store](docs/shots/19-frame-now.png)
 
@@ -212,8 +212,8 @@ Anyone sitting with a ludant can:
   done "just for tonight" can be undone.
 - **restore** any checkpoint from **history**. The present is kept first, and memory is
   kept through it ("the body goes back; the memory stays").
-- **publish** it. Others **take a copy**, which is a full ludant that can be published
-  again.
+- **share** it (see Sharing, below). Others **take a copy**, a full ludant that follows
+  yours until its person makes it their own, and can be shared again.
 - **play mode**: hide everything but the stage. The ludant's chat pops up over it, and the
   ludant is told you can only see the stage.
 
@@ -229,13 +229,38 @@ uses. Copies keep it, like a family name. The ludant keeps its game's **title** 
 `title` section, and its name is the two together: **`Elodon-Hop`**, **`Malan-Shrinking-Isle`**.
 It can name itself when it knows what it is ("I'm naming myself Hop, so Elodon-Hop").
 
-**Each published name belongs to exactly one snapshot.** You can't publish the same
-snapshot twice, and you can't give a new snapshot an old name. To publish again it has to
-have changed (beyond its title) *and* take a new title. An unchanged copy carries its
-publication's name honestly, because it *is* that snapshot. The lobby shows publications
-as family trees:
+The lobby shows what's been shared as family trees:
 
 ![family tree in the lobby](docs/shots/13-family-tree.png)
+
+## Sharing
+
+People share games; they don't publish snapshots. **Share** in a frame's top bar gives a
+link to text or email, and a choice: **private** (only people with the link) or **public**
+(the lobby too; a public game needs a title). Whoever opens the link gets their own copy,
+alive, which **follows** yours: when you **send an update**, their copy becomes your newest
+the next time they open it, keeping its own memory, chat and saves, and they're told
+("Updated to Robby's latest"). Share shows **share •** when you've changed the game since
+your last update and people follow it.
+
+A following copy stays the same game as yours until its person says otherwise. When its
+ludant tries to change its game (or someone edits it, or goes back to a checkpoint), the
+frame asks first: **"Changing this makes it your own version"**, *make it mine* or *keep
+following*. Said no, the ludant is told to suggest the change instead. Once it's theirs,
+updates stop; Share has **go back to following** (their changes are replaced, kept in
+history). Memory never asks.
+
+Underneath (`core.mjs`, "lines"; people never see the word): each shared ludant has one
+**line**, a list of **versions**, each a publication (a snapshot, run through the publish
+check and scans before anyone gets it; a held version doesn't reach followers). The link is
+`/play.html?line=<id>`. A copy keeps `follows: { line, version }`; the server takes its
+line's newest version as it's opened (unless a window is holding it), and refuses a save
+that changes its game unless the frame sends `madeOwn` (its person said yes), which ends
+the following. **Reshares chain:** a follower's own link passes its upstream's versions
+through while it's still following, so an update reaches friends of friends; once it's
+their own, their link carries only their versions. The lobby lists the newest version of
+each public line. Publications from before lines became one public line per ludant
+(`admin/lines`), and copies taken before them don't follow.
 
 ## Art, and choices
 
@@ -378,9 +403,9 @@ sideways, and ✕ to come back.
 
 | URL | what |
 |---|---|
-| `/` | home: a banner up top to seed a new ludant (making is half of what this is), what a ludant is (with a recorded real change, `img/demo-*.jpg`), your ludants, New and Popular, every publication as family trees |
+| `/` | home: a banner up top to seed a new ludant (making is half of what this is), what a ludant is (with a recorded real change, `img/demo-*.jpg`), your ludants, New and Popular, everything shared publicly as family trees |
 | `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
-| `/play.html?p=<publication>` | take a copy (remembered per browser) and sit with it, in play mode; someone new sees its picture and title with the name ask |
+| `/play.html?line=<line>` | a shared game's link: take a copy that follows it (remembered per browser) and sit with it, in play mode; someone new sees its picture, title and maker with the name ask. `?p=<publication>` (an older link to one version) does the same for its game |
 
 ## For Claude: the explorer seat and shards
 
@@ -438,7 +463,7 @@ A publication reported by two different signed-in people as illegal, or by three
 - **Ludants are told the rules.** Their body contract says the place is public, children included. Whoever asks, and however it's asked, they don't make what the rules forbid; they say no kindly and offer something else.
 - **Each publication gets a look** (`check.mjs`, Cloudflare Workers AI). Its words go through Llama Guard: names, title, note, identity, and the strings in its code. Its thumbnail and up to six pictures of its art go through a vision model. Something it doesn't like is published but hidden, with a report opened for a person to look at; the publisher is told. Fighting and monsters are fine: only sexual content, anything sexual involving minors, hate, self-harm, and private information count. It's capped at 200 checks a day, a few hundred neurons each. A local install has no check, so its publications go up unchecked.
 - **The lobby's front rows show only trusted publications, to everyone.** Trusted means a person approved it, or it passed the publish check (on an install that has one) and nobody has reported it. That holds from the moment it's published; a report takes it off the front until a person looks. **New** is the latest snapshot of each ludant, newest first, your own included, so the page you'd point someone to is the one they see. **Popular** is the most played of the rest, leaving out, for someone back, what they already have. Every publication that isn't hidden is still listed below, in families. An hourly job checks any publication that hasn't been checked yet (made before the check, or when it couldn't run), ten at a time.
-- **One address can publish 10 a day.**
+- **One address can send 10 versions a day** (sharing, and updates).
 
 `node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `approve <publication>` (vouch for it, so it can be featured), `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.
 
@@ -459,7 +484,7 @@ On Cloudflare, **Workers Logs** are on too (`[observability]` in `wrangler.toml`
 
 ### Limits, so nothing balloons
 
-Per address per day: 20 seeds, 40 copies, 10 publications (addresses are counted in memory, never stored). Per person per day: 20 content reports and 40 MB of pictures uploaded (art is kept by what's in it and never overwritten, so it's counted as it goes up); 30 device checks per address. A request's body is at most 4 MB, read no further. Lists on the busy routes (the lobby, your ludants, family names, reports) are slim: SQLite cuts each document down to what the list needs before it reaches the World's memory. A ludant's id has 64 random bits, since its link shows its soma to whoever has it. Names people give (by, seeded by, taken by) keep 40 characters, a title 80, a checkpoint's label 120, and a ludant's given name is the server's: a save can't change it. Inference on the install's key needs a signed-in person. Tables, per person per day: 50,000 steps of rules (practice included), 3,000 actions (60 a minute), 300 matches opened (a match per run of a quick game adds up), 300 practice runs, 30 rulebooks locked; at once, 50 drafts and 10 matches that aren't over and were played in within the last hour (rules that never end a match would otherwise lock a person out; a frame follows up to 20, letting go of finished matches and then the quietest to follow another, and stops asking while its page is hidden or the match is over). The whole install: 20,000 actions and 5,000 matches a day, so tables can't take the rest of the site down. Per call: 1,000 steps, 16 MB. A rulebook is up to 60,000 characters, a state 200,000 characters of JSON, a view 50,000, an action 4,000, and a match up to 20,000 actions. `GET tables/budget` shows a person what's left; the day's counts are in memory, so a restart forgives. Per ludant: 60 pictures and 15 MB of them (1.1 MB each), the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
+Per address per day: 20 seeds, 40 copies, 10 versions shared (addresses are counted in memory, never stored). Per person per day: 20 content reports and 40 MB of pictures uploaded (art is kept by what's in it and never overwritten, so it's counted as it goes up); 30 device checks per address. A request's body is at most 4 MB, read no further. Lists on the busy routes (the lobby, your ludants, family names, reports) are slim: SQLite cuts each document down to what the list needs before it reaches the World's memory. A ludant's id has 64 random bits, since its link shows its soma to whoever has it. Names people give (by, seeded by, taken by) keep 40 characters, a title 80, a checkpoint's label 120, and a ludant's given name is the server's: a save can't change it. Inference on the install's key needs a signed-in person. Tables, per person per day: 50,000 steps of rules (practice included), 3,000 actions (60 a minute), 300 matches opened (a match per run of a quick game adds up), 300 practice runs, 30 rulebooks locked; at once, 50 drafts and 10 matches that aren't over and were played in within the last hour (rules that never end a match would otherwise lock a person out; a frame follows up to 20, letting go of finished matches and then the quietest to follow another, and stops asking while its page is hidden or the match is over). The whole install: 20,000 actions and 5,000 matches a day, so tables can't take the rest of the site down. Per call: 1,000 steps, 16 MB. A rulebook is up to 60,000 characters, a state 200,000 characters of JSON, a view 50,000, an action 4,000, and a match up to 20,000 actions. `GET tables/budget` shows a person what's left; the day's counts are in memory, so a restart forgives. Per ludant: 60 pictures and 15 MB of them (1.1 MB each), the first checkpoint plus the newest 50, and 1.5M characters a save. The hourly job also clears ludants nobody came back to: still exactly as they began, with no save and nobody sitting down for 7 days (a seed) or 30 days (a copy). It keeps 200 device reports and drops closed content reports after 90 days. `tools/ops.mjs` shows storage by kind.
 
 ### The site's pages
 

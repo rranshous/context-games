@@ -43,6 +43,9 @@ function thumb(kind, id, name) {
   return box;
 }
 
+/** A shared game's link: by its line, so a copy follows it. */
+const playLink = (p) => (p.line ? `/play.html?line=${p.line}` : `/play.html?p=${p.id}`);
+
 function pubCard(p, big = false, fresh = false) {
   const facts = [
     p.by ? `by ${p.by}` : null,
@@ -50,7 +53,7 @@ function pubCard(p, big = false, fresh = false) {
     p.cost ? `played ${hours(p.cost.hours)}` : p.copies ? `${p.copies} ${p.copies === 1 ? 'player' : 'players'}` : 'new',
     costLine(p.cost),
   ].filter(Boolean).join(' · ');
-  return el('a', { class: `card${big ? ' big' : ''}`, href: `/play.html?p=${p.id}` },
+  return el('a', { class: `card${big ? ' big' : ''}`, href: playLink(p) },
     thumb('p', p.id, titled(p.title) || p.name),
     el('div', { class: 'card-text' },
       el('strong', {}, titled(p.title) || p.name),
@@ -58,13 +61,13 @@ function pubCard(p, big = false, fresh = false) {
       el('span', { class: 'card-facts' }, facts)));
 }
 
-/** A ludant this browser has sat with. If it has been published, the card says so: the
- *  publication is a snapshot others play, and this is the one that goes on changing. */
+/** A ludant this browser has sat with. If it has been shared, the card says so: copies
+ *  follow it, and this is the one that goes on changing. */
 function mineCard(l, pubs = []) {
-  const from = l.lineage?.from ? `your copy of ${l.lineage.from.name}` : l.lineage?.seededBy ? `seeded by ${l.lineage.seededBy}` : 'seeded here';
+  const from = l.lineage?.from ? `your copy of ${l.lineage.from.name}${l.following ? ', following it' : ', your own version'}` : l.lineage?.seededBy ? `seeded by ${l.lineage.seededBy}` : 'seeded here';
   const latest = pubs.at(-1);
   const players = pubs.reduce((n, p) => n + (p.copies ?? 0), 0);
-  const published = latest ? `published as ${latest.name}${pubs.length > 1 ? ` (and ${pubs.length - 1} earlier)` : ''} · ${players} ${players === 1 ? 'player' : 'players'}` : null;
+  const published = latest ? `shared${pubs.length > 1 ? `, version ${latest.version ?? pubs.length}` : ''} · ${players} ${players === 1 ? 'player' : 'players'}` : null;
   return el('a', { class: 'card', href: `/frame.html?l=${l.id}` },
     thumb('l', l.id, l.name),
     el('div', { class: 'card-text' },
@@ -89,7 +92,7 @@ function families(published, yours = new Set()) {
     const how = parent.get(p.id)?.how;
     const kids = children(p.id);
     return el('li', { class: 'tree-node' },
-      el('a', { class: 'tree-card', href: `/play.html?p=${p.id}` },
+      el('a', { class: 'tree-card', href: playLink(p) },
         how ? el('span', { class: `tree-how ${how}` }, how === 'then' ? 'then' : `copy, changed by ${p.by ?? 'someone'}`) : null,
         el('strong', {}, titled(p.title) || p.name, yours.has(p.ludant) ? el('span', { class: 'yours' }, ' yours') : null),
         el('span', {}, [p.by ? `by ${p.by}` : null, `${p.copies} ${p.copies === 1 ? 'copy' : 'copies'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · ')),
@@ -125,10 +128,10 @@ function yourTrees(yours, published) {
   const ludantNode = (l, tag) => row(l.lineage?.from ? 'copy' : 'mine', `/frame.html?l=${l.id}`, 'l', l.id, l.name, tag,
     [l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · '),
     pubsOf(l.id).map(pubNode));
-  const pubNode = (p) => row('pub', `/play.html?p=${p.id}`, 'p', p.id, p.name,
-    mineIds.has(p.ludant) ? 'published: a snapshot others play' : `published by ${p.by ?? 'someone'}`,
+  const pubNode = (p) => row('pub', playLink(p), 'p', p.id, p.name,
+    mineIds.has(p.ludant) ? `shared: the version others get${p.version > 1 ? ` (version ${p.version})` : ''}` : `shared by ${p.by ?? 'someone'}`,
     [`${p.copies} ${p.copies === 1 ? 'player' : 'players'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · '),
-    copiesOf(p.id).map((c) => ludantNode(c, 'your copy: the one you play')));
+    copiesOf(p.id).map((c) => ludantNode(c, c.following ? 'your copy: following it' : 'your copy: your own version')));
 
   // Roots: ludants of yours that aren't copies of a publication shown under one of yours,
   // and the publications (someone else's) that your copies came from.
@@ -136,7 +139,7 @@ function yourTrees(yours, published) {
   for (const l of yours.slice().sort(byTime)) {
     const from = l.lineage?.from?.published, pub = from && pubById.get(from);
     if (!from) roots.push(ludantNode(l, 'yours: you\'re shaping this'));
-    else if (!pub) roots.push(ludantNode(l, `your copy of ${l.lineage.from.name}`));
+    else if (!pub) roots.push(ludantNode(l, `your copy of ${l.lineage.from.name}${l.following ? ', following it' : ''}`));
     else if (!mineIds.has(pub.ludant) && !roots.some((r) => r.dataset?.pub === from)) {
       const node = pubNode(pub);
       node.dataset.pub = from;
@@ -241,16 +244,16 @@ async function render() {
       el('button', { class: 'top-btn', onclick: () => box.remove() }, 'not now'));
     parts.push(box);
   }
-  if (returning) parts.push(section('Your ludants', 'The ones you shape, what they were published as, and the copies you play.', yourTrees(yours, published)));
+  if (returning) parts.push(section('Your ludants', 'The ones you shape, what you\'ve shared, and the copies you play.', yourTrees(yours, published)));
   if (fresh.length) {
-    parts.push(section('New', 'Just published, newest first.',
+    parts.push(section('New', 'Just shared, newest first.',
       el('div', { class: 'cards-grid' }, ...fresh.map((p) => pubCard(p, !returning, true)))));
   }
   if (popular.length) {
     parts.push(section('Popular', 'The most played.', el('div', { class: 'cards-grid' }, ...popular.map((p) => pubCard(p, !returning)))));
   }
   if (published.length > fresh.length + popular.length || returning) {
-    parts.push(section('Family trees', 'Anyone can change their copy of a ludant and publish what it became, so ludants grow into families. Here is every one, and where each came from.',
+    parts.push(section('Family trees', 'Anyone can change their copy of a ludant and share what it became, so ludants grow into families. Here is every one, and where each came from.',
       el('ul', { class: 'trees' }, ...families(published, mineIds))));
   }
   if (everyone.length) {

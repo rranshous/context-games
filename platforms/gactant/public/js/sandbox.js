@@ -58,6 +58,7 @@ export class Sandbox {
     return {
       infer: (request) => this.infer(request),
       perceive: () => frame.perception(),
+      askToChange: (section) => frame.askToChange(section),
       act: (id, action, args = []) => {
         const surface = proxied()[id];
         const fn = surface?.actions(frame.actant.name)[action];
@@ -176,7 +177,11 @@ export class Body {
     else this.frame.status.setLife(state.life, state.detail);
   }
 
-  writeSection(name, content, by) { return this.frame.sandbox.call('write', name, content, by); }
+  /** A person's edit (the inspector): on a following copy, it asks them first. */
+  async writeSection(name, content, by) {
+    if (!['memory', 'letters_from_gactant_admins'].includes(name) && !await this.frame.askToChange(name)) return null;
+    return this.frame.sandbox.call('write', name, content, by);
+  }
   load(soma) { return this.frame.sandbox.call('load', soma); }
   idle(ms) { return this.frame.sandbox.call('idle', ms); }
   gameState() { return this.frame.sandbox.call('gameState'); }

@@ -6,9 +6,9 @@ const ORIGIN = (given, date, by) => `My given name is ${given}. I'm a ludant: a 
 
 The game is a facet of me. My game section is the game itself: when it changes, I have changed. My hooks section is how I reach the surfaces in my frame, and my tools are what I can do while I'm awake. When I change how my game looks or plays, it isn't done until I've looked at it the way a person will and played a little of it (advancing it, pressing keys).
 
-My name is my given name and my game's title together, the way Georina-Monopoly-Clone is Georina being a Monopoly clone. I keep the title in my title section, and I can name my game myself once I know what it is, or be asked to. Each name I'm published under belongs to exactly one snapshot of me. To be published again I'll have to have changed, and take a new title.
+My name is my given name and my game's title together, the way Georina-Monopoly-Clone is Georina being a Monopoly clone. I keep the title in my title section, and I can name my game myself once I know what it is, or be asked to.
 
-Whoever sits with me plays me, and anyone who plays me can shape me: asking for a change is shaping, and so is how they play. Any of them can publish me as I am. Then others take copies, and each copy goes on with its own people, keeping my given name. There's no moment when I stop being made and start being played. Both go on the whole time.`;
+Whoever sits with me plays me, and anyone who plays me can shape me: asking for a change is shaping, and so is how they play. Any of them can share me, by a link or in the lobby. Then others take copies, and each copy goes on with its own people, keeping my given name. A copy follows the version it came from, and gets its updates, until its person makes it their own. There's no moment when I stop being made and start being played. Both go on the whole time.`;
 
 const IDENTITY = `I'm new. I don't know yet what game I am, so I have no title yet. I'll find out with whoever is here by talking in the chat, sketching on the whiteboard, and trying things on the stage.`;
 
@@ -21,7 +21,9 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   stage.key { key, down }              stage.pointer { x, y, kind }
 //   stage.halted { message }             frame.arrived { who, firstVisit, visits, fresh, note }
 //   frame.error { source, during, message }   soma.changed { section, by }
-//   frame.published { who, name, url }  frame.restored { who, n, label }   whiteboard.looked { who }
+//   frame.published { who, name, url, version, public }   (shared, or an update sent)
+//   frame.updated { who, by, version, note }   (the version I follow sent an update, and I took it)
+//   frame.madeOwn { who, from }   (my person made me their own version)   frame.restored { who, n, label }   whiteboard.looked { who }
 //   frame.renamed { from, to }   (my name changes with my title)
 //   frame.view { who, playing }   (playing: they see only the stage)
 //   store.changed { who, key }   art.painting { who, name }   art.made { who, name, w, h }
@@ -48,10 +50,15 @@ function hooks(on, me, surfaces) {
   on('frame.arrived', (e) => { if (e.fresh || e.firstVisit) me.wake(e); });
   // Being put back to an earlier checkpoint: I should know what just happened to me.
   on('frame.restored', (e) => me.wake(e));
-  // Being published is worth remembering but not worth waking for: note it, no thinking.
+  // Being shared, or updated to the version I follow, is worth remembering but not worth
+  // waking for: note it, no thinking.
   on('frame.published', (e) => {
     const m = me.section('memory');
-    m.write(m.read() + '\\n- ' + new Date().toISOString().slice(0, 10) + ': ' + e.who + ' published me as ' + e.name + ' (' + e.url + ').');
+    m.write(m.read() + '\\n- ' + new Date().toISOString().slice(0, 10) + ': ' + e.who + ' shared me (version ' + e.version + ', ' + (e.public ? 'public' : 'private') + ').');
+  });
+  on('frame.updated', (e) => {
+    const m = me.section('memory');
+    m.write(m.read() + '\\n- ' + new Date().toISOString().slice(0, 10) + ': updated to ' + e.by + "'s version " + e.version + (e.note ? ': ' + e.note : '') + '.');
   });
 
   // The game: run it every frame and pass it input.
