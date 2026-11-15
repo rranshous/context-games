@@ -377,6 +377,15 @@ function result(s, t) { return null; }` }, as(pass))).json;
   ok('an archived match still says how it ended, and who was in it', after.archived && after.result?.winner === 'X' && after.you === true && after.players?.length === 2, JSON.stringify(after));
   const kept = (await call('GET', `matches/${match.id}/log`)).json;
   ok('its log is kept whole, with the keys', kept.log?.length === 7 && kept.log.at(-1).hash === head && Object.keys(kept.keys ?? {}).length === 2);
+  // And from outside, trusting nothing: tools/check-match.mjs replays it, each action at its own time.
+  const checked = await new Promise((resolve) => {
+    const p = spawn(process.execPath, [join(HERE, 'tools/check-match.mjs'), match.id, base], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    p.stderr.on('data', (d) => { out += d; });
+    p.on('close', (code) => resolve({ code, out }));
+  });
+  ok('check-match replays it from outside: chain, signatures and result, at each action\'s time', checked.code === 0 && /checks out: the chain, every signature, and the replay/.test(checked.out), checked.out.slice(-400));
   ok('an archived match takes no actions', (await act(stranger, S, 'move', { cell: 8 })).status === 410);
   // A one-player game with a high-score table: a match per run, and the best kept in standings.
   const solo = 'function init() { return { points: 0, done: false, who: null } }\nfunction join(s, p) { if (s.who) throw new Error(\'one player\'); s.who = p.id; return s }\nfunction move(s, p, a) { s.points = a.points; s.done = true; return s }\nfunction view(s) { return s }\nfunction result(s) { return s.done ? { scores: { [s.who]: s.points } } : null }';

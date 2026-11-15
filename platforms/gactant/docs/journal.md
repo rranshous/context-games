@@ -3253,3 +3253,22 @@ plus a wake-up the rules ask for.
    on request; or a rules-side audience(state, action).
 4. The 200k state cap means a world is a small lobby match plus zone, dungeon and character
    matches, which needs citing to carry "this player's character = match X's result".
+
+Before deploying time, Robby asked how solid it is, and about lag. The smoke test now runs
+`tools/check-match.mjs` against its finished match, so the replay with times is checked from
+outside, which it wasn't before. The tic-tac-toe rulebook doesn't use time, so that proves
+the plumbing, not a timed replay. Not run: the hosted Durable Object path (same match.mjs;
+we'll see it after the deploy).
+
+Lag, as told to Robby: `now` is when a move arrives.
+- Cooldowns and regen are safe: arriving late is always allowed.
+- Countdowns read the server's time from looks, which arrive one hop late, so they show
+  "ready" about 100 ms early. Hence the quarter-second slack the ludant is told to allow.
+- Races go to whoever is nearer the server, and collisions (409, re-sign) add a round trip
+  for whoever loses.
+- Twitch timing (a parry within 100 ms) can't be judged by server time at all; rules judge
+  coarse facts.
+Later option, only if the MMO ludant hits it: lag compensation. The device puts its own clock
+in the signed text, the server refuses anything more than a second or two off, and rules may
+judge by the player's own time within that margin. Fairer for people far from the server,
+slightly cheatable within the margin, and a change to what's signed.
