@@ -507,6 +507,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
         const vis = this.visibility(false, (v) => { open = v; });
         box.replaceChildren(
           el('p', {}, el('strong', {}, 'Share this game. '), 'You get a link to text or email. Whoever opens it gets their own copy, alive, and it follows yours: when you send an update, theirs updates too, until they change theirs.'),
+          el('p', { class: 'share-follow' }, 'Shared games are open: whoever takes a copy can read all of it (its code, art, notes and memory, not what was said or sketched) and play, change and share their copy. ', el('a', { href: '/terms.html', target: '_blank' }, 'Terms')),
           ...[follows].filter(Boolean), title, vis, said,
           el('button', { class: 'top-btn primary', onclick: async () => {
             try { await this.share({ title: title.value, public: open }); draw(); } catch (err) { fail(err); }

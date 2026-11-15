@@ -3050,3 +3050,26 @@ down the tree.
   one (another device). Caveat: a followed game that isn't in New or Popular is reached only
   by its link.
 - Nothing a ludant sees changed, so there's no changes.js line. Smoke tests got three checks.
+
+## Part 40: terms, and shared games being open
+
+Robby asked who owns the games: the users, or him/gactant? Nothing said, and gactant had no
+written permission to host shared games or let strangers copy and change them, which is the
+whole product. Now there's `/terms.html`:
+- **What you make:** whatever rights there are are yours, and gactant claims none. It also says
+  plainly that AI-made work generally isn't protected by copyright (US and elsewhere). Your own
+  creative choices may be, and it's unsettled. The models run under OpenRouter's terms.
+- **Shared games are open.** Robby: "these games are also effectively open source". A copy
+  gets the whole body (code, rules, art, notes, memory; not the sealed chat, sketches or
+  saves), so the terms say so like open source. Sharing permits everyone on gactant to play,
+  copy, change and reshare, with "based on" as the credit, and permits gactant to keep, run,
+  show and check it. The permission covers gactant only. A maker who wants more can have their
+  game write an open source license into its notes. Either way, gactant can't stop someone
+  taking what they read elsewhere. Copies already taken stay when sharing stops.
+- **What you put in, and what gactant can't promise:** it's offered as is and may change or
+  close, OpenRouter costs aren't refundable by gactant, liability is limited as far as the law
+  allows, and changes come with a date.
+- The share panel says it up front: "Shared games are open: whoever takes a copy can read all
+  of it…", with a Terms link. How it works says it in Share it. The lobby, rules, privacy and
+  how pages link it from their footers, and it's in the sitemap.
+Not checked by a lawyer; it should be before gactant charges for anything.

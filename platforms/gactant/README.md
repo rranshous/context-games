@@ -503,7 +503,7 @@ The frame, lobby and other pages hold people's OpenRouter keys and owner keys, s
 ### Looking like what it is
 
 New domains get judged by filters, so the site looks like a real one:
-- **gactant.com:** `/privacy.html` (what's kept, who sees it, where it goes, and who runs gactant), `/rules.html`, `/how.html` (how it works, for someone new: changing, painting its own art, playing together, sharing, cost, safety); privacy and rules, and the home page's footer, give admin@gactant.com (forwarded to Robby), `robots.txt` (no indexing of frames, play links or the API), `sitemap.xml`, and link previews (Open Graph tags, `og.jpg`).
+- **gactant.com:** `/privacy.html` (what's kept, who sees it, where it goes, and who runs gactant), `/rules.html`, `/how.html` (how it works, for someone new: changing, painting its own art, playing together, sharing, cost, safety); `/terms.html` (terms: what you make is yours, as far as anything is, since AI-made work generally isn't protected by copyright; shared games are open, readable whole by anyone who copies them; sharing permits everyone on gactant to play, copy, change and reshare it, and gactant to keep, run and show it; copies already taken stay; offered as is), linked from every page's footer and the share panel; privacy and rules, and the home page's footer, give admin@gactant.com (forwarded to Robby), `robots.txt` (no indexing of frames, play links or the API), `sitemap.xml`, and link previews (Open Graph tags, `og.jpg`).
 - **gactantbox.com:** its root says what it is (`public/box/`) and isn't indexed. Anything else redirects there.
 
 ### Deploying
