@@ -26,6 +26,7 @@ const targets = [
   { ...shared, entryPoints: ['src/thin.ts'], outfile: 'dist/thin.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/diet.ts'], outfile: 'dist/diet.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/ecology.ts'], outfile: 'dist/ecology.mjs', platform: 'node' },
+  { ...shared, entryPoints: ['src/novelty.ts'], outfile: 'dist/novelty.mjs', platform: 'node' },
   // Potluck task module: runs in browsers, so no Node built-ins and no source map comment.
   { ...shared, sourcemap: false, entryPoints: ['src/farm-task.ts'], outfile: 'dist/farm-task.mjs', platform: 'browser' },
 ];

@@ -2572,3 +2572,22 @@ Findings, written up in survey.md: the earlier replays (common plans only) said 
 - Crowding hurts in every run.
 - `G` growers hurt the bodies they touch by 0.3–0.5. In s2 they cause 3× their share of blocked moves.
 - Husks touching the living do better, unexplained so far. The next check is whether it's age.
+
+## Discovery every 12 hours (2026-11-14)
+
+Robby: "I want to check every 12 hours and search for new things and document it. Let's discover all the things."
+The ecology scans had also squeezed lilg's memory, with two of them at once beside four bakes, so this does two things.
+
+- **`ecology.sh` is safer.** Scans queue on a lock, so only one runs at a time. Each waits until 10 GB are free (`NEED`). Each logs its peak memory and time. The report JSON keeps only the top 2,000 scavenging and blocking pairs, which shrinks a report from 250 MB to a few MB.
+- **`novelty.mjs` keeps a ledger** (`runs/ecology/known.json`) of everything seen, keyed mostly by code row. For each report and index mark it hasn't read, it lists what is new everywhere, what is new to that run, and records, flips and swings. The things it tracks:
+  - common species and plans;
+  - bites (10+ in a scan), kills (3+) and writes (50+ into 3+ bodies), by row pair;
+  - glyphs written into others;
+  - good/bad-for pairs (\|z\| ≥ 3) and sign flips;
+  - death causes and share swings;
+  - speed records and the share that never moved;
+  - giant records, rows and shapes (thread, blob, sprawl);
+  - ±25% population swings.
+- **Tuning.** The first try listed every one-off mutant that killed once. The thresholds above keep it to things with a count behind them. The ledger was started from today's eight reports, so the first round reports only what's new since.
+- **`discover.sh`** runs a round: it scans 1 2 3 4, then runs novelty into `runs/ecology/new-<date>.md`.
+- **Schedule.** A Claude session job runs a round every 12 hours. It reads the list, looks at the candidates in the viewer, writes up anything real in the survey (with a New finds row and images), and commits.

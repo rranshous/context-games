@@ -413,7 +413,8 @@ if (out) {
     src, t: T0, ticks: R, alive: start.length, plans: ranked.slice(0, TOP).map(([k, n]) => ({ key: k, name: nameOf(k), n })),
     bites: biteRows.map(([k, e]) => ({ pair: k.split('\t'), ...e, rel: relOf(k), ex: biteEx.get(k) })),
     writes: writeRows.map(([k, e]) => ({ pair: k.split('\t'), n: e.n, victims: e.victims.size, glyphs: Object.fromEntries(e.glyphs), rel: relOf(k), ex: writeEx.get(k) })),
-    deaths: Object.fromEntries(why), scavenging: [...scav].map(([k, n]) => ({ pair: k.split('\t'), n })), blocks: blockRows.map(([k, n]) => ({ pair: k.split('\t'), n, rel: relOf(k) })),
+    deaths: Object.fromEntries(why), // the long tails of these two run to 600k pairs; keep the head
+    scavenging: scavRows.slice(0, 2000).map(([k, n]) => ({ pair: k.split('\t'), n })), blocks: blockRows.slice(0, 2000).map(([k, n]) => ({ pair: k.split('\t'), n, rel: relOf(k) })),
     together: top(conv, 200), movement: [...ps.values()], eco,
   }));
   log(`wrote ${out} and ${out.replace(/\.json$/, '.md')}`);
