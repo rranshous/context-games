@@ -3379,3 +3379,65 @@ Robby: whoever opened the old match may inherit from it. The tick patterns stay 
 until he's tried them. A queue helper is wanted if it can be made good. On batches he's wary of
 skip-and-report ("might have some pitfalls"). Two subagents were sent blind (given the code and
 the idea, not my take) to review inheriting and batching.
+
+### The blind reviews
+
+**Inheriting** (the reviewer was given the code and the idea, not my view). Holes, ranked:
+1. **Laundering into standings.** Build a world under a permissive rulebook that hands out
+   items or scores, then inherit into a trusted rulebook whose board counts them. Fix:
+   inheriting is opt-in per rulebook, through a separate rule
+   `inherit(seed, options, time, { state, rulebook, match })`. Without one, `open(hash, { from })`
+   is refused, so old rulebooks are safe. Authors check `from.rulebook` against hashes they
+   accept, and lineage is recorded so standings can show it.
+2. **Racing the handover.** Add a match op `close { to }` inside `inTurn` that returns the
+   final state and head; afterwards act answers 410 `{ movedTo }`. Order: make the new id,
+   close the old match, create the new one, and reopen the old one if the new rules throw.
+   Never leave a world closed with nowhere to go.
+3. **Don't fake a result** for the old match (that would count standings). Use `closed`, and
+   handle it in openAtOnce, the archive sweep, and look (which shows the pointer).
+4. **Seed leak.** Closing reveals the old seed, and the inherited state carries the old random
+   stream. `inherit` must re-seed from the new match's seed, and the description must say so.
+5. **Verifier.** Genesis v4 commits to `fromMatch`, `fromHead` and `fromRulebook`; check-match
+   walks the chain of worlds, replaying each with its own rules and feeding the final state
+   into the next `inherit`.
+6. **Members** are copied over, or returning players aren't "in": `you` is false, share is
+   refused, and join fails because their character already exists.
+7. **Test before locking:** `tryDraft(id, { from: match })` runs `inherit` on that match's
+   current state with nothing kept. Otherwise every fix is lock, try, fail, lock again.
+8. **The 20k cap:** `from` with the same hash rolls over to a fresh log with no rules change.
+9. **Opener-only** is the right default. If the opener is gone, nobody may take over (that's
+   a hijack); later, rules could name keepers.
+Alternative considered: **upgrade in place**, an opener-signed `{ kind: 'upgrade' }` entry in
+the same match. Same id and members, no race, one chain, but it doesn't fix the cap. The
+reviewer would ship successor matches, with look on a closed match giving `movedTo` and the
+frame following it automatically.
+
+**Batching.**
+1. **The same `now` for every sub-action breaks the movement check** we teach (speed × elapsed
+   time): every step after the first has zero elapsed. Batches need a movement allowance that
+   builds with time up to a cap. Client-chosen time offsets would let players backdate hits
+   after seeing others' shares, so no.
+2. **Stop at the first refusal and keep what came before (prefix), not skip-and-report.**
+   Robby's instinct was right. Skipping runs later actions planned on earlier ones that
+   failed:
+   - a path step skipped, so the player lands somewhere they never chose
+   - the gather fails, but the craft still uses wood being saved
+   - the sale is refused, but the potion is still bought
+   - the step into range is refused, but the attack hits whoever is there
+   - refusals become a 20-at-a-time oracle for hidden state
+   All-or-nothing is bad for movement under contention. A trade should be one move anyway.
+   Optional: rules can take a whole batch through `moves(state, player, actions, time)`.
+3. **Log:** one entry of kind `moves` with new signed text, `applied: k` in the hash, and the
+   replay folds the prefix.
+4. **Limits:** a batch counts as one for the minute rate, but against the daily and site-wide
+   counts by size, or batching is a 20x way around them. Existing gaps: refused actions never
+   count toward limits, and the minute is a calendar minute (120 can land in 2 s); use a
+   token bucket.
+5. **Queue:** one flush in flight per match; on 409, re-sign on the `{ n, head }` the 409
+   already returns instead of fetching again. Helper sketch:
+   `table.queue(match, { every, max, key })` with `add`, `flush`, `stop`; coalescing by key
+   for absolute actions only.
+6. **Try first instead:** a path-string move is the right shape (one move that's a plan, the
+   rules apply what's legal). Cheapest fix: say in the docs that a move can be a list (apply
+   what's legal, keep a movement allowance), plus a token bucket of about 120 a minute with
+   bursts of 10. Add server-side batches only if rulebooks keep writing the same loop.
