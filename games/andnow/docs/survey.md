@@ -38,7 +38,7 @@ Every run went the same way. For a long time a few thousand scanner-grazers held
 | s1 | 0–4.5M, 3–12k bodies | 4.5M–5M | sprinters `CDmM` | 95k, 70% sprinters |
 | s2 | 0–700k, ~2.5k | 700k–900k | lookers `CLDM`, masted | 221k, 68% lookers |
 | s3 | 0–5M, ~3k | 5.5M–6M | sprinters `CMxDm`, then `CMDm` | 111k, 74% sprinters |
-| s4 | 0–400k, ~3.5k | 400k–700k | sprinters `CmMmMD`, then `CxmMD`, `CmMD` | 182k, 77% sprinters |
+| s4 | 0–400k, ~3.5k | 400k–700k | sprinters `CmMmMD`, then `CxmMD`, `CmMD`; [lookers](#lookers-in-s4) `CLMD` since 1.5M | 185k at 1.835M: 73% sprinters, 10% lookers |
 
 Through each quiet era two lineages shared the world: Climbers above sea level, Divers below. In s3 they were level for 4 million ticks (1,823 each at 4M). The boom forms swamped that balance, and each run is now practically one lineage: Climbers in s1, s2 and s3 (99.4–99.9%), and Divers in s4 (99.8%). A relict of the other lineage holds on in each, steadiest in s1, where about 500 Divers have lived below sea level all run long. The Hunters are extinct everywhere.
 
@@ -146,6 +146,42 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 ![](img/survey/scene-s2-close.png)
 
+### Lookers in s4
+
+*Found 2026-11-15.*
+
+| s4 `CLMD` looker | s4 `CmMD` sprinter, its ancestor |
+|---|---|
+| ![](img/survey/looker-s4.png) | ![](img/survey/sprinter-s4.png) |
+
+**Origin:** s4's Divers evolved looking too. s2's Climbers did it at about 700k, and s4's Divers at about 1.5M. The `CLMD` body is the s4 sprinter's staircase, with one glyph changed: the `m` (push my max size) became `L` (look). Its program is `C L M D`: collect; look; move toward the type of what it saw; divide at its distance. It's s2's `CLDM` with the last two swapped, and it grew no mast.
+
+**The rise** (bodies with `L` in the code row):
+
+| tick | 1.1M | 1.3M | 1.5M | 1.6M | 1.7M | 1.8M | 1.835M |
+|---|---|---|---|---|---|---|---|
+| lookers | 556 | 332 | 1,625 | 7,308 | 9,782 | 16,249 | 17,761 |
+| at step 5 | 0 | 0 | 1,428 | 7,005 | 9,456 | 15,496 | 16,206 |
+| at step 6 | 0 | 0 | 0 | 0 | 0 | 491 | 1,321 |
+
+At 1.835M, 15,195 bodies run exactly `CLMD`.
+
+**Where they live:**
+- Sprinters took step 5 between 1.3M and 1.5M. Lookers arrived there soon after, and now they lead the way onto step 6: 1,321 lookers live at step 6 against 112 sprinters.
+- Sprinters at step 5 are falling as the lookers rise, from 38,561 at 1.6M to 30,612 at 1.835M.
+
+**How they differ from the sprinter:**
+- They're slow: pace 3.1, against 8 for the step 5 sprinters.
+- They're a little heavier (mass 23 vs 17).
+- Their insulation is 5 at step 5, and the ones at step 6 have 6.
+- Most eat both plants and meat. Several common plans have lost their spare `C` and eat only meat.
+
+The scan also caught `CLMB` mutants (the `D` turned to `B`) biting their `CLMD` kin.
+
+![](img/survey/scene-s4-lookers.png)
+
+*Lookers packed at step 5, s4 at 1.8M. Each body is its own colour. Many carry a second working row, `x M x B D T`.* [A looker in the viewer](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1800000&pick=943101389)
+
 ### Giants
 
 ![](img/survey/giants.png)
@@ -226,6 +262,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-14 | s4 | A sprinter hunting the other lineage's grazers | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-14 | s2, s4 | Growers smother their neighbours | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-14 | s2, s3, s4 | Husks do better beside the living (unexplained) | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-15 | s4 | Lookers: s4's Divers evolved `CLMD`, which now leads the climb onto step 6 | [Lookers in s4](#lookers-in-s4) |
 
 ## How they interact
 

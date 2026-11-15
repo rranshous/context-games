@@ -2591,3 +2591,23 @@ The ecology scans had also squeezed lilg's memory, with two of them at once besi
 - **Tuning.** The first try listed every one-off mutant that killed once. The thresholds above keep it to things with a count behind them. The ledger was started from today's eight reports, so the first round reports only what's new since.
 - **`discover.sh`** runs a round: it scans 1 2 3 4, then runs novelty into `runs/ecology/new-<date>.md`.
 - **Schedule.** A Claude session job runs a round every 12 hours. It reads the list, looks at the candidates in the viewer, writes up anything real in the survey (with a New finds row and images), and commits.
+
+## Discovery round 1 (2026-11-15 morning)
+
+This was the first scheduled round. It scanned s1 6.616M, s2 1.897M, s3 7.423M and s4 1.835M, one at a time, in 50 minutes. Peak memory was 4.1, 12.3, 4.6 and 8.8 GB. s2 sits right at its 12 GB heap cap, so it may need `HEAP` raised as it grows.
+
+**Real find: lookers in s4.**
+- `CLMD` is the s4 sprinter's staircase with `m` turned to `L`.
+- It grew from 1.6k bodies at 1.5M to 17.8k at 1.835M.
+- It leads the way onto step 6: 1,321 lookers live there against 112 sprinters.
+- It's convergent with s2's `CLDM`. Written up in the survey (Lookers in s4).
+
+**The rest of the list was variations on known finds:**
+- vandals writing fat, or `1`, into kin;
+- `D→B` biter mutants biting kin;
+- growers and stuck mutants doing worse beside their parent species;
+- husks doing better beside the living.
+
+Some good-for/bad-for pairs sit near |z| = 3 and flicker in and out of the list.
+
+**Detector fix.** Novelty counted species from the top 40 plans only, and `CLMD`'s 15k bodies are spread over hundreds of plans. Ecology reports now carry body counts by code row (`species`). Novelty flags any row with 1% of the bodies, and any row that rises 1.5× or halves between looks. The report header now uses local time.

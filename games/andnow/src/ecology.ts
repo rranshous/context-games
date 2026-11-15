@@ -416,6 +416,7 @@ if (out) {
     deaths: Object.fromEntries(why), // the long tails of these two run to 600k pairs; keep the head
     scavenging: scavRows.slice(0, 2000).map(([k, n]) => ({ pair: k.split('\t'), n })), blocks: blockRows.slice(0, 2000).map(([k, n]) => ({ pair: k.split('\t'), n, rel: relOf(k) })),
     together: top(conv, 200), movement: [...ps.values()], eco,
+    species: Object.fromEntries(spRanked.filter(([, n]) => n >= 20)), // bodies by code row, at the start
   }));
   log(`wrote ${out} and ${out.replace(/\.json$/, '.md')}`);
 }

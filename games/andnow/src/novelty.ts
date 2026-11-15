@@ -4,7 +4,8 @@
 //   node dist/novelty.mjs [--dir runs/ecology] [--ledger runs/ecology/known.json] [--quiet] [--out f.md]
 // --quiet reads and remembers without reporting (to start a ledger from the reports already there).
 // Things it looks for, by code row (a species) unless said otherwise:
-//   species and body plans among the commonest; who bites whom (10+ bites in a scan), and kills (3+); who writes into whom, and
+//   species (1%+ of bodies, rising 1.5× or halving) and body plans among the commonest; who bites
+//   whom (10+ bites in a scan), and kills (3+); who writes into whom, and
 //   what (50+ writes into 3+ bodies); who is good or bad for whom (and when that flips); causes of death and their shares; the
 //   fastest movers and the share that never moves; record bodies, the giants' rows and shapes; booms
 //   and crashes.
@@ -63,6 +64,7 @@ type Report = {
   deaths: Record<string, number>;
   movement: { key: string; n: number; moved: number; ticks: number; never: number; net: number; surv: number; births: number }[];
   eco: { a: string; b: string; kind: string; onB?: { n: number; d: number; z: number }; onA?: { n: number; d: number; z: number } }[];
+  species?: Record<string, number>;
 };
 
 const files = existsSync(dir) ? readdirSync(dir).filter((f) => /^s\d+-t\d+\.json$/.test(f) && !ledger.read.includes(f)) : [];
@@ -72,10 +74,17 @@ for (const f of files) {
   const r: Report = JSON.parse(readFileSync(join(dir, f), 'utf8'));
   const where = `s${seed} t${r.t}`;
 
-  // Species (code rows) and plans among the commonest.
-  const rows = new Map<string, number>();
-  for (const p of r.plans) rows.set(p.name.split('+')[0], (rows.get(p.name.split('+')[0]) ?? 0) + p.n);
-  for (const [row, n] of rows) if (n >= 20) note(seed, 'species', row, where, `species **${row}** among the commonest (${n} bodies)`);
+  // Species (code rows) with 1% of the bodies, and risers; plans among the commonest. Counting rows
+  // over every body matters: a species can spread over hundreds of plans, none of them common.
+  const rows = new Map<string, number>(Object.entries(r.species ?? {}));
+  if (!r.species) for (const p of r.plans) rows.set(p.name.split('+')[0], (rows.get(p.name.split('+')[0]) ?? 0) + p.n);
+  for (const [row, n] of rows) {
+    if (n >= r.alive / 100) note(seed, 'species', row, where, `species **${row}**: ${n.toLocaleString()} bodies, ${(100 * n / r.alive).toFixed(1)}%`);
+    const k = `s${seed}|row|${row}`, prev = ledger.records[k];
+    if (prev && n >= 1000 && n >= prev.v * 1.5) at(seed).notes.push(`**${row}** rising: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
+    if (prev && prev.v >= 1000 && n <= prev.v / 2) at(seed).notes.push(`**${row}** falling: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
+    if (n >= 100 || prev) ledger.records[k] = { v: n, at: where };
+  }
   for (const p of r.plans.slice(0, 10)) note(seed, 'plan', p.name, where, `body plan **${p.name}** in the top 10 (${p.n})`);
 
   // Bites and kills, by row pair.
@@ -182,7 +191,7 @@ for (const d of bakes) {
 
 writeFileSync(ledgerFile, JSON.stringify(ledger));
 if (!quiet) {
-  const lines: string[] = [`# What's new (${new Date().toISOString().slice(0, 16).replace('T', ' ')})`, ''];
+  const lines: string[] = [`# What's new (${new Date().toLocaleString('sv').slice(0, 16)})`, ''];
   lines.push(files.length ? `Read ${files.join(', ')}.` : 'No new ecology reports.', '');
   for (const [seed, f] of [...found].sort((a, b) => +a[0] - +b[0])) {
     if (!f.everNew.length && !f.runNew.length && !f.notes.length) continue;
