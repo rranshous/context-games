@@ -6,9 +6,16 @@
 // only runs its rules and keeps its log.
 //
 // Kept in the match's own store:
-//   match/it        { id, rulebook, name, source, seed, options, genesis, at, updated, n, head,
+//   match/it        { id, rulebook, name, source, seed, options, genesis, at, started, clock, updated, n, head,
 //                     members: { person: name }, state, result }
-//   actions/<n>     { n, kind, data, player, through, device, key, at, prev, signature, hash }   key: the signer's public key (JWK)
+//   actions/<n>     { n, kind, data, player, through, device, key, at, time, prev, signature, hash }   key: the signer's public key (JWK)
+//
+// Time: rules have no clock of their own, but every call gets { now, started }: the server's
+// time (milliseconds since 1970) when the action arrived, and when the match began. An
+// action's time is kept with it and in its hash, so a replay passes the very same times and
+// gets the same result. A match's time never goes backwards (a host's clock can, so each
+// action's time is at least the last one's). View gets the time it's asked at; it isn't
+// logged, so that doesn't touch the replay.
 //
 // Ops (a host calls match.op(name, body)):
 //   create { id, rulebook, name, source, seed, options }   -> summary
@@ -27,8 +34,11 @@
 // It names who acted, so the signature itself says whose move it was: nobody, the server
 // included, can label a real signature as someone else's. Each entry keeps the signing
 // device's public key, so a match still checks after its person removes that device.
-// An entry's hash, which the next entry's prev names: sha256(that text \n signature, or 'unsigned').
-// The first prev is the genesis: sha256(gactant/match/v2 \n id \n rulebook \n seed \n salt \n JSON(options)).
+// An entry's hash, which the next entry's prev names: sha256(that text \n signature, or 'unsigned' \n time).
+// The time isn't in the signed text (the device doesn't know the server's clock); hashed, it's
+// fixed by the next action's signature, which names this hash as its prev.
+// The first prev is the genesis: sha256(gactant/match/v3 \n id \n rulebook \n seed \n salt \n JSON(options) \n started).
+// (Matches from before time, v2, have no started or times: their genesis and hashes leave them out.)
 // The seed decides everything the rules deal (hands, decks), so it stays hidden until the
 // match is over; the salt (128 random bits) keeps the genesis from giving it away to anyone
 // who tries every seed. Both are shown once it's over, and the whole chain can be checked.
@@ -43,13 +53,17 @@ const WAIT_MS = 50_000;               // how long a look waits for something to 
 const PRACTICE_STEPS = 60;            // actions in one practice run
 
 const enc = new TextEncoder();
-const sha = async (s) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(String(s)))), (b) => b.toString(16).padStart(2, '0')).join('');
+export const sha = async (s) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(String(s)))), (b) => b.toString(16).padStart(2, '0')).join('');
 const now = () => new Date().toISOString();
 const pad = (n) => String(n).padStart(6, '0');
 const size = (v) => (v === undefined ? 0 : JSON.stringify(v).length);
 
 export const signedText = ({ match, n, prev, person, device, kind, data }) => ['gactant/act/v2', match, n, prev, person, device, kind, JSON.stringify(data ?? null)].join('\n');
-export const genesisText = ({ id, rulebook, seed, salt, options }) => ['gactant/match/v2', id, rulebook, seed, salt, JSON.stringify(options ?? {})].join('\n');
+export const genesisText = ({ id, rulebook, seed, salt, options, started }) => (started == null
+  ? ['gactant/match/v2', id, rulebook, seed, salt, JSON.stringify(options ?? {})]
+  : ['gactant/match/v3', id, rulebook, seed, salt, JSON.stringify(options ?? {}), started]).join('\n');
+/** An action's hash: its signed text, its signature, and the time it arrived. */
+export const entryHash = (text, signature, time) => sha(`${text}\n${signature ?? 'unsigned'}${time == null ? '' : `\n${time}`}`);
 
 /** An error the host passes on as an answer: code, message, and anything else to say. */
 export const answer = (code, message, extra) => Object.assign(new Error(message), { code, extra });
@@ -74,26 +88,29 @@ export function createMatch({ store, rules }) {
   const inTurn = (fn) => { const run = turn.then(fn, fn); turn = run.catch(() => {}); return run; };
 
   const it = async () => { const m = await store.get('match', 'it'); if (!m) throw answer(404, 'no such match here', { gone: true }); return m; };
+  const clock = (m) => ({ now: Math.max(Date.now(), m.clock ?? 0), started: m.started ?? null });
   const viewOf = (m, player) => {
     try {
-      const { value, steps } = rules.call(m.source, 'view', [m.state, player]);
+      const { value, steps } = rules.call(m.source, 'view', [m.state, player, clock(m)]);
       return size(value) > MAX_VIEW ? { view: null, steps, error: `the view is too big to send (over ${MAX_VIEW} characters)` } : { view: value, steps };
     } catch (err) { const s = said(err); return { view: null, steps: s.steps, error: `view: ${s.error}` }; }
   };
   const summary = (m) => {
     const o = viewOf(m, null);
-    return { n: m.n, head: m.head, updated: m.updated, result: m.result, members: m.members, onlooker: size(o.view) <= MAX_ONLOOKER ? o.view : null };
+    return { n: m.n, head: m.head, updated: m.updated, result: m.result, members: m.members, onlooker: size(o.view) <= MAX_ONLOOKER ? o.view : null, now: clock(m).now };
   };
   const playerFor = (m, person) => (person && m.members[person] ? { id: person, name: m.members[person] } : person ? { id: person, name: null } : null);
 
   const ops = {
     async create({ id, rulebook, name, source, seed, salt, options }) {
       if (await store.get('match', 'it')) throw answer(409, 'that match already exists');
+      const started = Date.now();
       let init;
-      try { init = rules.call(source, 'init', [seed, options ?? {}]); } catch (err) { throw answer(422, `the rules couldn't start a match: ${said(err).error}`); }
+      try { init = rules.call(source, 'init', [seed, options ?? {}, { now: started, started }]); } catch (err) { throw answer(422, `the rules couldn't start a match: ${said(err).error}`); }
       if (size(init.value) > MAX_STATE) throw answer(413, `the rules started a state too big to keep (over ${MAX_STATE} characters)`);
-      const genesis = await sha(genesisText({ id, rulebook, seed, salt, options }));
-      const m = { id, rulebook, name, source, seed, salt, options: options ?? {}, genesis, at: now(), updated: now(), n: 0, head: genesis, members: {}, state: init.value, result: null };
+      const genesis = await sha(genesisText({ id, rulebook, seed, salt, options, started }));
+      const at = new Date(started).toISOString();
+      const m = { id, rulebook, name, source, seed, salt, options: options ?? {}, genesis, at, started, clock: started, updated: at, n: 0, head: genesis, members: {}, state: init.value, result: null };
       await store.put('match', 'it', m);
       return { ...summary(m), genesis, steps: init.steps };
     },
@@ -105,19 +122,21 @@ export function createMatch({ store, rules }) {
         if (n !== m.n || prev !== m.head) throw answer(409, 'the match moved on: act on its latest', { n: m.n, head: m.head });
         if (m.n >= MAX_ACTIONS) throw answer(413, `this match is as long as a match gets (${MAX_ACTIONS} actions)`);
         if (m.result && kind === 'move') throw answer(422, 'the match is over', { refused: 'the match is over' });
+        const time = { now: Math.max(Date.now(), m.clock ?? 0), started: m.started ?? null };
         let out;
-        try { out = rules.call(m.source, kind, [m.state, player, data]); } catch (err) {
+        try { out = rules.call(m.source, kind, [m.state, player, data, time]); } catch (err) {
           const s = said(err);
           throw answer(422, s.broken ? `the rules broke: ${s.error}` : s.error, { refused: s.error, broken: s.broken, steps: s.steps });
         }
         let steps = out.steps;
         if (size(out.value) > MAX_STATE) throw answer(413, `the rules made a state too big to keep (over ${MAX_STATE} characters)`, { steps });
         let result = null;
-        try { const r = rules.call(m.source, 'result', [out.value]); result = r.value ?? null; steps += r.steps; } catch (err) { steps += said(err).steps; }
+        try { const r = rules.call(m.source, 'result', [out.value, time]); result = r.value ?? null; steps += r.steps; } catch (err) { steps += said(err).steps; }
         const text = signedText({ match: m.id, n, prev, person: player.id, device, kind, data });
-        const entry = { n, kind, data, player, through, device, key: key ?? null, at: now(), prev, signature: signature ?? null, hash: await sha(`${text}\n${signature ?? 'unsigned'}`) };
+        const at = new Date(time.now).toISOString();
+        const entry = { n, kind, data, player, through, device, key: key ?? null, at, time: time.now, prev, signature: signature ?? null, hash: await entryHash(text, signature, time.now) };
         await store.put('actions', pad(n), entry);
-        Object.assign(m, { n: n + 1, head: entry.hash, state: out.value, result, updated: now() });
+        Object.assign(m, { n: n + 1, head: entry.hash, state: out.value, result, updated: at, clock: time.now });
         m.members[player.id] = player.name;
         await store.put('match', 'it', m);
         wake();
@@ -136,7 +155,7 @@ export function createMatch({ store, rules }) {
       const latest = m.n ? await store.get('actions', pad(m.n - 1)) : null;
       const v = viewOf(m, playerFor(m, person));
       return {
-        id: m.id, rulebook: m.rulebook, name: m.name, at: m.at, n: m.n, head: m.head, view: v.view, ...(v.error ? { viewError: v.error } : {}),
+        id: m.id, rulebook: m.rulebook, name: m.name, at: m.at, started: m.started ?? null, now: clock(m).now, n: m.n, head: m.head, view: v.view, ...(v.error ? { viewError: v.error } : {}),
         result: m.result, you: Boolean(person && person in m.members),
         last: latest && { kind: latest.kind, by: latest.player.name, through: latest.through?.name ?? null, data: latest.data },
       };
@@ -178,11 +197,16 @@ export function createMatch({ store, rules }) {
 
 /** A practice run of a draft: nothing kept, everything reported, so whoever is writing the
  *  rules sees what each call did and what it cost, against the limits a real match has. */
+export const PRACTICE_START = Date.UTC(2026, 0, 1);   // a practice run's clock starts here, so runs repeat exactly
+
 export function practice(rules, { source, seed = 1, options = {}, steps = [] }) {
   const warn = [];
   const note = (what, used, max) => { if (used > max / 2) warn.push(`${what}: ${used} of the ${max} allowed`); };
   const run = (fn, args) => { try { return { ok: true, ...rules.call(source, fn, args) }; } catch (err) { return { ok: false, ...said(err) }; } };
-  const init = run('init', [Number(seed) || 1, options]);
+  // Its clock stands still unless a step moves it on: wait (milliseconds) before that step.
+  let now = PRACTICE_START;
+  const time = () => ({ now, started: PRACTICE_START });
+  const init = run('init', [Number(seed) || 1, options, time()]);
   if (!init.ok) return { ok: false, init, steps: [], limits: limits() };
   note('init steps', init.steps, MAX_STEPS);
   note('state size after init', size(init.value), MAX_STATE);
@@ -191,19 +215,20 @@ export function practice(rules, { source, seed = 1, options = {}, steps = [] }) 
   for (const s of steps.slice(0, PRACTICE_STEPS)) {
     const player = { id: String(s.as ?? 'someone'), name: String(s.as ?? 'someone') };
     const kind = s.do === 'join' ? 'join' : 'move';
-    const r = run(kind, [state, player, s.data ?? null]);
+    now += Math.max(0, Math.min(Number(s.wait) || 0, 366 * 86400_000));
+    const r = run(kind, [state, player, s.data ?? null, time()]);
     if (r.ok) {
       if (size(r.value) > MAX_STATE) Object.assign(r, { ok: false, broken: true, error: `the state would be too big to keep (${size(r.value)} of ${MAX_STATE} characters)` });
       else state = r.value;
     }
-    const v = run('view', [state, player]);
-    const res = run('result', [state]);
+    const v = run('view', [state, player, time()]);
+    const res = run('result', [state, time()]);
     const used = (r.steps ?? 0) + (v.steps ?? 0) + (res.steps ?? 0);
     note(`${kind} by ${player.name} (step ${out.length}) steps`, r.steps ?? 0, MAX_STEPS);
     note(`state size after step ${out.length}`, size(state), MAX_STATE);
     if (v.ok) note(`view for ${player.name} (step ${out.length})`, size(v.value), MAX_VIEW);
     out.push({
-      do: kind, as: player.name, ok: r.ok,
+      do: kind, as: player.name, now, ok: r.ok,
       ...(r.ok ? {} : { refused: r.refused, broken: r.broken, error: r.error, ...(r.line ? { line: r.line, column: r.column } : {}) }),
       view: v.ok ? v.value : `view: ${v.error}`, result: res.ok ? res.value ?? null : `result: ${res.error}`,
       steps: used, stateSize: size(state), viewSize: v.ok ? size(v.value) : null,

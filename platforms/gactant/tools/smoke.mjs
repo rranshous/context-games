@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { genesisText, signedText } from '../match.mjs';
+import { entryHash, genesisText, signedText } from '../match.mjs';
 import { recoveryProof } from '../public/js/recovery.js';
 import { markText } from '../public/js/marks.js';
 
@@ -278,6 +278,15 @@ try {
   ok('a draft changes', (await call('PUT', `drafts/${draft.json.id}`, { source: ttt }, as(pass))).json.missing?.length === 0);
   const tried = await call('POST', `drafts/${draft.json.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'join', as: 'b' }, { do: 'move', as: 'b', data: { cell: 0 } }, { do: 'move', as: 'a', data: { cell: 4 } }] }, as(pass));
   ok('a practice run: joins, a refusal, a move', tried.json.steps?.map((x) => x.ok).join() === 'true,true,false,true' && tried.json.steps[2].error === 'it\'s X\'s turn', JSON.stringify(tried.json).slice(0, 300));
+  // Time: every call gets { now, started }; a practice run's clock moves only by wait.
+  const timed = (await call('POST', 'drafts', { name: 'cooldown', source: `function init(seed, o, t) { return { started: t.started, last: t.now }; }
+function join(s, p, r, t) { return { ...s, last: t.now }; }
+function move(s, p, a, t) { if (t.now - s.last < 1000) throw new Error('too soon'); return { ...s, last: t.now }; }
+function view(s, p, t) { return { since: t.now - s.last }; }
+function result(s, t) { return null; }` }, as(pass))).json;
+  const cool = (await call('POST', `drafts/${timed.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'move', as: 'a' }, { do: 'move', as: 'a', wait: 1500 }] }, as(pass))).json;
+  ok('rules get the time, and a practice run\'s clock moves by wait', cool.steps?.map((x) => x.ok).join() === 'true,false,true' && cool.steps[1].error === 'too soon' && cool.steps[2].now - cool.steps[0].now === 1500, JSON.stringify(cool.steps).slice(0, 300));
+  await call('POST', `drafts/${timed.id}/remove`, {}, as(pass));
   const locked = await call('POST', `drafts/${draft.json.id}/lock`, {}, as(pass));
   const rb = locked.json.rulebook;
   ok('locked, named by its hash', /^[0-9a-f]{64}$/.test(rb ?? ''), JSON.stringify(locked.json));
@@ -338,16 +347,17 @@ try {
   ok('and say where you stand', board.you?.rank === 2 && board.you.losses === 1);
   const seen = (await call('GET', `matches/${match.id}`, undefined, as(stranger))).json;
   ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);
+  ok('a look carries the server\'s time and when the match began', typeof seen.now === 'number' && seen.started <= seen.now);
   ok('the rulebook lists its matches', (await call('GET', `rulebooks/${rb}/matches`)).json[0]?.id === match.id);
   // Anyone can check the log: the chain, every signature, and the replay.
-  const { log, seed: mSeed, salt, options, genesis, keys } = (await call('GET', `matches/${match.id}/log`)).json;
+  const { log, seed: mSeed, salt, options, genesis, keys, started } = (await call('GET', `matches/${match.id}/log`)).json;
   const sha = async (t) => Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))).toString('hex');
-  let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, salt, options }));
+  let prev = await sha(genesisText({ id: match.id, rulebook: rb, seed: mSeed, salt, options, started }));
   let chain = prev === genesis;
   for (const e of log) {
     const text = signedText({ match: match.id, n: e.n, prev, person: e.player.id, device: e.device, kind: e.kind, data: e.data });
     const key = await crypto.subtle.importKey('jwk', keys[e.device], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-    chain &&= e.prev === prev && e.hash === await sha(`${text}\n${e.signature}`) && await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text));
+    chain &&= e.prev === prev && e.hash === await entryHash(text, e.signature, e.time) && e.time >= started && await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text));
     prev = e.hash;
   }
   ok('the log brings the signers\' public keys', keys && Object.values(keys).map((k) => k.x).sort().join() === [A.key.x, S.key.x].sort().join());

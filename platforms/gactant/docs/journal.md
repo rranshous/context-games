@@ -3186,3 +3186,70 @@ a warning that people on the old rules won't share matches or standings with the
 "type" falls out of what the game does: no rulebook means nothing to lock. A type picker
 would be better used for seeding a new game (one that starts already knowing about tables)
 than for protecting a shared one.
+
+## Part 44: rules have the time
+
+The MMO experiment again: without a clock in the rules, cooldowns, regen, respawns, day and
+night, and buffs that expire are all hard. Robby: build it, and send a few subagents to look
+for better variations. Three went: time details, "when nobody acts", and an MMO designer's
+view. They agreed on the core and sharpened it.
+
+Built:
+- Every rules call gets `time = { now, started }` in whole milliseconds (not ISO: rules have no
+  Date):
+  - `init(seed, options, time)` (now = started)
+  - `join` and `move(state, player, action, time)`
+  - `result(state, time)`, with the same time as the action, so a deadline can end a match
+    on any move
+  - `view(state, player, time)`, at the time it's asked
+- **Time never goes backwards.** `m.clock` keeps the last action's time; each new one is
+  `max(Date.now(), clock)`. A Durable Object can come back on a host with a different clock.
+- **Time in the chain.** Each entry keeps `time`. Its hash is `entryHash(text, signature,
+  time)`. Time isn't in the signed text, because the device doesn't know the server's clock,
+  but the next signer names the hash as prev, which fixes it. `started` is in the genesis,
+  `gactant/match/v3`. Old v2 matches have no times; `genesisText` and `entryHash` leave the
+  time out when it's absent, so archived matches still check. That isn't a mode: it's how
+  history from before time reads.
+- Every look, move and push carries the server's `now`, so games can count down from
+  deadlines kept in state (readyAt, respawnAt) without each rulebook sending its own clock.
+- Practice runs: the clock starts at 2026-01-01 and stands still, a step's `wait` moves it on,
+  and each step reports its `now`, so cooldowns can be tested before locking.
+- `tools/check-match.mjs` replays with each action's time, and fails a time that goes
+  backwards.
+- The ludant is told the pattern: catch up from elapsed time at the top of each call, keep
+  deadlines as times, allow about a quarter second of slack for latency, and check movement
+  by sharing positions for show and sending a move at moments that matter, refused if it's
+  farther than speed × elapsed allows (this stops speed cheats).
+- changes.js has a line. Smoke tests: a cooldown rulebook in practice (too soon refused,
+  allowed after wait 1500), and a look that carries now and started.
+
+**When nobody acts (designed, not built).** The subagent's recommendation: lazy catch-up
+plus a wake-up the rules ask for.
+- The rules set `state.wakeAt` (epoch ms). The Match DO sets one alarm, at
+  `max(wakeAt, last tick + MIN_WAKE_MS ≈ 1 s)`; setAlarm replaces the previous alarm.
+- It then runs an optional sixth function `tick(state, { now, due })`, logged as an unsigned
+  `{ kind: 'tick', player: null }` entry, and pushes looks.
+- A tick is valid only if the previous state's wakeAt was due. Before any player action at
+  time t, a pending due tick runs first, so replay can tell if one was skipped. A late or
+  missed alarm becomes one tick with the real now, never a backlog, because the rules catch up
+  from elapsed time anyway.
+- Fixed-interval ticks were rejected: every match pays, 20k actions run out in hours at 1 Hz,
+  and rules can't say nothing is due.
+- Limits: dormant (no alarm) unless a player acted in the last hour or a joined player is
+  connected; a per-match tick cap (about 3,000 ticks and 100k steps a day); ticks report to
+  the World in batches, with a world-wide daily cap; not charged to a person for now.
+- Needs: an `ended` callback so a tick that ends a match still counts in standings; `acted`
+  separate from `updated` so a ticking match still archives; deleteAlarm on archive;
+  practice steps that wait; check-match verifying ticks.
+
+**MMO walls past the clock** (from the designer subagent, in order):
+1. 20,000 actions per match: 50 players acting every 5 s use it up in about 30 minutes. A
+   match needs to carry on in a new one from its final state (overlaps citing, Part 42).
+2. Collisions on the chain: each action is signed over the latest head, so dozens of players
+   collide (409) past the frame's retries. Fix: the server orders actions; a player signs
+   { match, nonce, kind, data } and the server chains them.
+3. Views on every action: pushLooks runs the rules' view for every connected socket on every
+   action. Options: send only what changed; broadcast one public view and fetch personal ones
+   on request; or a rules-side audience(state, action).
+4. The 200k state cap means a world is a small lobby match plus zone, dungeon and character
+   matches, which needs citing to carry "this player's character = match X's result".

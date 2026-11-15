@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRules } from '../rules.mjs';
-import { genesisText, signedText } from '../match.mjs';
+import { entryHash, genesisText, signedText } from '../match.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [match, to = 'https://gactant.com'] = process.argv.slice(2);
@@ -28,28 +28,33 @@ if (await sha(rb.source) !== m.rulebook) fail('the rulebook isn\'t the one its h
 const over = m.seed !== undefined;
 console.log(`${match}: ${rb.name} (${m.rulebook.slice(0, 12)}…), ${log.length} actions, ${over ? `seed ${m.seed}` : 'not over (its seed stays hidden until it is, so the chain and signatures are checked, not the replay)'}`);
 
-let prev = over ? await sha(genesisText({ id: match, rulebook: m.rulebook, seed: m.seed, salt: m.salt, options: m.options })) : m.genesis;
+let prev = over ? await sha(genesisText({ id: match, rulebook: m.rulebook, seed: m.seed, salt: m.salt, options: m.options, started: m.started })) : m.genesis;
 if (prev !== m.genesis) fail('the genesis doesn\'t match the match\'s id, rulebook, seed, salt and options');
 const rules = await createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm'))));
-let state = over ? rules.call(rb.source, 'init', [m.seed, m.options]).value : null;
+// Each call gets the time it had: the match's start, and each action's own (none before v3).
+const at = (now) => (m.started == null ? undefined : { now, started: m.started });
+let state = over ? rules.call(rb.source, 'init', [m.seed, m.options, at(m.started)]).value : null;
+let clock = m.started ?? 0;
 let unsigned = 0;
 for (const e of log) {
   const text = signedText({ match, n: e.n, prev, person: e.player.id, device: e.device, kind: e.kind, data: e.data });
   if (e.prev !== prev) fail(`action ${e.n}: its prev isn't the hash before it`);
-  if (e.hash !== await sha(`${text}\n${e.signature ?? 'unsigned'}`)) fail(`action ${e.n}: its hash doesn't match what it says`);
+  if (e.hash !== await entryHash(text, e.signature, e.time)) fail(`action ${e.n}: its hash doesn't match what it says`);
+  if (e.time != null && e.time < clock) fail(`action ${e.n}: its time goes backwards`);
+  clock = e.time ?? clock;
   if (!e.signature) unsigned++;
   else if (!e.key) fail(`action ${e.n}: it keeps no key for device ${e.device}`);
   else {
     const key = await crypto.subtle.importKey('jwk', e.key, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text))) fail(`action ${e.n}: the signature isn't ${e.player.name}'s device's`);
   }
-  if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
+  if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data, at(e.time)]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
   console.log(`  ${String(e.n).padStart(3)} ${e.player.name}${e.through ? ` (through ${e.through.name})` : ''} ${e.kind} ${JSON.stringify(e.data)}`);
   prev = e.hash;
 }
 if (prev !== m.head) fail('the chain doesn\'t end at the match\'s head');
 if (over) {
-  const result = rules.call(rb.source, 'result', [state]).value ?? null;
+  const result = rules.call(rb.source, 'result', [state, at(clock)]).value ?? null;
   if (JSON.stringify(result) !== JSON.stringify(m.result ?? null)) fail(`replayed, the result is ${JSON.stringify(result)}, not ${JSON.stringify(m.result)}`);
   console.log(`result: ${JSON.stringify(result)}`);
 }
