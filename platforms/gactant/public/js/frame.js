@@ -3,8 +3,8 @@
 //
 //   frame.html?l=<ludant id>
 //
-// There are no modes. Whoever sits down can play, ask for changes, checkpoint, restore,
-// and publish. The frame tells the ludant who is here and how they're related to it, and
+// There are no modes. Whoever sits down can play, ask for changes, checkpoint and restore;
+// its person shares it. The frame tells the ludant who is here and how they're related to it, and
 // the ludant's hooks decide what that means.
 //
 // The ludant itself isn't in this page. Its embodiment runs in a sandbox (sandbox.js on
@@ -564,8 +564,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 
   checkpoints() { return api('GET', `ludants/${this.recordId}/checkpoints`); }
 
-  /** Let the ludant go. Its versions, art and chat stop being kept; what it was published
-   *  as stays (those are snapshots with lives of their own), and so do copies others took. */
+  /** Let the ludant go. Its versions, art and chat stop being kept; what it shared
+   *  stays (those are snapshots with lives of their own), and so do copies others took. */
   askAbandon() {
     const pubs = this.record.familyNames?.length ? ' Its publications stay up, and copies others took stay theirs.' : '';
     const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
@@ -966,7 +966,7 @@ async function boot() {
     document.body.append(el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
       el('p', {}, a.takenDown
         ? `${a.name ?? 'This ludant'} was taken down${when ? ` on ${when}` : ''} for breaking gactant's rules. It isn't kept any more.`
-        : `${a.name ?? 'This ludant'} was abandoned${a.by ? ` by ${a.by}` : ''}${when ? ` on ${when}` : ''}. It isn't kept any more, though anything it was published as may still be in the lobby.`),
+        : `${a.name ?? 'This ludant'} was abandoned${a.by ? ` by ${a.by}` : ''}${when ? ` on ${when}` : ''}. It isn't kept any more, though anything it shared in the lobby may still be there.`),
       el('a', { class: 'top-btn primary', href: '/' }, 'to the lobby'))));
     return;
   }
