@@ -2993,3 +2993,6 @@ its own art (fresh each time, references for consistency, concept pictures to as
 meant), 3D and controllers, playing together, sharing and following, what it costs, and
 keeping it safe. Copy says what a ludant can do, not what it always does. Linked from the
 demo's caption and the footer, and in the sitemap.
+
+Deployed (version c5f9b02e): the demo swap, step 3's painting line and `/how.html` are live on
+gactant.com.
