@@ -409,7 +409,7 @@ sideways, and ✕ to come back.
 
 | URL | what |
 |---|---|
-| `/` | home, in plain words (it says games; "ludant" once, in the intro): a banner up top to start a new game (making is half of what this is), what these games are (with a recorded real change, `img/demo-*.jpg`), your games, New and Popular. A game's copies and hours played are counted across all its versions, so an update doesn't make it new again |
+| `/` | home, in plain words (it says games; "ludant" once, in the intro): a banner up top to start a new game (making is half of what this is), what these games are (a before and after of Little Catch, plain to painted, `img/demo-plain.jpg` and `demo-painted.jpg`, linking to how it works), your games, New and Popular. A game's copies and hours played are counted across all its versions, so an update doesn't make it new again |
 | `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
 | `/play.html?line=<line>` | a shared game's link: take a copy that follows it (remembered per browser) and sit with it, in play mode; someone new sees its picture, title and maker with the name ask. `?p=<publication>` (an older link to one version) does the same for its game |
 
@@ -499,7 +499,7 @@ The frame, lobby and other pages hold people's OpenRouter keys and owner keys, s
 ### Looking like what it is
 
 New domains get judged by filters, so the site looks like a real one:
-- **gactant.com:** `/privacy.html` (what's kept, who sees it, where it goes, and who runs gactant), `/rules.html`; both, and the home page's footer, give admin@gactant.com (forwarded to Robby), `robots.txt` (no indexing of frames, play links or the API), `sitemap.xml`, and link previews (Open Graph tags, `og.jpg`).
+- **gactant.com:** `/privacy.html` (what's kept, who sees it, where it goes, and who runs gactant), `/rules.html`, `/how.html` (how it works, for someone new: changing, painting its own art, playing together, sharing, cost, safety); privacy and rules, and the home page's footer, give admin@gactant.com (forwarded to Robby), `robots.txt` (no indexing of frames, play links or the API), `sitemap.xml`, and link previews (Open Graph tags, `og.jpg`).
 - **gactantbox.com:** its root says what it is (`public/box/`) and isn't indexed. Anything else redirects there.
 
 ### Deploying

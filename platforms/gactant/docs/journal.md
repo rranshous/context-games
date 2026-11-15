@@ -2974,3 +2974,22 @@ front page.
 - Step 3 of the intro said "Publish it"; it says "Share it".
 
 Deployed (version 31df9cb1).
+
+## Part 37: before and after, the way people expect; how it works
+
+Robby: the front page's demo read backwards. It showed the woodblock-print Little Catch
+turning into the glowing night sea, which is how the change really went, but people expect
+the plain one first and the crafted one after. Now it's plain to painted: the night sea
+(drawn in shapes) "before", the woodblock print (painted art) "after", with the ask "paint
+it like an old Japanese woodblock print of the sea". Since that isn't the change that
+happened, the caption no longer says "a real change" or what it cost; it says what such a
+change does. The files are named for what they are now (`demo-plain.jpg`,
+`demo-painted.jpg`), not for which came first.
+
+The way round helps a second point Robby wanted made: games paint their own art. Step 3
+says so ("paints its own pictures when it needs them: characters, backgrounds, a whole new
+style"), and a new `/how.html` explains it for someone new: playing, changing it, painting
+its own art (fresh each time, references for consistency, concept pictures to ask what you
+meant), 3D and controllers, playing together, sharing and following, what it costs, and
+keeping it safe. Copy says what a ludant can do, not what it always does. Linked from the
+demo's caption and the footer, and in the sitemap.

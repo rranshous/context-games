@@ -181,14 +181,16 @@ async function render() {
   const maker = yours.some((l) => !l.lineage?.from);
   if (!maker) {
     const step = (n, title, text) => el('li', { class: 'step' }, el('span', { class: 'step-n' }, n), el('strong', {}, title), el('span', {}, text));
-    // A real change, recorded: what was asked, and the game before and after.
+    // A change like any player could ask for: what was asked, and the game before and after.
+    // (Shown the way people expect it to go, plain to painted; the two pictures are real
+    // Little Catch, though the real change went the other way.)
     const demo = el('figure', { class: 'demo' },
       el('div', { class: 'demo-screen' },
-        el('img', { class: 'demo-before', src: '/img/demo-before.jpg', alt: 'Little Catch: a fishing boat on a Hokusai-style day sea, with purple fish' }),
-        el('img', { class: 'demo-after', src: '/img/demo-after.jpg', alt: 'The same game after: a night sea under a full moon, a lantern on the boat, and fish glowing cyan, gold and magenta' }),
-        el('div', { class: 'demo-ask' }, el('span', {}, 'a player, in the chat'), 'make it a night sea under the moon, with fish that glow'),
+        el('img', { class: 'demo-before', src: '/img/demo-plain.jpg', alt: 'Little Catch: a fishing boat on a night sea under a full moon, with fish glowing cyan, gold and magenta, drawn in simple shapes' }),
+        el('img', { class: 'demo-after', src: '/img/demo-painted.jpg', alt: 'The same game after: the sea painted like a Japanese woodblock print, with a wave curling over the boat and painted purple fish' }),
+        el('div', { class: 'demo-ask' }, el('span', {}, 'a player, in the chat'), 'paint it like an old Japanese woodblock print of the sea'),
         el('span', { class: 'demo-tag before' }, 'before'), el('span', { class: 'demo-tag after' }, 'after')),
-      el('figcaption', {}, 'A real change: one sentence in the chat, and Little Catch rebuilt itself. It cost 19¢ in AI thinking.'));
+      el('figcaption', {}, 'One sentence in the chat, and Little Catch painted itself new art and rebuilt its look. ', el('a', { href: '/how.html' }, 'How it works')));
     parts.push(el('section', { class: 'intro' },
       el('div', { class: 'intro-top' },
         el('div', {},
@@ -198,7 +200,7 @@ async function render() {
       el('ol', { class: 'steps' },
         step('1', 'Play one', 'Pick any game below. You get your own copy, so play it however you like.'),
         step('2', 'Tell it what you\'d change', '"Make the fish faster." "Add a second player." "Make it spooky." Say it in its chat.'),
-        step('3', 'Watch it change', 'It rebuilds itself while you play. Like what it became? Share it, and others can play it too.')),
+        step('3', 'Watch it change', 'It rebuilds itself while you play, and paints its own pictures when it needs them: characters, backgrounds, a whole new style. Like what it became? Share it, and others can play it too.')),
       el('p', { class: 'intro-fine' }, 'You can play without an account. For a game to talk with you and change, connect your own OpenRouter account: it thinks with an AI model there, usually a few cents at a time, and a meter shows what your sitting has cost.')));
   }
   // Someone made here without seeing a recovery code (ui.js): now that they have ludants,
@@ -229,7 +231,7 @@ async function render() {
     parts.push(section('Everyone here', 'Every game on this install (you\'re running it yourself, so you see them all).',
       el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l.id))))));
   }
-  parts.push(el('footer', { class: 'lobby-foot' }, el('a', { href: '/rules.html' }, 'the rules'), ' · ', el('a', { href: '/privacy.html' }, 'privacy'), ' · ', el('a', { href: 'mailto:admin@gactant.com' }, 'admin@gactant.com'), ' · see something that doesn\'t belong? press ⚑ in its top bar'));
+  parts.push(el('footer', { class: 'lobby-foot' }, el('a', { href: '/how.html' }, 'how it works'), ' · ', el('a', { href: '/rules.html' }, 'the rules'), ' · ', el('a', { href: '/privacy.html' }, 'privacy'), ' · ', el('a', { href: 'mailto:admin@gactant.com' }, 'admin@gactant.com'), ' · see something that doesn\'t belong? press ⚑ in its top bar'));
   document.getElementById('lobby').replaceChildren(...parts);
 }
 
