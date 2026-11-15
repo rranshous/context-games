@@ -2996,3 +2996,33 @@ demo's caption and the footer, and in the sitemap.
 
 Deployed (version c5f9b02e): the demo swap, step 3's painting line and `/how.html` are live on
 gactant.com.
+
+## Part 38: 3D assets and paying us directly (notes, nothing built)
+
+**3D assets.** OpenRouter has no 3D: its 467 models output text, image, video and audio, and
+the `/api/v1/objects/generations` endpoint one search turned up answers 404. fal.ai has the
+image-to-3D models behind one key, all returning GLB (which three.js's `GLTFLoader` loads):
+Hunyuan 3D Pro v3.1, Tripo H3.1, Meshy 6 and TRELLIS (https://fal.ai/models?categories=image-to-3d).
+Prices from third-party pages, unverified: Hunyuan ~16–45¢ a model by mode, Tripo/Meshy ~20–40¢,
+TRELLIS near a cent. Takes from seconds to minutes; files 1–20 MB.
+The shape we liked: image to 3D. A ludant paints a character on a clear background as it does
+now, then a tool (say `me.sculpt('ship.png')`) sends that picture's art.gactant.com URL to fal.
+It runs in the background, the GLB lands in R2 and in `me.assets`, and it travels with copies.
+Every model keeps its source picture, since CSAM scanning sees images, not meshes. Cap size per
+model and per body. Blocked on who pays: a user's OpenRouter key can't pay fal. Next step when
+picked up: a test run of Hunyuan and TRELLIS on a Little Catch picture for quality, size and
+real cost.
+
+**Paying us directly (on hold).** Stripe's token billing runs through Metronome (bought January
+2026): public preview, Stripe syncs OpenAI/Anthropic/Google prices, you set a markup, it can
+sell credit packs and bill non-token usage. It's built for invoicing businesses, more than we
+need. Stripe also agreed in August to buy OpenRouter, which may bring something simpler.
+The simpler shape for us, if we do it:
+- Stripe Checkout sells top-ups, and a webhook adds them to a balance on the person in
+  `people.mjs`.
+- Model calls go through the Worker on our OpenRouter key. It checks the balance first, then
+  charges the response's `usage.cost` plus markup.
+- Bring-your-own-key stays.
+The work is mostly risk: stolen cards burning tokens (Radar, small first top-ups, rate
+limits), disputed charges, sales tax (Stripe Tax, or a merchant of record), and we'd be
+responsible for every generation and for our own spend. Robby: hold off for now.
