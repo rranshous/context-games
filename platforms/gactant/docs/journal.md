@@ -3172,3 +3172,6 @@ Rough shape, nothing decided:
   Lazy Drive and 3 others"). Standings are per rulebook, so they're shared already.
 - It ties into Part 42 (citing): pinned hashes are also the ones a world trusts, so pinning
   and trust could be one list.
+- Robby on the share option ("same matches, your own look"): "def in line w/ what i'm
+  thinking". So that's the way in: a choice made when sharing, which pins the rulebooks for
+  every copy, rather than a separate setting.
