@@ -3272,3 +3272,6 @@ Later option, only if the MMO ludant hits it: lag compensation. The device puts 
 in the signed text, the server refuses anything more than a second or two off, and rules may
 judge by the player's own time within that margin. Fairer for people far from the server,
 slightly cheatable within the margin, and a change to what's signed.
+
+Deployed (version 0e3f701c): rules have the time, with its changelog line, live on gactant.com.
+The hosted Match path is still to be seen in use: the MMO ludant's next match will show it.
