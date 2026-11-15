@@ -335,17 +335,23 @@ const far = start.filter((b) => life.get(b.id)!.moved).sort((a, b) => Math.hypot
 say('Farthest travellers:');
 for (const b of top(far, 5)) { const L = life.get(b.id)!; say(`- ${b.id} (${label(plan(b))}, ${L.c0} cells): ${L.moved} cells moved, net (${L.net[0]}, ${L.net[1]}) · ${link(b.id)}`); }
 
-// Who's good for whom: survival and births when touching, against the same plan alone on the same step.
+// Who's good for whom: survival and births when touching, against the same kind alone on the same step.
+// By code row, not whole plan: the row is what a body does, and whole plans split too finely
+// (s2 has 92,000) for pairs of them to touch often enough to measure.
+const sp = (b: Warrior) => nameOf(plan(b)).split('+')[0];
+const spCount: Tally = new Map(); for (const b of start) bump(spCount, sp(b));
+const spRanked = [...spCount].sort((a, b) => b[1] - a[1]);
+const spRank = new Map(spRanked.map(([k], i) => [k, i]));
 say(); say("## Who's good for whom");
-say('For each pair of top plans A, B: how B bodies touching an A at t0 did (survived the replay, plus children), against B bodies touching nobody on the same step. z is the difference in standard errors.');
+say('For each pair of the commonest code rows A, B: how B bodies touching an A at t0 did (survived the replay, plus children), against B bodies touching nobody on the same step. z is the mean difference over its standard error.');
 interface Out { f: number; step: number }
 const outcome = (b: Warrior): Out => ({ f: (b.alive ? 1 : 0) + life.get(b.id)!.births, step: life.get(b.id)!.step });
 const alone = new Map<string, { n: number; sum: number; sq: number }>(); // plan|step → fitness stats
 const aloneAll = new Map<string, { n: number; sum: number; sq: number }>();
 const add = (m: typeof alone, k: string, f: number) => { const e = m.get(k) ?? { n: 0, sum: 0, sq: 0 }; e.n++; e.sum += f; e.sq += f * f; m.set(k, e); };
 for (const b of start) {
-  const key = plan(b);
-  if ((rank.get(key) ?? Infinity) >= TOP || life.get(b.id)!.touch0.size) continue;
+  const key = sp(b);
+  if ((spRank.get(key) ?? Infinity) >= TOP || life.get(b.id)!.touch0.size) continue;
   const o = outcome(b);
   add(alone, `${key}|${o.step}`, o.f); add(aloneAll, key, o.f);
 }
@@ -354,36 +360,38 @@ const base = (key: string, step: number) => {
   const use = e && e.n >= 20 ? e : a && a.n >= 20 ? a : undefined;
   if (!use) return undefined;
   const mean = use.sum / use.n;
-  return { mean, v: Math.max(1e-3, use.sq / use.n - mean * mean) };
+  return { mean, se2: Math.max(0, use.sq / use.n - mean * mean) / use.n }; // (and the square of its standard error)
 };
-const exposed = new Map<string, { n: number; obs: number; exp: number; v: number }>(); // A\tB → effect of A on B
+const exposed = new Map<string, { n: number; d: number; dd: number; se2: number }>(); // A\tB → effect of A on B: each B's difference from its baseline
 for (const b of start) {
-  const kb = plan(b);
-  if ((rank.get(kb) ?? Infinity) >= TOP) continue;
+  const kb = sp(b);
+  if ((spRank.get(kb) ?? Infinity) >= TOP) continue;
   const o = outcome(b), bs = base(kb, o.step);
   if (!bs) continue;
   const partners = new Set<string>();
-  for (const id of life.get(b.id)!.touch0) { const ka = plan(body(id)); if ((rank.get(ka) ?? Infinity) < TOP) partners.add(ka); }
+  for (const id of life.get(b.id)!.touch0) { const ka = sp(body(id)); if ((spRank.get(ka) ?? Infinity) < TOP) partners.add(ka); }
   for (const ka of partners) {
-    const k = pairKey(ka, kb), e = exposed.get(k) ?? { n: 0, obs: 0, exp: 0, v: 0 };
-    e.n++; e.obs += o.f; e.exp += bs.mean; e.v += bs.v;
+    const k = pairKey(ka, kb), e = exposed.get(k) ?? { n: 0, d: 0, dd: 0, se2: 0 }, d = o.f - bs.mean;
+    e.n++; e.d += d; e.dd += d * d; e.se2 += bs.se2;
     exposed.set(k, e);
   }
 }
 const effect = (a: string, b: string) => {
   const e = exposed.get(pairKey(a, b));
   if (!e || e.n < 20) return undefined;
-  return { n: e.n, d: (e.obs - e.exp) / e.n, z: (e.obs - e.exp) / Math.sqrt(e.v) };
+  // Welch: the exposed bodies' spread, plus the baselines' own uncertainty (averaged over the steps they're on).
+  const mean = e.d / e.n, v = Math.max(0, e.dd / e.n - mean * mean) / e.n + e.se2 / e.n;
+  return { n: e.n, d: mean, z: v > 1e-9 ? mean / Math.sqrt(v) : 0 };
 };
 const sign = (x?: { d: number; z: number }) => (!x ? '?' : x.z >= 3 && x.d >= 0.05 ? '+' : x.z <= -3 && x.d <= -0.05 ? '−' : '0');
 const KIND: Record<string, string> = { '++': 'mutualism', '+−': 'exploitation', '−+': 'exploitation', '−−': 'competition', '+0': 'commensalism', '0+': 'commensalism', '−0': 'amensalism', '0−': 'amensalism', '00': 'neutral' };
 const eco: { a: string; b: string; kind: string; onB?: ReturnType<typeof effect>; onA?: ReturnType<typeof effect> }[] = [];
-const keys = ranked.slice(0, TOP).map(([k]) => k);
+const keys = spRanked.slice(0, TOP).map(([k]) => k);
 for (let i = 0; i < keys.length; i++) for (let j = i; j < keys.length; j++) {
   const a = keys[i], b = keys[j], onB = effect(a, b), onA = effect(b, a);
   if (!onB && !onA) continue;
   const s = sign(onA) + sign(onB);
-  eco.push({ a, b, kind: a === b ? `same plan: ${sign(onB)}` : KIND[s] ?? `${s} (one side too rare)`, onB, onA });
+  eco.push({ a, b, kind: a === b ? `same row: ${sign(onB)}` : KIND[s] ?? `${s} (one side too rare)`, onB, onA });
 }
 const fmt = (x?: ReturnType<typeof effect>) => (!x ? 'too few' : `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)}, n ${x.n})`);
 const tally: Tally = new Map(); for (const e of eco) bump(tally, e.kind.replace(/:.*/, ''));
@@ -391,8 +399,8 @@ say(`${eco.length} pairs measured: ${[...tally].sort((a, b) => b[1] - a[1]).map(
 say('| A | B | kind | A on B | B on A |');
 say('|---|---|---|---|---|');
 const strength = (e: (typeof eco)[0]) => Math.max(Math.abs(e.onA?.z ?? 0), Math.abs(e.onB?.z ?? 0));
-for (const e of eco.filter((x) => !/neutral|same plan: 0|same plan: \?/.test(x.kind)).sort((x, y) => strength(y) - strength(x)).slice(0, 30)) {
-  say(`| ${label(e.a)} | ${label(e.b)} | ${e.kind} | ${fmt(e.onB)} | ${e.a === e.b ? '' : fmt(e.onA)} |`);
+for (const e of eco.filter((x) => !/neutral|same row: 0|same row: \?/.test(x.kind)).sort((x, y) => strength(y) - strength(x)).slice(0, 30)) {
+  say(`| ${e.a} (${spCount.get(e.a)}) | ${e.b} (${spCount.get(e.b)}) | ${e.kind} | ${fmt(e.onB)} | ${e.a === e.b ? '' : fmt(e.onA)} |`);
 }
 
 say(); say(`(${((Date.now() - t0clock) / 1000).toFixed(0)} s)`);
