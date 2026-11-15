@@ -3076,3 +3076,47 @@ Not checked by a lawyer; it should be before gactant charges for anything.
 
 Deployed (version 86356f6d): Your games with following and spin-off counts, the tree page,
 and the terms are live on gactant.com.
+
+## Part 41: how I made this, and marks
+
+Following the terms: AI-made work generally isn't protected by copyright, so what can a
+person show they contributed? Robby liked a "how I made this" export from the frame, and
+wanted fingerprints too, one per contribution ("we don't need the complexity of nesting, do
+the more simple but more storage used method").
+
+What was there: almost nothing records a person's contributions as events. The chat keeps
+the last 200 messages. Picks are only chat lines. The board keeps only its current marks. Hand
+edits and the ludant's rewrites both show only as "X rewrote Y" in the doings log. The
+ludant's own edits make no checkpoints.
+
+So now:
+- **`surfaces/made.js`** keeps a record of what people at this keyboard do, up to 1,000
+  entries:
+  - asked: their chat lines
+  - picked: from choices (the chat line the pick also posts is replaced by the pick)
+  - drew: the board as they pass it, with its picture (the latest 12 keep it)
+  - wrote: a section by hand, via `sandbox.received`
+  - kept and restored: versions
+  The sections the ludant changes afterwards attach to the person's last entry (`then`).
+  It's saved and sealed with the surfaces, but isn't in `this.surfaces`, so the ludant never
+  sees it.
+- **Marks.** Each entry is fingerprinted with SHA-256 over {ludant, at, who, kind, text,
+  imageHash}. A drawing is covered by its picture's own hash, so it stays checkable after the
+  picture drops off. The device signs `gactant.mark.v1.<ludant>.<hash>` (`marks.js`, shared
+  with the server). `POST marks` checks the signature against the device's key and keeps
+  {hash, ludant, person, name, device, at, signature, key}, about 400 bytes, keeping the
+  first time if marked again. `GET marks/<hash>` is public. The server never sees the words.
+- **How I made this** (history panel) saves a self-contained HTML page: each entry with its
+  time, words, drawing, what changed after, the exact fingerprinted text, and its mark. Its
+  own script rechecks every fingerprint as it opens. The page is a secure context opened from
+  a file. In about:blank crypto.subtle is missing, so it says "open in a browser to check".
+- **`/mark.html?h=`** shows what gactant recorded for a mark. It checks the device
+  signature in the browser with the stored public key, and has a box to check words.
+- Privacy says marks keep the fingerprint, time, name and ludant, never words. Terms say
+  they're evidence, not a promise of what the law will make of them.
+- Checked: smoke (four mark checks), and a frame run that delivers events locally so the
+  ludant isn't woken. Asked, then the ludant changed game, picked, drew: all three entries
+  were marked, and the exported page reported "matches its words" for each.
+- Gaps: only what happens from now on is noted, and only on the device where it happened
+  (each browser marks its own person's contributions). A shard's or another person's
+  contributions are theirs to mark.

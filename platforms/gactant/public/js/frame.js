@@ -23,6 +23,7 @@ import { Choices } from './surfaces/choices.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
+import { Made } from './surfaces/made.js';
 import { Lights } from './lights.js';
 import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
@@ -98,7 +99,9 @@ class Frame {
     this.admins = new Admins(this);
     this.table = new Table(this);
     this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.art, this.choices, this.table, this.admins, this.inspector];
-    for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
+    // What people here contributed: saved and sealed with the surfaces, but not one the ludant sees.
+    this.made = new Made(this);
+    for (const s of [...this.surfaces, this.made]) s.load?.(record.surfaces?.[s.id]);
     this.actant = new Body(this, record.soma);   // the ludant as this side sees it
     this.saveTimer = null;
     // This window's claim on the ludant. (crypto.randomUUID needs https, and a phone on
@@ -368,7 +371,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   async save() {
     clearTimeout(this.saveTimer);
     if (this.lost) return;
-    let surfaces = Object.fromEntries(this.surfaces.filter((s) => s.toJSON).map((s) => [s.id, s.toJSON()]));
+    let surfaces = Object.fromEntries([...this.surfaces, this.made].filter((s) => s.toJSON).map((s) => [s.id, s.toJSON()]));
     try {
       // Everything but the stage's size is sealed with its person's key before it leaves.
       if (this.sealing) { const { stage, ...rest } = surfaces; surfaces = { stage, sealed: await seal(rest, this.recordId) }; }
@@ -395,6 +398,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     await this.settled('the checkpoint');
     const { n } = await api('POST', `ludants/${this.recordId}/checkpoints`, { label, by, token: this.token });
     this.inspector.note('changed', `${by} took checkpoint ${n}${label ? ` "${label}"` : ''}`);
+    if (by === this.seat) this.made.add('kept', by, `kept this version as #${n}${label ? ` ("${label}")` : ''}`);
     this.status.setLife(this.status.life);
     return { n };
   }
@@ -829,6 +833,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
             if (confirm(`Put ${this.actant.name} back to checkpoint #${cp.n}? How it is now is kept as a checkpoint too, and the chat stays.`)) { history.classList.remove('on'); this.restore(cp.n); }
           } }, 'restore'))),
         el('div', { class: 'history-foot' },
+          el('button', { class: 'wb-btn', title: 'save a page of what you contributed: what you asked for, picked, drew and wrote, each marked with when', onclick: () => this.made.save() }, 'how I made this'),
           el('a', { class: 'wb-btn', href: '/me.html', title: 'your ludants are yours on every device you add' }, 'your devices…'),
           el('button', { class: 'wb-btn danger', onclick: () => { history.classList.remove('on'); this.askAbandon(); } }, 'abandon this ludant…')),
       );

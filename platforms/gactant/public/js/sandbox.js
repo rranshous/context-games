@@ -148,6 +148,7 @@ export class Body {
     if (changed) {
       inspector.note('changed', `${by} rewrote ${changed} (${(soma.sections[changed] ?? '').length} chars)`);
       inspector.sectionChanged(changed);
+      this.frame.made.sectionChanged(changed, by, soma);
     }
     inspector.renderTabs();
     if (changed === 'title' || !changed) this.frame.noticeName();

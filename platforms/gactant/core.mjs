@@ -87,6 +87,9 @@
 //   POST ludants/<id>/follow { token }            -> { following, version }   go back to following the line it came from
 //   GET  lines/<id>                               -> { id, public, by, followers, versions, title, given, latest, note, picture }
 //   POST lines/<id>/copy { by }                   -> { id }          a copy of its newest version, following it
+//   POST marks { ludant, hash, signature }       -> { hash, at }    a person's contribution marked: a SHA-256 of it (made.js),
+//                                                   signed by their device over markText (marks.js); the first time is kept
+//   GET  marks/<hash>                            -> { hash, at, name, ludant, game, signed, text, signature, key }   for anyone checking
 //   GET  lines/<id>/tree                          -> { ...lines/<id>, from, versions: [{ version, at, players, hours }],
 //                                                   spinoffs: { listed: [{ line, title, by, picture, followers, spinoffs }], unlisted } }
 //   (GET ludants/<id> for its owner also says { line: { ..., behind, followers }, follows: { line, following, by, title },
@@ -126,6 +129,7 @@
 //   GET  log/<who>?n=20                          -> last n inference records
 
 import { nameOf, randomGiven, titled, titleSlug } from './public/js/names.js';
+import { markText } from './public/js/marks.js';
 import { ART_MODELS, buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
 import { publicText } from './check.mjs';
@@ -152,6 +156,7 @@ const MAX_CHECKS_A_DAY = 200;    // publish checks a day (settings.check; each c
 const PUBLISH_A_DAY = 10;        // publications one address may make in a day
 const SEED_A_DAY = 20;           // new ludants one address may seed in a day
 const COPY_A_DAY = 40;           // copies one address may take in a day
+const MARKS_A_DAY = 2000;        // contributions one person may mark in a day
 const MAX_SPINOFFS = 2000;       // spin-offs a line remembers (past that, new ones go uncounted)
 const ART_BUDGET = 15_000_000;   // bytes of pictures one ludant keeps, all told
 const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its first)
@@ -187,6 +192,8 @@ export const safe = (id) => { if (!/^[a-z0-9-]+$/.test(String(id))) throw httpEr
 const sameSoma = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Replies from the admins, written into the soma of the ludant that reported (surfaces/admins.js).
 // They're to that ludant: copies and publications go without them.
+const unb64u = (s) => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
 /** A document as a slim list has it: what worker.mjs's SLIM keeps, for the local store. */
 export function slimmed(kind, d) {
   if (kind === 'ludants') { const { surfaces, assets, mail, ...rest } = d; return { ...rest, soma: { ...d.soma, sections: { title: d.soma?.sections?.title ?? null } } }; }
@@ -997,6 +1004,39 @@ export function createCore({ store, settings }) {
       }
       return { imported };
     }
+    // Marks: proof of what a person contributed to a ludant, and when. Their browser sends a
+    // fingerprint (SHA-256) of each thing they did (what they asked for, picked, wrote or
+    // drew), signed by their device; the server keeps it with the time it came in. It never
+    // sees the words, which stay sealed with the ludant. Later, whoever holds the words (in
+    // a "how I made this" export) can show they match a mark made then, by that person.
+    if (a === 'marks') {
+      if (!b && method === 'POST') {
+        if (!from.person) throw httpError(401, 'a mark is made by someone signed in: this device isn\'t anyone\'s yet');
+        const hash = String(body.hash ?? '');
+        if (!/^[0-9a-f]{64}$/.test(hash)) throw httpError(400, 'a mark is a SHA-256 fingerprint, in hex');
+        const ludant = await read('ludants', safe(body.ludant));
+        const kept = await store.get('marks', hash);
+        if (kept) return { hash, at: kept.at };
+        limit('mark', from.person, MARKS_A_DAY, `that's ${MARKS_A_DAY} marks today; more tomorrow`)();
+        const key = await people.deviceKey(from.person, from.device);
+        if (key) {
+          let ok = false;
+          try { ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, unb64u(body.signature ?? ''), new TextEncoder().encode(markText(ludant.id, hash))); } catch {}
+          if (!ok) throw httpError(401, 'that mark isn\'t signed by this device');
+        }
+        const at = now();
+        await store.put('marks', hash, { id: hash, hash, ludant: ludant.id, person: from.person, name: from.name ?? null, device: from.device ?? null, at,
+          signature: key ? String(body.signature) : null, key: key ? await people.publicKey(from.person, from.device) : null });
+        return { hash, at };
+      }
+      if (b && !c && method === 'GET') {
+        const m = await read('marks', safe(b));
+        const ludant = await store.get('ludants', m.ludant);
+        return { hash: m.hash, at: m.at, name: m.name, ludant: m.ludant, game: ludant && !ludant.abandoned ? nameOf(ludant.soma) : null,
+          signed: Boolean(m.signature), text: markText(m.ludant, m.hash), signature: m.signature, key: m.key };
+      }
+    }
+
     if (a === 'thumbs' && (b === 'l' || b === 'p') && c) {
       if (b === 'p' && (await store.get('published', safe(c)))?.hidden) return { image: null };
       return { url: urlOf((await store.get('thumbs', `${b}-${safe(c)}`))?.file) };

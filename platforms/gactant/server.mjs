@@ -36,7 +36,7 @@ const PORT = Number(arg('--port')) || 7780;
 if (arg('--env') !== 'none') loadEnv(arg('--env') ?? join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
-for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'issues', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'drafts', 'rulebooks', 'matches', 'actions', 'match-index', 'archive', 'standings', 'log', 'preserved', 'preserved-files', 'lines', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'issues', 'flags', 'traffic', 'trouble', 'people', 'recoveries', 'pairings', 'drafts', 'rulebooks', 'matches', 'actions', 'match-index', 'archive', 'standings', 'log', 'preserved', 'preserved-files', 'lines', 'marks', 'pictures/a', 'pictures/t']) mkdirSync(join(DATA, d), { recursive: true });
 const PICTURES = join(DATA, 'pictures');
 
 function loadEnv(path) {

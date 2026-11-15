@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { genesisText, signedText } from '../match.mjs';
 import { recoveryProof } from '../public/js/recovery.js';
+import { markText } from '../public/js/marks.js';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 // --base <url>: against a server that's already running (`wrangler dev`, say, with ADMIN_TOKEN
@@ -243,6 +244,14 @@ try {
   ok('your own say how their shared game is doing: following, and spin-offs', mineNow?.shared?.line === line && mineNow.shared.spinoffs === 1 && mineNow.shared.followers === 0, JSON.stringify(mineNow?.shared));
   const tree = (await call('GET', `lines/${line}/tree`)).json;
   ok('a game\'s tree: its versions, and a private spin-off only counted', tree.versions?.length === 2 && tree.spinoffs?.unlisted === 1 && tree.spinoffs.listed.length === 0, JSON.stringify(tree).slice(0, 300));
+  // Marks: a fingerprint of something a person did, signed by their device, kept with the time.
+  const fp = 'a'.repeat(64);
+  ok('a mark needs its device\'s signature', (await call('POST', 'marks', { ludant: id, hash: fp, signature: 'AAAA' }, as(pass))).status === 401);
+  const marked = (await call('POST', 'marks', { ludant: id, hash: fp, signature: await A.sign(markText(id, fp)) }, as(pass))).json;
+  const mark = (await call('GET', `marks/${fp}`)).json;
+  ok('a signed mark is kept, with the time, and anyone can look it up', marked.at && mark.at === marked.at && mark.signed && mark.name === 'Smoke' && mark.text === markText(id, fp), JSON.stringify(mark).slice(0, 200));
+  ok('marking it again keeps the first time', (await call('POST', 'marks', { ludant: id, hash: fp, signature: await A.sign(markText(id, fp)) }, as(pass))).json.at === marked.at);
+  ok('a mark needs someone signed in', (await call('POST', 'marks', { ludant: id, hash: 'b'.repeat(64) })).status === 401);
   ok('a spin-off\'s tree says what it\'s based on', (await call('GET', `lines/${reline.id}/tree`)).json.from?.title != null);
   await call('POST', `ludants/${copy.json.id}/release`, { token: 'c' }, as(stranger));
   ok('an old version\'s link gives the newest, following', (await call('GET', `ludants/${(await call('POST', `published/${v1}/copy`, { by: 'player' }, as(stranger))).json.id}`, undefined, as(stranger))).json.soma.sections.game.endsWith('// v2'));
