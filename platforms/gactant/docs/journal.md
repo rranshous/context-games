@@ -3175,3 +3175,14 @@ Rough shape, nothing decided:
 - Robby on the share option ("same matches, your own look"): "def in line w/ what i'm
   thinking". So that's the way in: a choice made when sharing, which pins the rulebooks for
   every copy, rather than a separate setting.
+
+Later, on Part 43: Robby thinks locking the rulebooks to the game is roughly what people
+would expect. He floated having people choose a game type (single player, single player with
+a leaderboard, live multiplayer) but wasn't sure he liked it. Right now it's flexible enough
+that someone could break their own shared game by changing its rulebook. To feel out more.
+My take: lock by default, with no type to choose. The rulebooks a game plays when it's shared
+become its locked rules, and its copies inherit them. Changing them is a deliberate step with
+a warning that people on the old rules won't share matches or standings with the new. The
+"type" falls out of what the game does: no rulebook means nothing to lock. A type picker
+would be better used for seeding a new game (one that starts already knowing about tables)
+than for protecting a shared one.
