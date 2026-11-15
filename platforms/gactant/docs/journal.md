@@ -3463,3 +3463,47 @@ frame following it automatically.
 Robby on inheriting: it shouldn't close the old match. A snapshot copy instead: the old world
 runs on (a fork, the opener's choice), with no handover race, no seed leak, and nothing to
 reopen.
+
+### Inheriting and standings: three more angles
+
+Robby's question, which reframed it: if Mallory forks off her own world, why would that touch
+*the* Realm board? Answer: today a board is per rulebook, so any match of Realm's hash counts,
+whatever state it started from. He disliked opt-in inherit(), rulebook families and fresh/
+continued/forked labels alike, so three subagents looked again from different angles: what a
+board belongs to, what players expect, and designs that avoid the hole.
+
+They converged: **key the board by where the state came from, and stop judging provenance.** A
+board belongs to rules plus starting point.
+- A rulebook's board (the ladder) counts only matches that started from its own init. That's
+  today's behaviour, so the shared tic-tac-toe board doesn't change.
+- A world that inherited (or changed rules) keeps its own board across its rules changes.
+- A cooked world tops only its own board, like a private server. Nothing can reach Realm's.
+Precedents: Diablo and PoE ladders (fresh seasonal characters only, then moved to Standard),
+WoW, Minecraft and Roblox per-realm boards, speedrun.com categories, Pokemon HOME origin
+marks.
+
+Variants:
+- **Buckets:** standings are kept per (rulebook, root), where root is 'fresh' or a world. The
+  tallies merge (add up wins, losses, draws and scored; best is the max), so a board is any
+  union chosen when it's read:
+  - `standings(hash)` = the fresh bucket (unchanged)
+  - `standings({ world })` = a world's buckets across rulebooks
+  - `standings({ rulebooks: [v1, v2] })` = merging versions on purpose
+- **Path-keyed with eras (the contrarian's recommendation):** the opener signs an
+  `epoch { rulebook }` entry *in the same match*. It seals the current segment (reveals that
+  segment's seed and archives it like a finished log) and starts a new segment, whose genesis
+  names the sealed head, the new rulebook and the carried state. Same id and members; each
+  segment has its own 20k actions; a fresh seed. An era on the same hash is a rollover past
+  the cap. Results go to the board of the collapsed rulebook path, so [T] → [T] stays on the
+  ladder honestly. check-match walks segments backwards.
+- **Rejected:** mutable or versioned rulebooks (they undo locking by hash); platform-held
+  player records (unverifiable writes, and the hole just moves); replaying old logs through
+  new rules (old moves get refused, and it's slower each time); boards per line or per host
+  (they split the cross-fork board).
+- **Seasons:** eras could be named and their boards frozen as history, which players
+  understand.
+
+My recommendation to Robby: **eras within a match** for continuing a world (rules fixes and
+the cap: no handover, no accidental fork). Copying into a new match stays for deliberate
+forks, which start their own board. Boards: ladder = fresh only, plus world boards, plus
+optional merged versions. Waiting on Robby.
