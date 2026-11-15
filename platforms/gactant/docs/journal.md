@@ -3275,3 +3275,52 @@ slightly cheatable within the margin, and a change to what's signed.
 
 Deployed (version 0e3f701c): rules have the time, with its changelog line, live on gactant.com.
 The hosted Match path is still to be seen in use: the MMO ludant's next match will show it.
+
+## Part 45: the Realm report (MMO-lite), and what it asks for
+
+Robby's MMO ludant reported back after building "Realm": a 40-player tile world with combat,
+crafting, a market and a world boss. It went through 5 rulebook versions in one sitting.
+- **Good:** the table fits; time fixed its biggest problem (regen, respawns, cooldowns,
+  day/night, boss windows, deterministic mob patrols); drafts, practice runs, editDraft and
+  locking are quick; the rate limit is enforced and predictable.
+- **Bad:**
+  - a locked rulebook can't be patched, so 5 worlds were abandoned (asks for migrate)
+  - no tick or wake-up
+  - no profiles across matches
+  - rate and step limits shape the design (movement batched into path strings)
+  - drafts cut at 6,000 characters
+  - "matches archive an hour after ending, can't pin one"
+  - followed matches pile up
+- **Ugly:**
+  - smooth remote movement: clock offset between client and server, so mobs jump
+  - a solo-player deadlock: action points regenerated only on ticks, and ticks happened only
+    on actions
+  - untested with real load
+- **Top asks:** (1) migrate or patchable rulebooks, (2) a wake timer or tick, (3) pinning
+  matches against archiving, (4) profiles across matches.
+
+Read-through:
+- Partly mistaken:
+  - Only matches that are over archive an hour later; a running world is kept unless nobody
+    acts for 30 days. The real persistence limit is 20k moves.
+  - Moves are pushed live, not polled. Mobs that are a function of time need a good server
+    clock, which is the actual gap.
+  - `unwatch` exists, but the description doesn't make it findable.
+- Quick wins:
+  1. `table.serverNow()`: the frame syncs the clock over the match socket (time request,
+     keep the fastest reply, slew the estimate, never backwards), one implementation for all
+     games. Today the socket's ping/pong is an auto-response with no time in it.
+  2. `readDraft` gets read_section's 16,000-character allowance plus line ranges (today it's
+     cut by RESULT_CHARS 6000 in actant.js).
+  3. A description line on the deadlock trap: anything a player needs to act must come back
+     with time, from `now`.
+  4. Description clarity on archiving and unwatch.
+- The big one, **carrying a match on**: `open(newHash, { from })` starts a new match from the
+  old one's current state, through the new rulebook's optional `migrate(oldState,
+  oldRulebook, time)`, keeping the members. The old match closes saying where it went; the new
+  one says where it came from, so the chain of worlds can be checked. That covers ask 1,
+  ask 3 and the 20k cap. Open questions: who may carry a match on (its opener?), and whether
+  players have a say.
+- Ask 2 is designed in Part 44 (wake-ups). Ask 4 is citing (Part 42), or a simpler record
+  per rulebook per player, like standings.
+Suggested order: quick wins, then carrying on, then wake-ups.
