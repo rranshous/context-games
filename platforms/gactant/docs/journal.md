@@ -3324,3 +3324,32 @@ Read-through:
 - Ask 2 is designed in Part 44 (wake-ups). Ask 4 is citing (Part 42), or a simpler record
   per rulebook per player, like standings.
 Suggested order: quick wins, then carrying on, then wake-ups.
+
+### Part 45, the quick wins: built
+
+1. **`table.serverNow()`.**
+   - Each live socket sends a clock check `{ time: t0 }` as it opens (and at 300 ms and 1.2 s)
+     and then every minute. `relayShare` answers `{ type: 'time', t0, now }` on both hosts.
+     The ping stays an auto-response, so it never wakes the Durable Object; a clock check
+     does wake it, once a minute.
+   - The frame keeps the last 8 checks and trusts the fastest round trip, taking
+     offset = now - (t0 + t1)/2. It emits `table.clock { offset, rtt }` when that moves by
+     2 ms or more. Until there's a check, the `now` on a look stands in.
+   - In the sandbox, `serverNow()` is synchronous: it eases toward the offset at a twentieth
+     of the time passed, takes a first or over-a-second correction at once, and never goes
+     backwards.
+   - A bug turned up on the way: `table.changed`, and the answers to move and join, didn't
+     carry `now`, although the description deployed with time said they did. Fixed (tables.mjs
+     act returns now, and table.js passes it on).
+2. Tool results are cut at 16,000 characters, not 6,000, matching read_section.
+   `readDraft(id, { from, to })` gives those lines, numbered.
+3. The description now warns about the lone-player deadlock: anything needed to act must come
+   back with time.
+4. The description is clearer about archiving: a match that isn't over is kept unless nobody
+   acts in it for 30 days; a match holds 20,000 actions; `unwatch` stops following one.
+Checked:
+- smoke: a clock check over the socket; a pushed look carries now
+- a real frame: the estimate went from -6 ms (from a look) to 0 ms once a check came back with
+  a 3 ms round trip; join and table.changed carry now; readDraft takes line ranges
+Not checked: serverNow inside the sandbox (the game side), which can't be reached from
+Playwright across origins; its code is small.

@@ -41,7 +41,7 @@ const FREE = new Set(['memory', 'letters_from_gactant_admins']);   // sections a
 const RESTLESS_LIMIT = 3;
 const UNHEARD_KEPT = 20;   // events kept for when thinking is connected
 const REACHING = ['chat.posted', 'whiteboard.turn', 'choices.picked'];
-const RESULT_CHARS = 6000;
+const RESULT_CHARS = 16000;   // a tool result past this is cut, saying so (read_section shows as much)
 
 // How the chassis runs code sections. This is the platform's side of the bargain, so it
 // lives here rather than in the soma, where an actant rewriting its comments could erase it.

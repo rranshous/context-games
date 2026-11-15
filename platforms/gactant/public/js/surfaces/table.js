@@ -7,7 +7,7 @@
 // actions (as an actor)
 //   drafts() -> [{ id, name, updated }]                    rulebooks being written (private to this person)
 //   draft({ name, source?, from? }) -> { id }              a new draft; from: a rulebook hash to start from
-//   readDraft(id) -> { name, source, missing }             writeDraft(id, { name?, source }) -> { missing }
+//   readDraft(id, { from, to }?) -> { name, source, missing } (with from/to: lines, numbered, in place of source)   writeDraft(id, { name?, source }) -> { missing }
 //   editDraft(id, edits) -> { missing, changed }          change a draft in places, as edit_section does (edits.js)
 //   tryDraft(id, { steps, seed?, options? }) -> { steps, state, result }   a practice run, nothing kept
 //   lock(id) -> { rulebook }                                frozen; the hash is its name for good
@@ -31,6 +31,14 @@
 //   table.shared { match, by, player, value, at }   another player shared a value (by: their name)
 //   table.changed { match, n, view, result, last: { kind, by, through, data }, ...the view's fields }   someone acted (you included)
 //   table.refused { match, kind, reason }
+//   table.clock { offset, rtt }   this frame's best idea of the server's clock changed: server time ≈ Date.now() + offset
+//
+// The server's clock: serverNow() is the server's time now, as best this frame can tell. Each
+// live socket checks it ({ time } -> { type: 'time', t0, now }) as it opens and every minute
+// after, timing the round trip; the fastest of the recent checks says it best (the server
+// read its clock about halfway through). In the game (chassis.js), serverNow() is
+// synchronous, eases toward each new estimate rather than jumping, and never goes backwards,
+// so things that move as a function of the server's time move smoothly.
 
 import { pass, sign, signer } from '../identity.js';
 import { applyEdits } from '../edits.js';
@@ -44,6 +52,8 @@ const TRIES = 4;   // an action meets a newer head (someone else acted first): s
 const FOLLOWED = 20;   // matches one frame follows at once
 
 const SEEN_KEPT = 50;   // matches remembered as last seen, beyond the followed ones
+const CLOCK_CHECKS = 8;          // recent clock checks kept; the fastest round trip among them says it best
+const CLOCK_EVERY_MS = 60_000;   // a live socket checks the clock this often (and three times as it opens)
 
 export class Table {
   id = 'table';
@@ -56,6 +66,22 @@ export class Table {
     this.polls = new Map();      // match -> AbortController
     this.sockets = new Map();    // match -> its live WebSocket, while it's open
     this.draftNames = new Map(); // draft id -> name, for saying what's being worked on
+    this.clockChecks = [];       // { offset, rtt }: the server's clock less this one, and how long the check took
+    this.offset = null;          // the best of them, as last told (table.clock)
+  }
+
+  /** The server's time now, as best this frame can tell (until a check, the time a look said). */
+  serverNow() { return Date.now() + (this.offset ?? 0); }
+
+  /** A clock check came back, or a look carried the server's time (rtt unknown: only used
+   *  until a real check). Tell the game when the best idea of the offset moves. */
+  clocked(offset, rtt) {
+    if (rtt == null) { if (this.clockChecks.length || this.offset != null) return; }
+    else { this.clockChecks.push({ offset, rtt }); if (this.clockChecks.length > CLOCK_CHECKS) this.clockChecks.shift(); }
+    const best = rtt == null ? { offset, rtt: null } : this.clockChecks.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+    if (this.offset != null && Math.abs(best.offset - this.offset) < 2) return;
+    this.offset = best.offset;
+    this.frame.bus.emit('table.clock', { offset: Math.round(best.offset), rtt: best.rtt == null ? null : Math.round(best.rtt) });
   }
 
   /** Working on rules shows in the chat while the ludant's awake ("testing multiplayer
@@ -67,7 +93,7 @@ export class Table {
   }
 
   describe() {
-    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options, time), join(state, player, request, time), move(state, player, action, time), view(state, player, time), result(state, time). They're pure: state in, state out, everything JSON, no network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. time is { now, started }: the server's time in milliseconds since 1970 when the action arrived (and when the match began), never earlier than the last action's, and kept with the action, so a replay gets the same. Use it, never Date. Rules only run when someone acts, so keep when you last brought the state up to date and, at the top of each call, catch the world up by however much time has passed (regen, cooldowns, respawns); view gets the time it's asked at, so it can show the world caught up without changing it. Put deadlines in the state as times (readyAt, respawnAt) and show them in view: every look, move and table.changed also carries now, the server's time, so your game can count down from it. Arrival times vary with each player's connection, so allow a little slack (a quarter second) on anything timed. For movement, share positions for showing, and send a move at the moments that matter, which the rules refuse if it's farther than speed × the time since the last one allows. player is { id, name } (view gets null for an onlooker). result returns null until the game is over, then anything the rules like plus winners: [player ids] ([] for a draw) and/or scores: { [player id]: number }, which is what standings across matches count. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, editDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) (or look(match)) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over is archived after an hour (it can still be read). Every rulebook has standings: each match of it that ended with winners or scores counts, in every ludant that plays it, so standings(hash) is the same board for all of them, kept by the server and impossible to fake, and kept for good (matches are archived; standings aren't). winners give each player in the match a win, a loss or a draw. scores keep each player's best (highest is best, so score a time so that faster is higher), with the match that made it; standings(hash, n, 'best') ranks the people with a score by their best. A one-player game with a high-score table is a match per run: the run's moves go to the rules, and result gives { scores: { [player id]: points } } when it ends. How it looks is yours: draw it in your game however suits you. Fast games: while you follow a match (open, join or watch it), you're connected to it live, so table.changed arrives the moment anyone acts. A frame follows up to 20 matches; past that, following another lets go of the ones that are over first, then the one quiet longest, so a match per run needs no tidying. For what changes many times a second (where a ship is, where someone's aiming), share(match, value) passes a value straight to everyone else in the match, arriving as table.shared { match, by, player, value } on their side. It isn't signed or logged and the rules never see it, so it's for showing, not deciding: what decides (a hit, a score, a win) stays a move. Up to 20 shares a second of up to 2,000 characters each, from players who've joined. Between shares, ease things toward where they were last shared rather than jumping. What comes back: view, look and watch give { view, n, result, you }, join and move give { view, result }, and table.changed carries { match, n, view, result, last }; view is what your rules' view(state, player) returned for you, and its fields are also copied onto the answer itself, so view(match).seats and view(match).view.seats both work (a field named like one of the answer's own, such as n or result, is only under .view). matches(hash) lists recent matches with their players (names) and an onlooker's view, for finding one with room. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id), writeDraft(id, { name, source }), editDraft(id, edits) (changes a draft in places, with the same edits as edit_section: old, from + to, lines or after, each with new; far quicker than writing the whole source again), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data, wait }], seed, options }) (a practice run's clock starts at 2026-01-01 and stands still; wait moves it on that many milliseconds before the step, and each step reports its now), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), share(match, value), view(match), look(match), standings(hash, n, by) -> { matches, players: [{ rank, id, name, wins, losses, draws, played, scored, best, bestAt, bestMatch }], you: your own row or null }, budget().`;
+    return `table: shared play with other people and their ludants, whoever they are and whatever their game looks like. The rules of a shared game are a rulebook: plain JavaScript defining init(seed, options, time), join(state, player, request, time), move(state, player, action, time), view(state, player, time), result(state, time). They're pure: state in, state out, everything JSON, no network, and refusing is throwing an Error whose message the player sees; random(n) -> [a number in [0, 1), the next n] keeps randomness in the state, from the seed. time is { now, started }: the server's time in milliseconds since 1970 when the action arrived (and when the match began), never earlier than the last action's, and kept with the action, so a replay gets the same. Use it, never Date. Rules only run when someone acts, so keep when you last brought the state up to date and, at the top of each call, catch the world up by however much time has passed (regen, cooldowns, respawns); view gets the time it's asked at, so it can show the world caught up without changing it. Anything a player needs in order to act (action points, a turn, a respawn) must come back with time, worked out from now, never only as a result of other actions: otherwise a player alone can be stuck for good. Put deadlines in the state as times (readyAt, respawnAt) and show them in view: every look, move and table.changed also carries now, the server's time, and serverNow() (synchronous in your game) is the server's time right now as best your frame can tell: it checks the clock over the live connection, eases toward each new estimate rather than jumping, and never goes backwards. Animate anything that's a function of the server's time (patrols, countdowns, day and night) from serverNow(), never from Date.now() plus an offset of your own. Arrival times vary with each player's connection, so allow a little slack (a quarter second) on anything timed. For movement, share positions for showing, and send a move at the moments that matter, which the rules refuse if it's farther than speed × the time since the last one allows. player is { id, name } (view gets null for an onlooker). result returns null until the game is over, then anything the rules like plus winners: [player ids] ([] for a draw) and/or scores: { [player id]: number }, which is what standings across matches count. The rules run on the server, never in anyone's game, so every ludant playing the same rulebook plays the same game and nobody can cheat. Rulebooks are written as private drafts (draft, writeDraft, editDraft, tryDraft for a practice run), then locked: lock(id) gives a hash that names those exact rules for good, and anyone can load it with rulebook(hash). A game of yours plays a rulebook by its hash: open(hash) starts a match, join(match) takes a place, move(match, action) acts, view(match) (or look(match)) is what you see now; table.changed arrives on every action by anyone (watch(match) to follow one you didn't open or join). Actions are public, so anything secret belongs in the state and is shown through view. Every action is signed by the device of the person you're playing for, so who did what is provable. Rules have limits, and run on the person's daily budget: work is counted in steps (about 5,000 simple operations each, at least 1 a call), a call may take up to 1,000, a state may be up to 200,000 characters of JSON and a view 50,000; budget() says what's used today. A practice run reports each call: ok, refused (the rules said no) or broken (with the line in your rulebook), its steps, the state's and view's sizes, and warnings once anything passes half of a limit; lock reports the rulebook's weight from the last practice run. A match that's over (result isn't null) is archived an hour later, and can still be read; one that isn't over is kept as long as someone acts in it at least once every 30 days, so a world that never ends is kept. A match holds up to 20,000 actions. Every rulebook has standings: each match of it that ended with winners or scores counts, in every ludant that plays it, so standings(hash) is the same board for all of them, kept by the server and impossible to fake, and kept for good (matches are archived; standings aren't). winners give each player in the match a win, a loss or a draw. scores keep each player's best (highest is best, so score a time so that faster is higher), with the match that made it; standings(hash, n, 'best') ranks the people with a score by their best. A one-player game with a high-score table is a match per run: the run's moves go to the rules, and result gives { scores: { [player id]: points } } when it ends. How it looks is yours: draw it in your game however suits you. Fast games: while you follow a match (open, join or watch it), you're connected to it live, so table.changed arrives the moment anyone acts. A frame follows up to 20 matches; past that, following another lets go of the ones that are over first, then the one quiet longest, so a match per run needs no tidying; unwatch(match) stops following one now. For what changes many times a second (where a ship is, where someone's aiming), share(match, value) passes a value straight to everyone else in the match, arriving as table.shared { match, by, player, value } on their side. It isn't signed or logged and the rules never see it, so it's for showing, not deciding: what decides (a hit, a score, a win) stays a move. Up to 20 shares a second of up to 2,000 characters each, from players who've joined. Between shares, ease things toward where they were last shared rather than jumping. What comes back: view, look and watch give { view, n, result, you }, join and move give { view, result }, and table.changed carries { match, n, view, result, last }; view is what your rules' view(state, player) returned for you, and its fields are also copied onto the answer itself, so view(match).seats and view(match).view.seats both work (a field named like one of the answer's own, such as n or result, is only under .view). matches(hash) lists recent matches with their players (names) and an onlooker's view, for finding one with room. Actions (all return promises): drafts(), draft({ name, source, from }), readDraft(id) (or readDraft(id, { from, to }) for those lines, numbered: read a long draft a part at a time), writeDraft(id, { name, source }), editDraft(id, edits) (changes a draft in places, with the same edits as edit_section: old, from + to, lines or after, each with new; far quicker than writing the whole source again), tryDraft(id, { steps: [{ do: 'join'|'move', as: 'a name', data, wait }], seed, options }) (a practice run's clock starts at 2026-01-01 and stands still; wait moves it on that many milliseconds before the step, and each step reports its now), lock(id), removeDraft(id), rulebook(hash), matches(hash), open(hash, options), watch(match), unwatch(match), join(match, request), move(match, action), share(match, value), view(match), look(match), standings(hash, n, by) -> { matches, players: [{ rank, id, name, wins, losses, draws, played, scored, best, bestAt, bestMatch }], you: your own row or null }, budget(), serverNow().`;
   }
 
   state() {
@@ -81,13 +107,23 @@ export class Table {
 
   actions(who) {
     return {
+      serverNow: () => this.serverNow(),
       drafts: () => api('GET', 'drafts'),
       draft: async (o = {}) => {
         const d = await api('POST', 'drafts', { name: o.name, source: o.source ?? '', from: o.from });
         this.working('writing', d.id, o.name);
         return d;
       },
-      readDraft: async (id) => { const d = await api('GET', `drafts/${id}`); if (d?.name) this.draftNames.set(id, d.name); return d; },
+      // A long draft can be read a part at a time: { from, to } (line numbers, as numbered)
+      // gives those lines, numbered, instead of the whole source.
+      readDraft: async (id, part) => {
+        const d = await api('GET', `drafts/${id}`);
+        if (d?.name) this.draftNames.set(id, d.name);
+        if (!part || typeof d?.source !== 'string') return d;
+        const ls = d.source.split('\n'), a = Math.max(1, Math.floor(part.from ?? 1)), b = Math.min(ls.length, Math.floor(part.to ?? a + 299));
+        const { source, ...rest } = d;
+        return { ...rest, lines: `lines ${a}–${b} of ${ls.length}:\n${ls.slice(a - 1, b).map((l, i) => `${String(a + i).padStart(5)}│${l}`).join('\n')}` };
+      },
       writeDraft: (id, o = {}) => { this.working('writing', id, o.name); return api('PUT', `drafts/${id}`, { name: o.name, source: o.source }); },
       editDraft: async (id, edits) => {
         const d = await api('GET', `drafts/${id}`);
@@ -159,7 +195,8 @@ export class Table {
   took(match, m) {
     const before = this.seen.get(match);
     if (before && m.n < before.n) return structuredClone(before);   // an older answer, arriving late
-    const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name, ...(m.archived ? { archived: true } : {}) };
+    if (typeof m.now === 'number') this.clocked(m.now - Date.now(), null);
+    const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name, now: m.now ?? null, ...(m.archived ? { archived: true } : {}) };
     this.seen.delete(match);
     this.seen.set(match, s);
     // Kept for the matches followed and the latest few others: a game that opens a match
@@ -169,7 +206,7 @@ export class Table {
       if (!this.watching.has(old)) { this.seen.delete(old); this.heard.delete(old); }
     }
     if (!before || m.n > before.n) this.heard.set(match, Date.now());
-    if (before && m.n > before.n) this.frame.bus.emit('table.changed', forgiving({ match, n: m.n, view: m.view, result: m.result, last: m.last }));
+    if (before && m.n > before.n) this.frame.bus.emit('table.changed', forgiving({ match, n: m.n, view: m.view, result: m.result, last: m.last, now: m.now ?? null }));
     return structuredClone(s);
   }
 
@@ -208,11 +245,15 @@ export class Table {
         try { ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/matches/${match}/live`, p ? ['gactant', p] : ['gactant']); }
         catch { resolve('failed'); return; }
         const ping = setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 30_000);
+        const check = () => { if (ws.readyState === 1) ws.send(JSON.stringify({ time: Date.now() })); };
+        const checks = [setTimeout(check, 300), setTimeout(check, 1200)];
+        const clock = setInterval(check, CLOCK_EVERY_MS);
         const close = () => { try { ws.close(1000); } catch {} };
         stop.signal.addEventListener('abort', close, { once: true });
         ws.onopen = () => {
           opened = true;
           this.sockets.set(match, ws);
+          check();
           this.fetch(match).catch(() => {});   // whatever happened before it opened
         };
         ws.onmessage = (e) => {
@@ -222,11 +263,12 @@ export class Table {
           if (m.type === 'look') {
             this.took(match, m);
             if (m.result || m.archived) close();
-          } else if (m.type === 'shared') this.frame.bus.emit('table.shared', { match, by: m.name, player: m.by, value: m.value, at: m.at });
+          } else if (m.type === 'time') this.clocked(m.now - (m.t0 + Date.now()) / 2, Date.now() - m.t0);
+          else if (m.type === 'shared') this.frame.bus.emit('table.shared', { match, by: m.name, player: m.by, value: m.value, at: m.at });
           else if (m.type === 'error') this.frame.bus.emit('table.refused', { match, kind: 'share', reason: m.error });
         };
         ws.onclose = (e) => {
-          clearInterval(ping);
+          clearInterval(ping); clearInterval(clock); checks.forEach(clearTimeout);
           stop.signal.removeEventListener('abort', close);
           if (this.sockets.get(match) === ws) this.sockets.delete(match);
           if (!opened) console.warn(`[gactant] couldn't follow ${match} live (${e.code}${e.reason ? ` ${e.reason}` : ''}); asking the server instead for a minute`);
@@ -261,7 +303,7 @@ export class Table {
         // The long look sees it too; this makes sure the one acting hears it at once.
         await this.fetch(match);
         if (!this.watching.has(match)) await this.watch(match);
-        return forgiving({ view: out.view, result: out.result });
+        return forgiving({ view: out.view, result: out.result, now: out.now ?? null });
       } catch (err) {
         if (err.status === 409 && i < TRIES) { s = await this.fetch(match); continue; }
         if (err.status === 422 || err.status === 410 || err.status === 429) {

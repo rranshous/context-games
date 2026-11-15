@@ -189,7 +189,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     const before = await read('match-index', id);
     if (!before.result && out.result) await ended(before.rulebook, out.result, out.members, id);
     await store.put('match-index', id, indexed(before, out));
-    return { n: out.n, head: out.head, view: out.view, result: out.result, ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
+    return { n: out.n, head: out.head, view: out.view, result: out.result, now: out.now, ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
   }
 
   // ---------- standings: per rulebook, from every match of it that ended ----------

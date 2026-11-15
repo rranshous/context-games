@@ -258,11 +258,15 @@ export async function pushLooks(match, sockets) {
   }
 }
 
-/** A message from a socket: a share from one of the players, passed on to the others.
+/** A message from a socket: a share from one of the players, passed on to the others, or a
+ *  clock check ({ time }: answered { type: 'time', t0, now }).
  *  -> an error to send back, or null. (Pings are answered by the host.) */
 export async function relayShare(match, sockets, from, text, counts = new Map()) {
   let msg;
   try { msg = JSON.parse(text); } catch { return 'messages are JSON'; }
+  // A clock check: the server's time, straight back, so a frame can tell its own clock's offset
+  // (it times the round trip and keeps its fastest answers: surfaces/table.js).
+  if (msg && typeof msg.time === 'number') { from?.send(JSON.stringify({ type: 'time', t0: msg.time, now: Date.now() })); return null; }
   if (!msg || !('share' in msg)) return null;
   const raw = JSON.stringify(msg.share ?? null);
   if (raw.length > MAX_SHARE) return `a shared value is up to ${MAX_SHARE} characters of JSON`;

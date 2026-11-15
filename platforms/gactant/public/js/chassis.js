@@ -57,6 +57,23 @@ async function boot() {
   // them, and a full store refuses here), then the frame keeps them.
   const store = new Store({ bus: { emit() {} }, changed() {} });
 
+  // The server's clock, as the frame's table checks it (table.clock { offset }): eased toward
+  // each new estimate, a twentieth of the time passed at most, so it never jumps; and never
+  // backwards, so what moves as a function of it moves smoothly. (A first estimate, or one
+  // over a second out, is taken at once.)
+  const clock = { offset: null, shown: null, at: 0, last: 0 };
+  const serverNow = () => {
+    const t = Date.now();
+    if (clock.offset != null) {
+      const gap = clock.offset - (clock.shown ?? clock.offset);
+      if (clock.shown == null || Math.abs(gap) > 1000) clock.shown = clock.offset;
+      else { const most = Math.max(0.5, (t - clock.at) / 20); clock.shown += Math.max(-most, Math.min(most, gap)); }
+    }
+    clock.at = t;
+    clock.last = Math.max(clock.last, t + (clock.shown ?? 0));
+    return clock.last;
+  };
+
   const port = await connect();
   const frame = new Bridge(port, {
     async init(state) {
@@ -80,6 +97,7 @@ async function boot() {
     pictures(how) { stage.pixels = how === 'pixels'; },
     restart() { stage.restarted(); },
     event(e) {
+      if (e.type === 'table.clock') clock.offset = e.offset;
       if (e.type === 'chat.posted') {
         chat.push({ who: e.who, text: e.text, at: e.at });
         if (chat.length > KEEP_CHAT) chat.splice(0, chat.length - KEEP_CHAT);
@@ -129,6 +147,7 @@ async function boot() {
       out[id] = Object.fromEntries(names.map((a) => [a, (...args) => frame.call('act', id, a, args)]));
     }
     if (out.chat) out.chat.read = (n = 20) => chat.slice(-n).map((m) => ({ ...m }));
+    if (out.table) out.table.serverNow = serverNow;
     if (out.store) {
       const local = store.actions('');
       out.store = {
