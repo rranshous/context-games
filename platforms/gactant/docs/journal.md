@@ -3353,3 +3353,24 @@ Checked:
   a 3 ms round trip; join and table.changed carry now; readDraft takes line ranges
 Not checked: serverNow inside the sandbox (the game side), which can't be reached from
 Playwright across origins; its code is small.
+
+Quick wins deployed (version dd3e4d72).
+
+Robby on the bigger changes:
+- **Not migrate.** Let a new rulebook inherit the old one's data. Shape:
+  `open(newHash, { from: oldMatch })`, and the new rules' `init` gets
+  `{ state, rulebook }` of the old match as a 4th argument and keeps or reshapes it. No
+  separate function. Open question: who may (I'd say the old match's opener).
+- **No free wake-ups.** Experiment with player-driven ticks instead, both possible in rules
+  today:
+  - the creator's open tab sends tick moves, paid from their own budget
+  - an elected keeper in state; the view tells each player if it's them; the keeper ticks; a
+    silent keeper is replaced when anyone else's tick is accepted after about 30 s
+  These go in the table description as patterns.
+- **Profiles across matches:** unclear what they're for. The ask was a character surviving a
+  world reset, which inheriting covers. Drop until something needs it.
+- **Batching:** Realm batched movement into path strings because of 60 moves a minute.
+  Proposal: `moves(match, [actions])`, one signed entry, the rules' move run on each at the
+  same time, counted as one move for the rate but steps charged for each. A refused action
+  is skipped and reported. Optionally, a client queue that flushes every N ms. It also
+  means fewer collisions.
