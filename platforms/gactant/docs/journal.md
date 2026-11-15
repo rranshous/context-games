@@ -3073,3 +3073,6 @@ whole product. Now there's `/terms.html`:
   of it…", with a Terms link. How it works says it in Share it. The lobby, rules, privacy and
   how pages link it from their footers, and it's in the sitemap.
 Not checked by a lawyer; it should be before gactant charges for anything.
+
+Deployed (version 86356f6d): Your games with following and spin-off counts, the tree page,
+and the terms are live on gactant.com.
