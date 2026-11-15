@@ -221,11 +221,15 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | found | run | what | where |
 |---|---|---|---|
 | 2026-11-14 | s2 | Combs: giants with two `G`s on a mast, growing two threads at once | [Combs](#combs-s2) |
+| 2026-11-14 | all | Vandals: `W` mutants that write fat or `@` into their kin | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-14 | s2 | Steerers: `CTDW` mutants that write turn arrows into their own children | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-14 | s4 | A sprinter hunting the other lineage's grazers | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-14 | s2, s4 | Growers smother their neighbours | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-14 | s2, s3, s4 | Husks do better beside the living (unexplained) | [Ecology scan](#what-the-ecology-scan-found) |
 
 ## How they interact
 
-**Nobody eats anybody.**
-- **No bites in the replays:** in 200–300 ticks of each run, following about 114,000 bodies, there were no bites delivered, no kills, and no writes into another body.
+**Hardly anybody eats anybody.**
 - **Death causes over each run's whole history:**
 
   | run | cold | pressure | old age | bitten to death |
@@ -235,7 +239,8 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
   | s3 | 82% | 9% | 8% | 0.01% |
   | s4 | 90% | 6% | 4% | 0.004% |
 
-- **Why:** each run is one lineage now, and an automatic bite never targets your own lineage. Meat-eating has become a trait for scavenging the dead, not for hunting.
+- **Why:** an automatic bite (`B` with nothing on the stack) never targets your own lineage, and each run is practically one lineage now (see [the big picture](#the-big-picture)), with a small relict of the other. In s4 the relict includes `C4SDTM` Climber grazers among the Divers. Meat-eating has become a trait for scavenging the dead, not for hunting.
+- The [ecology scan](#what-the-ecology-scan-found) below finds the exceptions: rare mutants that bite or write into their own kin, and once a sprinter that hunted s4's other lineage.
 
 **They crowd, and they pack.** 37–39% of bodies touch another body (56% in s2's mast forests), and almost always it's kin. Bodies can't overlap, so crowded ones settle into each other's gaps. Same-shaped bodies interlock: crosses nest in each other's notches, masts hang side by side, and `CLDM` heads line up in rows.
 
@@ -258,6 +263,34 @@ In s1's replay, 22,600 of 30,400 tracked bodies died in 300 ticks and 17,300 wer
 | ![](img/survey/scene-s1-close.png) | ![](img/survey/scene-s3-close.png) | ![](img/survey/scene-s4-close.png) |
 
 Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [s3](img/survey/scene-s3.png) · [s4](img/survey/scene-s4.png). Each body is its own colour and fat is darker; walls are grey, food is green dots and dead cells are brown.
+
+### What the ecology scan found
+
+*Found 2026-11-14,* with `dist/ecology.mjs` (see the README). It replays a run's newest checkpoint for 200 ticks, watching every bite, every write into another body, whose dead cells get eaten and who blocks whose moves. Then it compares bodies touching each kind of neighbour with bodies of the same kind alone on the same step. An earlier replay (above) followed only the common plans, so it missed what rare mutants do.
+
+**Bites and writes come from rare mutants, and they hit kin.** A `B` with numbers on the stack bites a chosen cell, and that bite can hit kin.
+
+| per 200 ticks | s1 | s2 | s3 | s4 |
+|---|---|---|---|---|
+| bites | 5 | 1,263 (69 kills) | 29 (3 kills) | 104 (13 kills) |
+| writes into another body | 242, into 54 bodies | 7,325, into 1,304 bodies | 802, into 52 bodies | 851, into 124 bodies |
+| deaths by running `@` | 138 | 1,318 | 171 | 507 |
+| …that another body wrote | 2 | 33 | 2 | 2 |
+
+- **Vandals.** In sprinters and lookers, a copy error can turn a code-row glyph into `W` (write): `CMWm`, `CMDW`, `CWD`. Such a mutant loses its divide or its move, and its loop writes into the nearest body instead, again and again, up to 112 times in 200 ticks. The nearest body is usually its own parent or child. Mostly it writes fat over the victim's code. Some write `@`, which kills whatever runs it.
+- **Steerers (s2).** `CTDW` mutants write turn arrows (`>`, `<`, `^`) into their own children, rewriting the direction the child's code runs. It's the closest thing to one body controlling another so far, though nothing shows it helps the writer.
+- **A hunter (s4).** One Diver sprinter, `CmM]` (its `D` mutated), bit the relict Climbers' `C4SDTM` grazers 12 times in 200 ticks and killed 3. It's the only cross-lineage predation the scans found.
+- Most deaths by `@` are the dead body's own copy errors, not poisonings.
+
+**Scavenging.** Of the dead cells eaten, 42–49% came from a body of another plan, 9–17% from the same plan, and the rest were already there when the replay began. Sprinters mostly eat the dead husks their own lineage keeps producing (`D`, `Dm`, `mMD`: no `C`, never move, all dead within 200 ticks).
+
+**Who's good for whom.** Each test compares bodies touching a given kind of neighbour with bodies of their own kind alone on the same step. It measures survival plus children over the 200 ticks.
+- **Crowding hurts.** In every run, bodies touching their own kind do worse: −0.06 to −0.26.
+- **Growers smother their neighbours** (s2, s4). Mutants with `G` in the code row (`CLGM`, `CLDG`, `CGDM`, `CmGD`) grow fat into the space around them. Lookers and sprinters touching one do 0.3–0.5 worse, with z −13 to −19 in s2. In s2, growers are 2.6% of bodies but cause 7.5% of blocked moves.
+- **Husks do better beside the living** (s2, s3, s4). Husks touching a looker or sprinter do 0.1–0.4 better, while the looker or sprinter is unaffected. This would be commensalism, but nothing in the rules explains it yet. It may be a confound, such as husks next to the living being younger.
+- **Two grazers compete** (s1). `C6SDTM` grazers touching `C4SDTM` grazers do 0.22 worse; the reverse is neutral.
+
+**Moving together.** Thousands of kin pairs move in step for a while. s3's `C4SDTM` grazers travel in pairs, touching for most of the replay and moving together up to 78 times in 200 ticks. Pairs from different lineages almost never do.
 
 ## Method and caveats
 

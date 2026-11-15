@@ -2555,3 +2555,20 @@ scratchpad, not the repo.
 ## Combs in s2 (2026-11-14)
 
 s2's biggest body today isn't a single thread. It's a mast with two `G`s that grows two threads side by side: 885 cells, teeth 409 and 461. The code row has a turn (`v`, `^` or `|`), so the IP runs the whole mast and passes both `G`s on every loop. That keeps the teeth about equal in length. The form isn't new to s2. A two-`G` comb has been s2's biggest body at 40% of checkpoints since 945k, with 14 different combs holding the title since 870k, under both sprinter and looker heads. It's nearly absent elsewhere (1% of s3's checkpoints, none in s1 or s4). It's written up in the survey, which now has a "New finds" table to log forms as they turn up.
+
+## An ecology scan (2026-11-14)
+
+New tool: `dist/ecology.mjs <checkpoint>` (and `./ecology.sh 1 2 3 4` for each run's newest checkpoint). It replays 200 ticks with the world's interaction methods wrapped on the instance: `opBombAt`, `opWrite`, `die`, `destroy`, `toDebris`, `sink`, `opCollect` and `opShift`. It reports bites, writes, whose dead cells get eaten, blocked moves and pairs that move together, all by body plan. It also has a "who's good for whom" table: bodies touching each kind of neighbour against the same kind alone on the same step, scored as survival plus children, with a Welch z.
+
+Bugs on the way:
+- The dead are looked up as their lineage's tombstone (`w.warrior(id)` after death), so they all looked like one fat-only plan. The tool now keeps every body it meets.
+- Newborns that freeze in their first tick lose their cells one by one before `die`, so the tool now takes a plan in `destroy`.
+- The first z used the baseline's spread alone and blew up (z 3,000) when every exposed body had the same outcome.
+- Whole plans split too finely to meet (s2 has 92,000), so the matrix groups by code row.
+
+Findings, written up in survey.md: the earlier replays (common plans only) said there were no bites or writes. In fact rare mutants do both, nearly always to kin:
+- `W` vandals write fat or `@` into their parent or child. In s2, `CTDW` mutants write turn arrows into their children.
+- Once, in s4, a Diver sprinter (`CmM]`) killed 3 relict Climber grazers.
+- Crowding hurts in every run.
+- `G` growers hurt the bodies they touch by 0.3–0.5. In s2 they cause 3× their share of blocked moves.
+- Husks touching the living do better, unexplained so far. The next check is whether it's age.
