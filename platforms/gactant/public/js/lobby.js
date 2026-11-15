@@ -1,7 +1,7 @@
-// The lobby. Most people arrive knowing nothing about ludants, so it leads with a few
-// good ones to play, and says only what's needed to start. People coming back find
-// their own ludants first. Everything published is further down, as family trees, and
-// starting from nothing is last.
+// The lobby. Most people arrive knowing nothing about ludants, so it talks about games,
+// leads with a few good ones to play, and says only what's needed to start. People coming
+// back find their own first. ("Ludant" is said once, in the intro: it's the name for what
+// they are, not a word anyone needs to start.)
 
 import { handOver, newRecovery } from './identity.js';
 import { titled } from './names.js';
@@ -58,6 +58,7 @@ function pubCard(p, big = false, fresh = false) {
     el('div', { class: 'card-text' },
       el('strong', {}, titled(p.title) || p.name),
       p.note ? el('span', { class: 'card-note' }, p.note) : null,
+      p.fromName ? el('span', { class: 'card-from' }, `based on ${p.fromName}`) : null,
       el('span', { class: 'card-facts' }, facts)));
 }
 
@@ -76,44 +77,16 @@ function mineCard(l, pubs = []) {
       el('span', { class: 'card-facts' }, [from, l.updated ? `changed ${ago(l.updated)}` : null, l.spent >= 0.01 ? `$${l.spent.toFixed(2)} of thinking so far` : null].filter(Boolean).join(' · '))));
 }
 
-/** Publications grouped by family (given name), as trees. A publication's parent is the
- *  one before it from the same ludant ("then") or, failing that, the publication it was
- *  copied from ("copy"). */
-function families(published, yours = new Set()) {
-  const byTime = published.slice().sort((x, y) => x.at.localeCompare(y.at));
-  const parent = new Map();
-  for (const p of byTime) {
-    const earlier = byTime.filter((q) => q.ludant === p.ludant && q.at < p.at).at(-1);
-    if (earlier) parent.set(p.id, { id: earlier.id, how: 'then' });
-    else if (p.from && published.some((q) => q.id === p.from)) parent.set(p.id, { id: p.from, how: 'copy' });
-  }
-  const children = (id) => byTime.filter((p) => parent.get(p.id)?.id === id);
-  const node = (p) => {
-    const how = parent.get(p.id)?.how;
-    const kids = children(p.id);
-    return el('li', { class: 'tree-node' },
-      el('a', { class: 'tree-card', href: playLink(p) },
-        how ? el('span', { class: `tree-how ${how}` }, how === 'then' ? 'then' : `copy, changed by ${p.by ?? 'someone'}`) : null,
-        el('strong', {}, titled(p.title) || p.name, yours.has(p.ludant) ? el('span', { class: 'yours' }, ' yours') : null),
-        el('span', {}, [p.by ? `by ${p.by}` : null, `${p.copies} ${p.copies === 1 ? 'copy' : 'copies'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · ')),
-        p.note ? el('span', { class: 'pub-note' }, `“${p.note}”`) : null),
-      kids.length ? el('ul', { class: 'tree' }, ...kids.map(node)) : null);
-  };
-  const groups = new Map();
-  for (const p of byTime) if (!parent.has(p.id)) groups.set(p.given, [...(groups.get(p.given) ?? []), p]);
-  return [...groups].reverse().map(([given, roots]) => el('li', { class: 'family' },
-    el('div', { class: 'family-name' }, `${given}'s family`),
-    el('ul', { class: 'tree root' }, ...roots.map(node))));
-}
-
-/** Your ludants as family trees, so what's what is visible: the ludant you shape at the
- *  root, the snapshots it was published as beneath it, and any copy you took under the
- *  publication it came from. A copy of someone else's publication is rooted at theirs. */
+/** Your games as trees, so what's what is visible: the one you shape at the root, the game
+ *  it's shared as beneath it, and any copy you took under the shared game it came from
+ *  (by game, not version: a copy that's taken updates still sits under it). A copy of
+ *  someone else's shared game is rooted at theirs. */
 function yourTrees(yours, published) {
   const mineIds = new Set(yours.map((l) => l.id));
-  const pubById = new Map(published.map((p) => [p.id, p]));
+  const pubByLine = new Map(published.map((p) => [p.line, p]));
+  const lineOf = (l) => l.lineage?.from?.line ?? published.find((p) => p.id === l.lineage?.from?.published)?.line;
   const byTime = (a, b) => (a.at ?? a.updated ?? '').localeCompare(b.at ?? b.updated ?? '');
-  const copiesOf = (pubId) => yours.filter((l) => l.lineage?.from?.published === pubId);
+  const copiesOf = (line) => yours.filter((l) => lineOf(l) === line);
   const pubsOf = (ludantId) => published.filter((p) => p.ludant === ludantId).sort(byTime);
 
   const row = (kind, href, thumbKind, id, name, tag, facts, kids = []) => el('li', { class: 'ytree-node' },
@@ -131,14 +104,14 @@ function yourTrees(yours, published) {
   const pubNode = (p) => row('pub', playLink(p), 'p', p.id, p.name,
     mineIds.has(p.ludant) ? `shared: the version others get${p.version > 1 ? ` (version ${p.version})` : ''}` : `shared by ${p.by ?? 'someone'}`,
     [`${p.copies} ${p.copies === 1 ? 'player' : 'players'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · '),
-    copiesOf(p.id).map((c) => ludantNode(c, c.following ? 'your copy: following it' : 'your copy: your own version')));
+    copiesOf(p.line).map((c) => ludantNode(c, c.following ? 'your copy: following it' : 'your copy: your own version')));
 
   // Roots: ludants of yours that aren't copies of a publication shown under one of yours,
   // and the publications (someone else's) that your copies came from.
   const roots = [];
   for (const l of yours.slice().sort(byTime)) {
-    const from = l.lineage?.from?.published, pub = from && pubById.get(from);
-    if (!from) roots.push(ludantNode(l, 'yours: you\'re shaping this'));
+    const from = lineOf(l), pub = from && pubByLine.get(from);
+    if (!l.lineage?.from) roots.push(ludantNode(l, 'yours: you\'re shaping this'));
     else if (!pub) roots.push(ludantNode(l, `your copy of ${l.lineage.from.name}${l.following ? ', following it' : ''}`));
     else if (!mineIds.has(pub.ludant) && !roots.some((r) => r.dataset?.pub === from)) {
       const node = pubNode(pub);
@@ -153,7 +126,7 @@ const section = (title, hint, ...body) => el('section', { class: 'lobby-section'
   el('h2', {}, title), hint ? el('p', { class: 'hint' }, hint) : null, ...body);
 
 async function seed() {
-  const by = await askName('A new ludant starts as a pulsing dot and becomes whatever the two of you make. It will know you by this name.');
+  const by = await askName('A new game starts as a pulsing dot and becomes whatever the two of you make. It will know you by this name.');
   const { id } = await api('POST', 'ludants', { by });
   location.href = `/frame.html?l=${id}`;
 }
@@ -177,7 +150,7 @@ async function render() {
 
   // For someone coming back, "new" means not theirs: not ones they have a copy of, and not
   // their own ludants' publications.
-  const have = new Set(yours.map((l) => l.lineage?.from?.published).filter(Boolean));
+  const have = new Set(yours.map((l) => l.lineage?.from?.line).filter(Boolean));
   const mineIds = new Set(yours.map((l) => l.id));
   const pubsOf = (id) => published.filter((p) => p.ludant === id).sort((a, b) => a.at.localeCompare(b.at));
   const returning = yours.length > 0;
@@ -191,7 +164,7 @@ async function render() {
   for (const p of trusted) if (!latest.has(p.ludant) || p.at > latest.get(p.ludant).at) latest.set(p.ludant, p);
   const fresh = [...latest.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, FEATURED);
   const inFresh = new Set(fresh.map((p) => p.id));
-  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !have.has(p.id) && !mineIds.has(p.ludant))
+  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !have.has(p.line) && !mineIds.has(p.ludant))
     .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
   const parts = [];
 
@@ -200,8 +173,8 @@ async function render() {
     el('span', { class: 'make-dot', 'aria-hidden': 'true' }),
     el('div', { class: 'make-text' },
       el('strong', {}, 'Make your own game.'),
-      el('span', {}, ' A new ludant begins as a pulsing dot. Tell it what you\'d like to play, and it builds itself into that.')),
-    el('button', { class: 'seed-btn make-go', onclick: seed }, 'seed a new ludant →')));
+      el('span', {}, ' It begins as a pulsing dot. Tell it what you\'d like to play, and it builds itself into that.')),
+    el('button', { class: 'seed-btn make-go', onclick: seed }, 'start a new game →')));
 
   // The explanation stays until someone has made a ludant of their own: a copy or two
   // doesn't mean they've got what this is.
@@ -225,14 +198,14 @@ async function render() {
       el('ol', { class: 'steps' },
         step('1', 'Play one', 'Pick any game below. You get your own copy, so play it however you like.'),
         step('2', 'Tell it what you\'d change', '"Make the fish faster." "Add a second player." "Make it spooky." Say it in its chat.'),
-        step('3', 'Watch it change', 'It rebuilds itself while you play. Like what it became? Publish it, and others can play it too.')),
-      el('p', { class: 'intro-fine' }, 'You can play without an account. For a ludant to talk with you and change, connect your own OpenRouter account: it thinks with an AI model there, usually a few cents at a time, and a meter shows what your sitting has cost.')));
+        step('3', 'Watch it change', 'It rebuilds itself while you play. Like what it became? Share it, and others can play it too.')),
+      el('p', { class: 'intro-fine' }, 'You can play without an account. For a game to talk with you and change, connect your own OpenRouter account: it thinks with an AI model there, usually a few cents at a time, and a meter shows what your sitting has cost.')));
   }
   // Someone made here without seeing a recovery code (ui.js): now that they have ludants,
   // a way back to them, offered rather than forced.
   if (returning && recoveryDue()) {
     const box = el('section', { class: 'keep-box' },
-      el('p', {}, el('strong', {}, 'Keep a way back to your ludants. '), 'They\'re tied to this browser. A recovery code gets them back if you lose it or clear it, and lets you add your other devices.'),
+      el('p', {}, el('strong', {}, 'Keep a way back to your games. '), 'They\'re tied to this browser. A recovery code gets them back if you lose it or clear it, and lets you add your other devices.'),
       el('button', { class: 'top-btn primary', onclick: async () => {
         try {
           const { recovery } = await newRecovery();
@@ -244,7 +217,7 @@ async function render() {
       el('button', { class: 'top-btn', onclick: () => box.remove() }, 'not now'));
     parts.push(box);
   }
-  if (returning) parts.push(section('Your ludants', 'The ones you shape, what you\'ve shared, and the copies you play.', yourTrees(yours, published)));
+  if (returning) parts.push(section('Your games', 'The ones you shape, what you\'ve shared, and the copies you play.', yourTrees(yours, published)));
   if (fresh.length) {
     parts.push(section('New', 'Just shared, newest first.',
       el('div', { class: 'cards-grid' }, ...fresh.map((p) => pubCard(p, !returning, true)))));
@@ -252,12 +225,8 @@ async function render() {
   if (popular.length) {
     parts.push(section('Popular', 'The most played.', el('div', { class: 'cards-grid' }, ...popular.map((p) => pubCard(p, !returning)))));
   }
-  if (published.length > fresh.length + popular.length || returning) {
-    parts.push(section('Family trees', 'Anyone can change their copy of a ludant and share what it became, so ludants grow into families. Here is every one, and where each came from.',
-      el('ul', { class: 'trees' }, ...families(published, mineIds))));
-  }
   if (everyone.length) {
-    parts.push(section('Everyone here', 'Every ludant on this install (you\'re running it yourself, so you see them all).',
+    parts.push(section('Everyone here', 'Every game on this install (you\'re running it yourself, so you see them all).',
       el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l.id))))));
   }
   parts.push(el('footer', { class: 'lobby-foot' }, el('a', { href: '/rules.html' }, 'the rules'), ' · ', el('a', { href: '/privacy.html' }, 'privacy'), ' · ', el('a', { href: 'mailto:admin@gactant.com' }, 'admin@gactant.com'), ' · see something that doesn\'t belong? press ⚑ in its top bar'));

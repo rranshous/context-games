@@ -387,9 +387,11 @@ export function createCore({ store, settings }) {
     if (!ludant || ludant.abandoned) return;
     ludant.stats = add(ludant.stats, u.seconds, u.spent);
     await store.put('ludants', id, ludant);
-    const from = ludant.lineage?.from?.published;
+    // Play counts toward the version it's playing: the one a following copy has now, or the
+    // one a copy was taken from, while it's still that game.
+    const from = ludant.follows?.version ?? ludant.lineage?.from?.published;
     const pub = from && await store.get('published', from);
-    if (pub && sameBody(pub.soma, ludant.soma)) { pub.play = add(pub.play, u.seconds, u.spent); await store.put('published', pub.id, pub); }
+    if (pub && (ludant.follows || sameBody(pub.soma, ludant.soma))) { pub.play = add(pub.play, u.seconds, u.spent); await store.put('published', pub.id, pub); }
   }
 
   const perHour = (stats) => (stats?.seconds > 600 ? { rate: stats.spent / (stats.seconds / 3600), hours: stats.seconds / 3600 } : null);
@@ -1271,12 +1273,17 @@ export function createCore({ store, settings }) {
         // A public game is its line's newest version that nobody's hidden; private games and
         // older versions aren't listed.
         const open = new Set((await store.list('lines')).filter((l) => l.public).map((l) => l.id));
-        const newest = new Map();
+        // Copies and play are counted per version, and summed per game here, so a game
+        // doesn't start over as "new" each time its maker sends an update.
+        const newest = new Map(), copies = new Map(), play = new Map();
         for (const p of await store.list('published', { slim: true })) {
-          if (p.hidden || !open.has(p.line)) continue;
+          if (!open.has(p.line)) continue;
+          copies.set(p.line, (copies.get(p.line) ?? 0) + (p.copies ?? 0));
+          if (p.play) play.set(p.line, add(play.get(p.line), p.play.seconds ?? 0, p.play.spent ?? 0));
+          if (p.hidden) continue;
           if (!newest.has(p.line) || p.version > newest.get(p.line).version) newest.set(p.line, p);
         }
-        return [...newest.values()].map(({ soma, stats, play, assets, cleared, checked, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play), trusted: trusted({ ...p, cleared, checked }) }))
+        return [...newest.values()].map(({ soma, stats, play: _, assets, cleared, checked, ...p }) => ({ ...p, copies: copies.get(p.line) ?? 0, cost: perHour(play.get(p.line)), trusted: trusted({ ...p, cleared, checked }) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') throw httpError(410, 'games are shared now (POST ludants/<id>/share), not published one snapshot at a time');

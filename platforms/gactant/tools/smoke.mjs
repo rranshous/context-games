@@ -221,6 +221,7 @@ try {
   const caught = (await call('GET', `ludants/${copy.json.id}`, undefined, as(stranger))).json;
   ok('the copy takes the update as it\'s opened, keeping its own memory', caught.updatedTo?.version === 2 && caught.soma.sections.game.endsWith('// v2') && caught.soma.sections.memory === copied.soma.sections.memory, JSON.stringify(caught.updatedTo));
   ok('only the newest public version is in the lobby', (await call('GET', 'published')).json.filter((p) => p.line === line).map((p) => p.version).join() === '2');
+  ok('an update doesn\'t make the game new again: copies count across its versions', (await call('GET', 'published')).json.find((p) => p.line === line)?.copies >= 1);
   // A reshare from the follower: its own link passes the maker's versions through.
   await call('POST', `ludants/${copy.json.id}/hold`, { token: 'c', who: 'stranger' }, as(stranger));
   const reline = (await call('POST', `ludants/${copy.json.id}/share`, { by: 'stranger', token: 'c' }, as(stranger))).json;

@@ -235,9 +235,9 @@ uses. Copies keep it, like a family name. The ludant keeps its game's **title** 
 `title` section, and its name is the two together: **`Elodon-Hop`**, **`Malan-Shrinking-Isle`**.
 It can name itself when it knows what it is ("I'm naming myself Hop, so Elodon-Hop").
 
-The lobby shows what's been shared as family trees:
-
-![family tree in the lobby](docs/shots/13-family-tree.png)
+In the lobby, a card for a game shared from a copy says what it's **based on**. (The lobby
+used to draw whole family trees of publications. With sharing it lists only each game's
+newest version, so the trees had nothing to connect, and were dropped.)
 
 ## Sharing
 
@@ -409,7 +409,7 @@ sideways, and ✕ to come back.
 
 | URL | what |
 |---|---|
-| `/` | home: a banner up top to seed a new ludant (making is half of what this is), what a ludant is (with a recorded real change, `img/demo-*.jpg`), your ludants, New and Popular, everything shared publicly as family trees |
+| `/` | home, in plain words (it says games; "ludant" once, in the intro): a banner up top to start a new game (making is half of what this is), what these games are (with a recorded real change, `img/demo-*.jpg`), your games, New and Popular. A game's copies and hours played are counted across all its versions, so an update doesn't make it new again |
 | `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
 | `/play.html?line=<line>` | a shared game's link: take a copy that follows it (remembered per browser) and sit with it, in play mode; someone new sees its picture, title and maker with the name ask. `?p=<publication>` (an older link to one version) does the same for its game |
 

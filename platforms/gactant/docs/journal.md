@@ -2946,3 +2946,29 @@ Not looked at yet: memory in the frame page over a long sitting with a thinking 
 (each wake builds its messages with pictures; they should go when the wake ends).
 
 Deployed (version 18e8b12f).
+
+## Part 36: the lobby, re-read after sharing
+
+Robby asked whether family trees still make sense, and whether "ludant" belongs on the
+front page.
+
+- **Family trees: gone.** They were drawn from publications: "then" from one version to
+  the next of a ludant, "copy" from the version a copy was taken from. Since sharing, the
+  lobby lists only each game's newest version, so neither link had anything to land on,
+  and every "family" was one card repeating New and Popular. Rebuilding them from lines
+  is possible (a reshared copy's line points at its original's) but that's the visual
+  lineages idea, shelved. What stays: a card shared from a copy says "based on X".
+- **A bug found on the way: an update made a game new again.** Copies and play were
+  counted on a version, so each update started at 0 and fell out of Popular, and
+  following copies' play stopped counting the moment they took an update (play went to
+  the version they were copied from, and only while their body still matched it). Now
+  the lobby sums copies and play over all a game's versions, and a following copy's play
+  goes to the version it has now. "Your games" places a copy under the game it came from
+  by line, not version, for the same reason. Smoke checks it.
+- **"Ludant" off the front page, but once.** Newcomers come for games, and a coined word
+  is a speed bump. The intro keeps "Every game here is also an AI, called a ludant": the
+  name for what they are, said once. Everything else says game: "start a new game →"
+  (not "seed a new ludant"), "Your games", "a way back to your games", the meta
+  description. The frame keeps the word: there you're talking with one, and it names
+  itself.
+- Step 3 of the intro said "Publish it"; it says "Share it".
