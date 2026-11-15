@@ -121,6 +121,9 @@ export class Chat {
     const mine = m.who === this.frame.seat;
     this.log.append(el('div', { class: `chat-msg ${mine ? 'mine' : 'theirs'}` },
       el('span', { class: 'chat-who' }, m.who === this.frame.actant?.name ? callName(this.frame.actant.soma) : m.who), el('div', { class: 'chat-text' }, m.text)));
+    // The log shows what's kept, no more: a long sitting's chat would otherwise stay on the page.
+    const shown = this.log.querySelectorAll('.chat-msg:not(.chat-thinking)');
+    for (let i = 0; i < shown.length - KEEP; i++) shown[i].remove();
     if (this.thinkingEl?.isConnected) this.log.append(this.thinkingEl);   // keep it last
     this.log.scrollTop = this.log.scrollHeight;
   }

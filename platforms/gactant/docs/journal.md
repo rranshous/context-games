@@ -2903,3 +2903,44 @@ The friction was that publishing was the only way to share: every fix round was 
 - *Smoke:* share (private, not listed; public, listed), copy by link (follows), followers, nothing-new refused, an update caught as it's opened (memory kept), only the newest version listed, a reshare passing versions through, a following copy refusing a change without OK, memory free, made own, back to following, an old version's link.
 
 **Tried end to end on the review server, two browsers:** Maker seeded a game ("blue v1") and shared it privately; Friend opened the link (the card), got a copy following Maker. Maker changed it ("red v2"): **share •**, send update. A stale hold from Friend's last session kept the update from arriving (fixed: only a hold that's really live blocks it). Friend's ludant tried to change its game: the prompt; "make it mine"; it changed. Friend went back to following: "red v2". Maker sent v3 with a note; Friend reopened: "Updated to Maker's latest… 'now in purple'", "purple v3". Maker made it public: the lobby card links by line.
+
+## Part 35: tabs that kept growing
+
+Sharing went to production (with the stale "published" words in the body contract fixed
+first), and the 11 publications from before became lines.
+
+Robby: "tabs keep growing". A read of the browser code for what's never let go:
+
+- **The old game kept running.** A ludant's game section is recompiled on every edit, and
+  a ludant edits it dozens of times a sitting. A game that starts a `setInterval` (or a
+  `setTimeout` chain, or `requestAnimationFrame`) when it's built kept that timer after
+  each rebuild, and the timer kept the whole old game alive: its state, its scene, its
+  closures. N edits, N games ticking underneath. Now `owned.js` replaces the sandbox's
+  timer functions: timers made while the game is being built (or while a hook runs)
+  belong to that build, as do the timers their callbacks make, and a rebuild stops them
+  all. The platform's own waits (the think timer, game-time waits) use the real timers,
+  so a hook calling `me.wake` doesn't hand the ludant's thinking to the hooks' lifetime.
+  Not caught: a timer made after an `await` in the build (the owner is lost across an
+  await). Good enough for the common shape.
+- **The GPU kept every scene.** `beginGame` dropped the old three.js scene without
+  disposing it; three keeps buffers and textures on the GPU until `dispose()`. Now the
+  old scene's geometries, materials and textures (and the composer, and render lists) are
+  disposed. Disposing is safe even for something a game kept: three re-uploads it on use.
+- **Rapier worlds live in WebAssembly memory**, which nothing collects. `physics()` now
+  hands out a RAPIER whose `World` is a subclass that registers itself, and a rebuild frees
+  them. (First try assigned `World` onto `Object.create(RAPIER)`, which throws: the
+  inherited export is read-only. Caught in the test, before it shipped; it would have
+  broken physics outright.)
+- Smaller: the chat log's DOM was never trimmed (the messages were, to 200); replaced or
+  removed art's ImageBitmaps weren't closed; the table remembered every match it ever saw
+  (now the followed ones and the latest 50).
+
+Tested on a throwaway page with the real StageBuffer: 30 rebuilds of a game with 50
+textured meshes, a `setInterval` and a 200-body Rapier world. GPU geometries and textures
+stay at 50, worlds at 1, the interval's rate stays one interval's worth, and after a forced
+GC the heap is 11.8 MB after 30 rebuilds and 11.8 MB after 60. A real frame boots and
+draws with no errors. Ludants are told (body contract and changes.js): keep what should
+outlast a rebuild in the store.
+
+Not looked at yet: memory in the frame page over a long sitting with a thinking ludant
+(each wake builds its messages with pictures; they should go when the wake ends).

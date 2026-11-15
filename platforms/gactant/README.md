@@ -82,6 +82,12 @@ chat suggests what to say, and says what answering takes.
 | `game` | code | `(stage, me) => { frame(dt), key(e), pointer(e) }`: the facet people play |
 | `hooks` | code | `(on, me, surfaces)`: listens to events, runs the game, decides what wakes it, and writes memory without waking |
 | `tools` | code | what it can do while awake; it writes its own (Pip wrote `play`, Malan wrote `probe`) |
+
+A code section that changes is rebuilt on the spot. Rebuilding the game stops the timers
+the old one started (and the timers those started), and frees its three.js scene and
+Rapier worlds; rebuilding hooks stops the old hooks' timers (`public/js/owned.js`). A
+ludant rewrites its game dozens of times a sitting, and each rewrite used to leave the
+last one running underneath.
 | `title` | text | its game's title, which is part of its name |
 | `identity`, `origin`, `memory`, … | text | who it is and what it has learned; it adds sections as it likes |
 

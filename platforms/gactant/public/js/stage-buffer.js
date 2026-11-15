@@ -21,6 +21,8 @@
 //   look() and advance() read and run this buffer directly; hold, release and point change
 //   the input here and at the frame, so a held key holds both for a person and for an advance.
 
+import { later } from './owned.js';
+
 const MAX_W = 1920, MAX_H = 1080;
 
 // The keyboard as a controller, for player 1. (Arrows or WASD are the d-pad and left
@@ -39,6 +41,20 @@ function keyboardPlayer(keys, pressed) {
   }
   const left = { x: (down.right ? 1 : 0) - (down.left ? 1 : 0), y: (down.down ? 1 : 0) - (down.up ? 1 : 0) };
   return { index: 0, from: 'keyboard', down, pressed: now, value: { lt: 0, rt: 0 }, left, right: { x: 0, y: 0 } };
+}
+
+/** Free what a three.js scene holds on the GPU: geometries, materials and their textures. */
+function disposeScene(scene) {
+  if (!scene) return;
+  const textures = new Set([scene.background, scene.environment].filter((t) => t?.isTexture));
+  scene.traverse((o) => {
+    o.geometry?.dispose?.();
+    for (const m of [o.material].flat().filter(Boolean)) {
+      for (const v of Object.values(m)) if (v?.isTexture) textures.add(v);
+      m.dispose?.();
+    }
+  });
+  for (const t of textures) t.dispose();
 }
 
 const bigger = (a, b) => (Math.abs(b) > Math.abs(a) ? b : a);
@@ -81,6 +97,7 @@ export class StageBuffer {
     this.sending = false;
     this.pixels = false;    // send raw pixels instead of ImageBitmaps (see above)
     this.images = new Map(); // art by name, as ImageBitmaps (see the art surface)
+    this.worlds = new Set(); // the game's physics worlds (see physics)
     this.waiters = [];       // { until, resolve }: waits counted in game time
     const stage = this;
     this.api = {
@@ -152,7 +169,7 @@ export class StageBuffer {
 
   /** A picture of the ludant's art, ready for drawImage (or a three.js texture). */
   async addImage(name, bytes, type) {
-    try { this.images.set(name, await createImageBitmap(new Blob([bytes], { type }))); }
+    try { const b = await createImageBitmap(new Blob([bytes], { type })); this.images.get(name)?.close?.(); this.images.set(name, b); }
     catch (err) { this.frame?.send('note', 'fault', `the art "${name}" couldn't be read: ${err.message}`); }
   }
 
@@ -236,14 +253,29 @@ export class StageBuffer {
     this.rapier ??= import('/vendor/rapier/rapier.js').then(async (m) => {
       const RAPIER = m.default ?? m;
       await RAPIER.init();
-      return RAPIER;
+      // Its worlds live in WebAssembly memory, which nothing collects: each is kept here
+      // and freed when the game is rebuilt, or every rewrite of a physics game leaves one.
+      const worlds = this.worlds;
+      class World extends RAPIER.World {
+        constructor(...args) { super(...args); worlds.add(this); }
+        free() { worlds.delete(this); super.free(); }
+      }
+      return Object.create(RAPIER, { World: { value: World, enumerable: true } });   // (its own World is read-only)
     });
     return this.rapier;
   }
 
   /** Before a game is (re)built: back to plain 2D until it asks for three() again. */
   beginGame() {
-    if (this.gl) { this.gl.active = false; this.gl.scene = null; this.gl.composer = null; }
+    if (this.gl) {
+      // What the last game put on the GPU stays there until it's disposed, game or no game.
+      disposeScene(this.gl.scene);
+      try { this.gl.composer?.dispose?.(); } catch {}
+      this.gl.renderer.renderLists.dispose();
+      this.gl.active = false; this.gl.scene = null; this.gl.composer = null;
+    }
+    for (const w of this.worlds) { try { w.free(); } catch {} }
+    this.worlds.clear();
     this.ctx.clearRect(0, 0, this.width, this.height);
   }
 
@@ -292,7 +324,7 @@ export class StageBuffer {
       const w = { until, resolve };
       this.waiters.push(w);
       // Answered by the frame that reaches it (see tick); this is only for no frames at all.
-      setTimeout(() => { const i = this.waiters.indexOf(w); if (i >= 0) { this.waiters.splice(i, 1); resolve(); } }, ms + 1500);
+      later(() => { const i = this.waiters.indexOf(w); if (i >= 0) { this.waiters.splice(i, 1); resolve(); } }, ms + 1500);
     });
   }
 

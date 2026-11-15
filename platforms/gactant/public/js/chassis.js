@@ -75,7 +75,7 @@ async function boot() {
     },
     tick(t) { stage.tick(t); },
     asset(name, bytes, type) { stage.addImage(name, bytes, type); },
-    assetGone(name) { stage.images.delete(name); },
+    assetGone(name) { stage.images.get(name)?.close?.(); stage.images.delete(name); },
     probe() { return stage.probe(); },
     pictures(how) { stage.pixels = how === 'pixels'; },
     restart() { stage.restarted(); },

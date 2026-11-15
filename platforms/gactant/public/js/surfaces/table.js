@@ -43,6 +43,8 @@ const signedText = ({ match, n, prev, person, device, kind, data }) => ['gactant
 const TRIES = 4;   // an action meets a newer head (someone else acted first): signed again on it
 const FOLLOWED = 20;   // matches one frame follows at once
 
+const SEEN_KEPT = 50;   // matches remembered as last seen, beyond the followed ones
+
 export class Table {
   id = 'table';
 
@@ -158,7 +160,14 @@ export class Table {
     const before = this.seen.get(match);
     if (before && m.n < before.n) return structuredClone(before);   // an older answer, arriving late
     const s = { view: m.view, n: m.n, head: m.head, result: m.result, you: m.you, rulebook: m.rulebook, name: m.name, ...(m.archived ? { archived: true } : {}) };
+    this.seen.delete(match);
     this.seen.set(match, s);
+    // Kept for the matches followed and the latest few others: a game that opens a match
+    // a run would otherwise keep every one it ever saw.
+    for (const old of this.seen.keys()) {
+      if (this.seen.size <= SEEN_KEPT) break;
+      if (!this.watching.has(old)) { this.seen.delete(old); this.heard.delete(old); }
+    }
     if (!before || m.n > before.n) this.heard.set(match, Date.now());
     if (before && m.n > before.n) this.frame.bus.emit('table.changed', forgiving({ match, n: m.n, view: m.view, result: m.result, last: m.last }));
     return structuredClone(s);

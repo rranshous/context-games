@@ -29,6 +29,7 @@
 import { recentChanges } from './changes.js';
 import { applyEdits } from './edits.js';
 import { nameOf } from './names.js';
+import { cancel, end, later, life, within } from './owned.js';
 import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.js';
 
 const CODE = new Set(['tools', 'game', 'hooks']);
@@ -46,9 +47,9 @@ const RESULT_CHARS = 6000;
 // lives here rather than in the soma, where an actant rewriting its comments could erase it.
 const BODY_CONTRACT = `How the frame runs your code sections:
 - tools: a JS array of { name, description, input_schema, run(input, me, surfaces) }. run may be async. Returning { image } or { images: [...] } (data URLs) shows you pictures.
-- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), three() (3D with three.js: returns { THREE, addons, scene, camera, renderer, composer }; the stage renders every frame, and ctx becomes a transparent HUD on top, so clear it each frame. addons are three's own add-ons: EffectComposer, RenderPass, ShaderPass, UnrealBloomPass, OutlinePass, OutputPass, GLTFLoader, FontLoader, Font, TextGeometry, RoundedBoxGeometry, BufferGeometryUtils, SkeletonUtils, Sky, Water, ImprovedNoise, SimplexNoise, Octree, Capsule, and fonts { helvetiker, helvetikerBold } (typeface data for new Font(…), for TextGeometry). Set composer to an EffectComposer and the stage renders that instead of the scene, for bloom, outlines and other postprocessing. Input comes through stage.input, not DOM events, so three's DOM-driven controls aren't here: move the camera from input yourself), physics() (a promise of Rapier, the physics engine (@dimforge/rapier3d-compat 0.20), ready to use: new RAPIER.World({ x: 0, y: -9.81, z: 0 }), rigid bodies, colliders, a character controller; loaded the first time a game asks; step the world in frame(dt) and copy its positions onto your meshes), caption (set it to a short line about what's happening: every look reports it), input { keys: Set of held keys, pressed: Set (went down this frame), pointer { x, y, down, clicked }, players, pads }. Key names are lowercase: 'arrowleft', 'arrowup', 'a', ' ' (space), 'shift'.
+- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes; then the last one's timers (setTimeout, setInterval, requestAnimationFrame it started) stop, and its three.js scene and physics worlds are freed, so keep nothing from one build to the next but what's in the store. stage: ctx, width, height, t, frame, size(w, h), three() (3D with three.js: returns { THREE, addons, scene, camera, renderer, composer }; the stage renders every frame, and ctx becomes a transparent HUD on top, so clear it each frame. addons are three's own add-ons: EffectComposer, RenderPass, ShaderPass, UnrealBloomPass, OutlinePass, OutputPass, GLTFLoader, FontLoader, Font, TextGeometry, RoundedBoxGeometry, BufferGeometryUtils, SkeletonUtils, Sky, Water, ImprovedNoise, SimplexNoise, Octree, Capsule, and fonts { helvetiker, helvetikerBold } (typeface data for new Font(…), for TextGeometry). Set composer to an EffectComposer and the stage renders that instead of the scene, for bloom, outlines and other postprocessing. Input comes through stage.input, not DOM events, so three's DOM-driven controls aren't here: move the camera from input yourself), physics() (a promise of Rapier, the physics engine (@dimforge/rapier3d-compat 0.20), ready to use: new RAPIER.World({ x: 0, y: -9.81, z: 0 }), rigid bodies, colliders, a character controller; loaded the first time a game asks; step the world in frame(dt) and copy its positions onto your meshes), caption (set it to a short line about what's happening: every look reports it), input { keys: Set of held keys, pressed: Set (went down this frame), pointer { x, y, down, clicked }, players, pads }. Key names are lowercase: 'arrowleft', 'arrowup', 'a', ' ' (space), 'shift'.
 - Controllers: people may play with game controllers, several at once on one screen. stage.input.players is the easy way: a list of controller-shaped players, each { down: { a, b, x, y, lb, rb, lt, rt, up, down, left, right, view, menu, ls, rs }, pressed: { same, true only on the frame it went down }, value: { lt, rt } (0..1), left: { x, y }, right: { x, y } (sticks, -1..1) }. Player 1 (players[0]) is the keyboard and the first controller together (arrows/WASD are the d-pad and left stick; space/Z/Enter is A; X/Shift is B; C is X; V is Y; Q/E the bumpers), so a game written for players works on a keyboard too; players[1] and on are the other controllers, so players.length says how many can play. stage.input.pads has the controllers alone. Controller 1 also presses keys (d-pad and left stick as arrows, A as space), so keyboard games work with a controller unchanged; read either players or keys, not both, or a press counts twice. Show on screen what the buttons do. stage.pad events { pad, button, down } come too.
-- hooks: function (on, me, surfaces). on(pattern, fn) listens to surface events ('chat.posted', 'stage.*', '*'). Runs anew whenever hooks changes.
+- hooks: function (on, me, surfaces). on(pattern, fn) listens to surface events ('chat.posted', 'stage.*', '*'). Runs anew whenever hooks changes, and the timers the last hooks started stop.
 - me: name, people (who is here), game (the running game object), wake(event), section(name).read()/.write(text), sections(), note(text), surfaces.
 - surfaces: each surface's actions, done as you: surfaces.chat.post(text), surfaces.stage.press(key, ms), and so on. The same surfaces are reachable everywhere: hooks get them as an argument, tools as their third, and game code as me.surfaces.
 - Where you run: in a sandbox inside the frame, with no network. The surfaces are the frame's, across a bridge. Your game draws into the stage's buffer here beside you, and the frame shows what you drew; your stage actions (look, advance, hold, press, point) act on that buffer directly, at full speed. The chat and whiteboard are over in the frame, so their actions return promises (await them when you need the answer). chat.read and the store are kept as local copies here, so they answer at once.
@@ -87,6 +88,7 @@ export class Actant {
     this.game = null;
     this.tools = [];
     this.offHooks = [];
+    this.lives = {};         // the timers the game and the hooks started, to stop when they're rebuilt (owned.js)
     this.timer = null;
     this.errors = [];        // runtime errors since it last heard about them
     chassis.bus.on('frame.error', (e) => this.sawError(e), 'actant');
@@ -172,8 +174,10 @@ export class Actant {
     if (redo('game')) {
       delete this.faults.game;
       this.game = null;
+      end(this.lives.game);
+      this.lives.game = life();
       this.chassis.stage.beginGame();
-      try { if (s.game) this.game = compile(s.game)(this.chassis.stage.api, this.me); }
+      try { if (s.game) this.game = within(this.lives.game, compile(s.game), this.chassis.stage.api, this.me); }
       catch (err) { this.faults.game = err.message; }
       this.chassis.stage.restart();
     }
@@ -181,8 +185,10 @@ export class Actant {
       delete this.faults.hooks;
       for (const off of this.offHooks) off();
       this.offHooks = [];
-      const on = (pattern, fn) => { this.offHooks.push(this.chassis.bus.on(pattern, fn, 'hooks')); };
-      try { if (s.hooks) compile(s.hooks)(on, this.me, this.me.surfaces); }
+      end(this.lives.hooks);
+      const hooks = this.lives.hooks = life();
+      const on = (pattern, fn) => { this.offHooks.push(this.chassis.bus.on(pattern, (e) => within(hooks, fn, e), 'hooks')); };
+      try { if (s.hooks) within(hooks, compile(s.hooks), on, this.me, this.me.surfaces); }
       catch (err) { this.faults.hooks = err.message; }
       this.chassis.stage.restart();
     }
@@ -196,7 +202,7 @@ export class Actant {
   /** Stop for good in this window: another window holds the ludant now. */
   sleepForever() {
     this.asleepForever = true;
-    clearTimeout(this.timer);
+    cancel(this.timer);
     this.pending = [];
     for (const off of this.offHooks) off();
     this.offHooks = [];
@@ -219,16 +225,16 @@ export class Actant {
       this.life('resting', 'woke itself too often; waiting for someone to act');
       return;
     }
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.think(), 400);   // let a burst of events arrive together
+    cancel(this.timer);
+    this.timer = later(() => this.think(), 400);   // let a burst of events arrive together
   }
 
   /** Resolves once it's asleep with nothing waiting (or resting), or after three minutes. */
   async idle(timeoutMs = 180000) {
     const end = Date.now() + timeoutMs;
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => later(r, 500));
     while (Date.now() < end && (this.thinking || (this.pending.length && this.restless <= RESTLESS_LIMIT))) {
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => later(r, 400));
     }
   }
 
@@ -321,7 +327,7 @@ export class Actant {
       offSpoke();
       this.thinking = false;
     }
-    if (this.pending.length && this.restless <= RESTLESS_LIMIT) this.timer = setTimeout(() => this.think(), 400);
+    if (this.pending.length && this.restless <= RESTLESS_LIMIT) this.timer = later(() => this.think(), 400);
   }
 
   async runTool(call) {
