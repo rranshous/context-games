@@ -2944,3 +2944,5 @@ outlast a rebuild in the store.
 
 Not looked at yet: memory in the frame page over a long sitting with a thinking ludant
 (each wake builds its messages with pictures; they should go when the wake ends).
+
+Deployed (version 18e8b12f).
