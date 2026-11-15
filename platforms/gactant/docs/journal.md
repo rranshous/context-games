@@ -3366,7 +3366,7 @@ Robby on the bigger changes:
   - the creator's open tab sends tick moves, paid from their own budget
   - an elected keeper in state; the view tells each player if it's them; the keeper ticks; a
     silent keeper is replaced when anyone else's tick is accepted after about 30 s
-  These go in the table description as patterns.
+  Journal only for now: Robby will try them himself before the description suggests them.
 - **Profiles across matches:** unclear what they're for. The ask was a character surviving a
   world reset, which inheriting covers. Drop until something needs it.
 - **Batching:** Realm batched movement into path strings because of 60 moves a minute.
@@ -3374,3 +3374,8 @@ Robby on the bigger changes:
   same time, counted as one move for the rate but steps charged for each. A refused action
   is skipped and reported. Optionally, a client queue that flushes every N ms. It also
   means fewer collisions.
+
+Robby: whoever opened the old match may inherit from it. The tick patterns stay in the journal
+until he's tried them. A queue helper is wanted if it can be made good. On batches he's wary of
+skip-and-report ("might have some pitfalls"). Two subagents were sent blind (given the code and
+the idea, not my take) to review inheriting and batching.
