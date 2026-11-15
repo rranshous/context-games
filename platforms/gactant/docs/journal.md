@@ -3150,3 +3150,25 @@ The proposal (not built, held for later): **citing**.
 - When built: a changes.js line (new rules ability), the table surface's describe text, and
   smoke checks (a forged cite refused, a cite of an unfinished match refused, a cite by
   someone who wasn't in it left to the rules).
+
+## Part 43: idea, locking a ludant to its rulebooks (held)
+
+Robby: lock a rulebook to a ludant, so a game can be shared on the understanding that other
+people will change its look (the UI) but still play in the same matches. That can be done
+today, but it's too easy to change the backend by accident. A copy's ludant, asked for "a
+new mode", writes a draft, locks it, and switches the hash in its game. From then on it's
+quietly playing different matches from everyone else.
+
+Rough shape, nothing decided:
+- **Pinned rulebooks.** A soma entry (a `rulebooks` section, or a pin on the line) lists the
+  hashes the game plays. The table refuses to open or join a match on a hash that isn't
+  pinned, with an error saying why, the same way a following copy's game is guarded.
+  Changing a pin needs the person's OK (the frame asks), as making a copy your own does.
+- **Copies keep the pins** even after they've made their own version: the UI is theirs to
+  change, the rules aren't, unless they choose to cut loose (which would be a spin-off of the
+  rules too).
+- The sharer could mark a game "same matches, your own look" so the share panel and play card
+  say so. The lobby or tree page could show which games play the same rulebook ("plays with
+  Lazy Drive and 3 others"). Standings are per rulebook, so they're shared already.
+- It ties into Part 42 (citing): pinned hashes are also the ones a world trusts, so pinning
+  and trust could be one list.
