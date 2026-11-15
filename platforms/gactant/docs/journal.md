@@ -3120,3 +3120,5 @@ So now:
 - Gaps: only what happens from now on is noted, and only on the device where it happened
   (each browser marks its own person's contributions). A shard's or another person's
   contributions are theirs to mark.
+
+Deployed (version 08552780): how I made this, marks and mark.html are live on gactant.com.
