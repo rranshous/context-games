@@ -2972,3 +2972,5 @@ front page.
   description. The frame keeps the word: there you're talking with one, and it names
   itself.
 - Step 3 of the intro said "Publish it"; it says "Share it".
+
+Deployed (version 31df9cb1).
