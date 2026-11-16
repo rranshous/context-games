@@ -3572,3 +3572,5 @@ with a new one; he saved that. Fix on /me.html:
 - On someone's only device it asks twice, saying only the recovery code gets them back.
 - If their recovery code is stale (from before the current scheme) it refuses, and says to
   make a new one first.
+
+Deployed: sign out on this device.
