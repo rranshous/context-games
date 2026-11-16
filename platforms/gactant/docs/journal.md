@@ -3555,3 +3555,10 @@ back to polling, retrying every minute. Live, share() and latency behaviour can'
 from there until it's unblocked; Robby has filed a ticket with Spectrum. How a move travels
 (Worker → the World Durable Object → the match's object, by stub.fetch), and what moves over
 the socket would take, are written up above as a candidate; measure first.
+
+Spectrum workaround found: gactant.com publishes ECH (Cloudflare adds `ech=` to its HTTPS DNS
+record), so Chrome with Secure DNS on Cloudflare hides the name on every connection, and
+the live websockets open at home. Firefox loads pages with ECH (`sni=encrypted` on
+/cdn-cgi/trace), but its websocket connections fail with SSL_ERROR_RX_RECORD_TOO_LONG: the
+router's block page arriving as plain HTTP. Firefox's wss connection apparently doesn't use
+ECH. Test live features in Chrome from home.
