@@ -3580,3 +3580,27 @@ Checked from lilg: plain curl now gets the Worker's own 301 for http, and
 `/cdn-cgi/trace` answers over https with `sni=plaintext`, so the name is visible and no
 longer cut. Firefox's live sockets should work from home now, and curl and the admin tools
 can use gactant.com directly again.
+
+## Surfaces as part of play (idea, not built)
+
+Robby noticed that a ludant asked for a game with chat in it reaches for the chat surface
+rather than drawing a chat on the stage. One went further and rewrote its hooks so that chat
+messages went to the game, and only ones starting with `/` woke it. He loves this: every
+surface can be part of the game. It doesn't fit how the frame shows things, though. We'd
+both pictured two modes, every surface for shaping and just the stage for playing, and "just
+the game" hides the chat (its messages only pop up over the stage). A game that uses the chat,
+or the whiteboard, breaks in play mode.
+
+How it stands: the frame says "there are no modes", but the person has two switches, "just the
+game" (only the stage) and fold (the inside). Neither is up to the ludant. The hooks are
+already the broad primitive: the seed wakes on every chat message, and a ludant can change
+that, as this one did.
+
+Things to talk through:
+- Who decides which surfaces show while playing. Perhaps the ludant says which surfaces are
+  part of its game, play mode shows those, and the person can always show everything.
+- The chat is two things at once: game talk and talking to the ludant. The `/` convention
+  was one ludant's answer. Maybe it stays the ludant's to choose, maybe the frame offers it.
+- Marks: made.js records every chat message from a person as "asked", so game chat counts as
+  a contribution.
+- The inspector is the only surface that's purely for shaping.
