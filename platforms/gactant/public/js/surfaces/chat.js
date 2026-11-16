@@ -8,6 +8,7 @@ import { LIFE_WORDS } from '../lights.js';
 import { callName } from '../names.js';
 
 const KEEP = 200;
+const SHOWN = 5;   // messages shown with every wake
 
 export class Chat {
   id = 'chat';
@@ -23,7 +24,13 @@ export class Chat {
     return 'chat: a conversation shared by everyone in the frame.';
   }
 
-  state() { return `chat: ${this.messages.length} messages so far.`; }
+  /** The last few messages come with every wake, so a reply can follow the conversation
+   *  without reading it first. */
+  state() {
+    const last = this.messages.slice(-SHOWN);
+    const clip = (s) => (s.length > 300 ? `${s.slice(0, 300)}…` : s);
+    return `chat: ${this.messages.length} messages so far${last.length ? `. The last ${last.length === 1 ? 'one' : last.length}:\n${last.map((m) => `    ${m.who}: ${clip(m.text)}`).join('\n')}` : '.'}`;
+  }
 
   actions(who) {
     return {

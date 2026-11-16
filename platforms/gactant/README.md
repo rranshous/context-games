@@ -100,6 +100,13 @@ calls). With 3 left, the frame tells it so, so it can say in the chat where it g
 note what's left in memory, and the inspector says when a wake ends at the limit. What
 arrives during a wake (a chat message, say) joins it at the next turn, as "Meanwhile".
 
+Each wake is a fresh conversation. What carries over is the soma (memory above all), the
+last 5 chat messages (shown with what's happening now), and a **trail of the last wake**:
+what woke it, each step (the tool, in brief, and how it went if it failed), the last thing
+it wrote to itself, and how it ended. The trail is kept on the device after every turn, so
+if the page is reloaded or closed mid-wake, the next wake is told it was cut off and how
+far it got.
+
 Every think starts with a **system text** that stays the same while the ludant is here: a
 context block that explains the experiment, what a ludant is, the levels, and that people
 see only the surfaces; then who it is and its lineage, what each surface is, and how the

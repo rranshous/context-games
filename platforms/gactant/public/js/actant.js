@@ -37,6 +37,7 @@ const REPORT_TOOL = 'report_problem_to_gactant_admins';
 const PERSON_TOOL = 'report_person_to_gactant_admins';
 const MAX_TURNS = 50;   // calls in one wake; it's told when it has LAST_TURNS left
 const LAST_TURNS = 3;
+const TRAIL_STEPS = 40;   // steps a wake's trail keeps (its last ones)
 const FREE = new Set(['memory', 'letters_from_gactant_admins']);   // sections a following copy changes freely
 const RESTLESS_LIMIT = 3;
 const UNHEARD_KEPT = 20;   // events kept for when thinking is connected
@@ -256,6 +257,11 @@ export class Actant {
     // then is someone asked to connect thinking, if nobody has: a game plays without it.
     const reached = fresh.some((e) => REACHING.includes(e?.type) && (this.chassis.isPerson(e.who) || this.chassis.isPerson(e.from)));
     let spoke = false, reminded = false;
+    // A trail of this wake, sent to the frame after every turn, so the next wake hears what
+    // this one did even if the page goes away in the middle of it.
+    const trail = { at: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null };
+    const keep = () => this.frame.send('trail', trail);
+    keep();
     const offSpoke = this.chassis.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
     try {
       // The system text is what doesn't change while it's here; the soma and what's
@@ -273,6 +279,8 @@ export class Actant {
         });
         const msg = res.choices?.[0]?.message ?? {};
         if (msg.content) this.note('thought', msg.content);
+        trail.turns = turn + 1;
+        if (msg.content?.trim()) trail.thought = clip(msg.content.trim(), 400);
         messages.push({ role: 'assistant', content: msg.content ?? '', ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
         if (!msg.tool_calls?.length) {
           if (byPerson && !spoke && !reminded && msg.content?.trim()) {
@@ -288,8 +296,10 @@ export class Actant {
         for (const call of msg.tool_calls) {
           const { text, images: pics = [] } = await this.runTool(call);
           messages.push({ role: 'tool', tool_call_id: call.id, content: text });
+          trail.steps = [...trail.steps, stepLine(call, text)].slice(-TRAIL_STEPS);
           for (const url of pics) images.push({ type: 'image_url', image_url: { url } });
         }
+        keep();
         const arrived = this.pending.splice(0);
         const thrown = this.errors.splice(0);
         if (images.length || arrived.length || thrown.length) {
@@ -310,6 +320,8 @@ export class Actant {
         }
       }
       if (turn >= MAX_TURNS) this.note('wake', `frame: the wake ended at its limit of ${MAX_TURNS} turns`);
+      trail.ended = turn >= MAX_TURNS ? `it ran into the limit of ${MAX_TURNS} turns` : 'it finished';
+      keep();
       this.thinking = false;
       this.life('asleep');
     } catch (err) {
@@ -317,11 +329,15 @@ export class Actant {
       if (err.message.includes('nobody here has connected thinking')) {
         // Not a fault: the game plays on, and it hears all this once it can think.
         this.unheard = woke.slice(-UNHEARD_KEPT);
+        trail.ended = 'nobody had connected thinking, so it waited';
+        keep();
         this.note('wake', 'frame: nobody here has connected thinking, so this waits until someone does');
         this.life('resting', 'it needs an AI to answer: connect OpenRouter');
         return;
       }
       this.note('fault', `thinking failed: ${err.message}`);
+      trail.ended = `thinking failed: ${clip(err.message, 200)}`;
+      keep();
       this.life('error', err.message.slice(0, 120));
     } finally {
       offSpoke();
@@ -464,6 +480,21 @@ function eventsBlock(events) {
     const pic = typeof e[PICTURE] === 'string' ? ' picture="attached"' : '';
     return body ? `<event ${attrs}${pic}>\n${body}\n</event>` : `<event ${attrs}${pic}/>`;
   }).join('\n');
+}
+
+const clip = (s, n) => { s = String(s ?? ''); return s.length > n ? `${s.slice(0, n)}…` : s; };
+
+/** One line of a wake's trail: the tool, what it was given in brief, and how it went if it
+ *  didn't simply work. */
+function stepLine(call, text) {
+  const name = call.function?.name ?? '?';
+  let input = {};
+  try { input = JSON.parse(call.function?.arguments || '{}'); } catch {}
+  const what = name === 'say' ? `"${clip(input.text, 200)}"`
+    : typeof input.section === 'string' ? `${input.section}${Array.isArray(input.edits) ? ` (${input.edits.length} edits)` : ''}`
+    : clip(JSON.stringify(input), 120);
+  const went = /^\{"(error|refused)"/.test(text) ? ` → ${clip(text, 160)}` : '';
+  return `${name} ${what}${went}`;
 }
 
 function describeEvent(e) {

@@ -3652,3 +3652,25 @@ nothing. It was disabled, but there was no disabled style anywhere. Now disabled
 dimmed with a not-allowed cursor, and this one reads "no changes to send".
 
 Deployed: disabled buttons look disabled; "no changes to send".
+
+## What a wake knows (built)
+
+Robby asked what's in a wake's context: ludants read the chat after he posts, and forget what
+they were doing when he reloads mid-wake. Each wake was a fresh conversation: the fixed system
+text, the events that woke it (only the one new chat message), the soma, and "now" (where the
+chat was just "12 messages so far"). The wake's own turns lived only in the tab.
+
+He's tried several ways of keeping continuity with actants (the last N turns, a distillate),
+and chose the trail: computed and stored on every turn.
+- **The last 5 chat messages** in the chat's line in "now" (he wanted fewer than 15).
+- **A trail of the last wake:** what woke it (up to 5 events), each step as one line (the
+  tool, the section or the words said, and the error or refusal if there was one), the last
+  thing it wrote to itself, and how it ended (finished, at the limit, thinking failed, waited
+  for thinking). The actant sends it to the frame after every turn, and the frame keeps it in
+  localStorage (`gactant-trail-<id>`). With no ending recorded, the next wake is told that the
+  page was reloaded or closed in the middle of it.
+
+Tested locally: a three-step job, reloaded after two steps. After the reload, "where were we?"
+woke it with the trail. It finished the third step, and then corrected itself in the chat
+about which steps came before the reload. The trail is per device for now; a ludant opened
+somewhere else doesn't see it.

@@ -114,6 +114,9 @@ class Frame {
     // it their own (madeOwn goes with the next saves, so the server lets its game change).
     this.following = record.follows?.following ? (record.follows.by ?? 'its maker') : null;
     this.madeOwn = false;
+    // What its last wake did, kept on this device as it goes (see keepTrail).
+    try { this.lastTrail = JSON.parse(localStorage.getItem(`gactant-trail-${record.id}`) ?? 'null'); } catch { this.lastTrail = null; }
+    this.trailNow = null;
     this.tabs = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gactant-tabs') : null;
   }
 
@@ -340,9 +343,29 @@ class Frame {
     const company = `${naming}\n${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored} Your thinking has a cost, and the people here can see a meter of it; what it has come to in this sitting is shown with what's happening now, at the end of the conversation.
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and share you (a link, and the lobby if they make you public) so others get copies that follow you. A checkpoint is taken whenever someone sits down.`;
     const states = this.surfaces.map((s) => s.state?.(name)).filter(Boolean).map((d) => `- ${d}`).join('\n');
-    const now = `Here with you now: ${[...this.people].join(', ')}.${view}${busy}${away} ${cost}${states ? `\nThe surfaces now:\n${states}` : ''}`;
+    const now = `Here with you now: ${[...this.people].join(', ')}.${view}${busy}${away} ${cost}${this.trailText()}${states ? `\nThe surfaces now:\n${states}` : ''}`;
     const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
     return { context: CONTEXT, company, now, surfaces };
+  }
+
+  /** A wake's trail, after each of its turns: kept on this device, so if the page goes away
+   *  mid-wake, the next wake still hears what this one did. The one before it is the
+   *  last wake the ludant hears about. */
+  keepTrail(t) {
+    if (!t || typeof t !== 'object') return;
+    if (this.trailNow && this.trailNow.at !== t.at) this.lastTrail = this.trailNow;
+    this.trailNow = t;
+    try { localStorage.setItem(`gactant-trail-${this.recordId}`, JSON.stringify(t)); } catch {}
+  }
+
+  trailText() {
+    const t = this.lastTrail;
+    if (!t?.at) return '';
+    const mins = Math.round((Date.now() - t.at) / 60000);
+    const ago = mins < 1 ? 'just now' : mins < 90 ? `${mins} minute${mins === 1 ? '' : 's'} ago` : mins < 2880 ? `${Math.round(mins / 60)} hours ago` : `${Math.round(mins / 1440)} days ago`;
+    const how = t.ended ?? 'it was cut off before it finished: the page was reloaded or closed in the middle of it, so what you were doing may be half done';
+    const steps = (t.steps ?? []).map((s, i) => `  ${i + 1}. ${s}`).join('\n');
+    return `\nYour last wake (${ago}, ${t.turns} turn${t.turns === 1 ? '' : 's'}; ${how}). What woke you: ${(t.woke ?? []).join('; ') || 'nothing recorded'}.${steps ? `\nWhat you did:\n${steps}` : ' You did nothing on the surfaces or your soma.'}${t.thought ? `\nThe last thing you wrote to yourself: ${t.thought}` : ''}`;
   }
 
   /** The ludant's name is its given name plus its title, so a retitle (or a restore that

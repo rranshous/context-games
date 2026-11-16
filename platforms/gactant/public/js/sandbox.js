@@ -73,6 +73,7 @@ export class Sandbox {
       soma: (report) => frame.actant.received(report),
       life: (life) => frame.actant.lived(life),
       note: (kind, text) => frame.inspector.note(kind, text),
+      trail: (t) => frame.keepTrail(t),
       event: (e) => {
         if (!e || typeof e.type !== 'string' || !FROM_SANDBOX.test(e.type)) return;
         frame.bus.deliver(e);
