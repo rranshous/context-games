@@ -547,7 +547,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
         update.disabled = true;
         try { const r = await working('sending the update…', () => this.sendUpdate()); if (r.held) said.textContent = `Held back: a check thought something in it might break the rules (${r.held.replace(/^the publish check: /, '')}). A person will look soon; until then, followers keep the version they have.`; draw(); }
         catch (err) { update.disabled = false; fail(err); }
-      } }, 'send update');
+      }, title: line.behind ? 'send the people following it the game as it is now' : 'nothing to send: it hasn\'t changed since your last update' }, line.behind ? 'send update' : 'no changes to send');
       box.replaceChildren(
         el('p', {}, el('strong', {}, `${this.actant.soma.sections.title || name}, shared. `), `${followers ? `${followers} ${followers === 1 ? 'person follows' : 'people follow'} it. ` : 'Nobody follows it yet. '}${line.behind ? 'You\'ve changed it since your last update.' : 'Everyone following has your latest.'} Updates reach them the next time they open it.`),
         el('div', { class: 'share-row' }, link, copyBtn),

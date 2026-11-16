@@ -3646,3 +3646,7 @@ out of the lobby). It can't be pressed twice meanwhile. Tested locally, with the
 held back 4 s.
 
 Deployed: the view surface, no identity section in new seeds, the share spinner (2973597b).
+
+Robby: with nothing changed since the last update, "send update" looked clickable and did
+nothing. It was disabled, but there was no disabled style anywhere. Now disabled buttons are
+dimmed with a not-allowed cursor, and this one reads "no changes to send".
