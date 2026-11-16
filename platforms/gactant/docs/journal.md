@@ -3644,3 +3644,5 @@ covers itself with a spinner and says what it's on: waiting for the ludant to fi
 saving, taking a picture of the game, then sharing (or sending the update, or moving it in or
 out of the lobby). It can't be pressed twice meanwhile. Tested locally, with the share call
 held back 4 s.
+
+Deployed: the view surface, no identity section in new seeds, the share spinner (2973597b).
