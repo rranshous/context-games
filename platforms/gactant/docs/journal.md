@@ -3545,3 +3545,13 @@ the World (pass, signature, pace, standings), then to the Match; the socket only
 pushes, shares and clock checks. A candidate for later: moves over the socket straight to the
 Match, which needs the World's checks moved or cached there. That's a real latency win for
 fast games.
+
+Deployed (version a1fa1824): invisible batching, with table.queue gone.
+
+On Robby's failed "live" requests: Spectrum's filter (CUJO) still blocks gactant.com by the
+name in the TLS hello. Chrome gets through, most likely over HTTP/3 (QUIC, UDP), but websockets
+are TCP, so the live sockets most likely never open on Robby's home network and the frame falls
+back to polling, retrying every minute. Live, share() and latency behaviour can't be judged
+from there until it's unblocked; Robby has filed a ticket with Spectrum. How a move travels
+(Worker → the World Durable Object → the match's object, by stub.fetch), and what moves over
+the socket would take, are written up above as a candidate; measure first.
