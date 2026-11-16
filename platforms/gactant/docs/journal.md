@@ -3507,3 +3507,6 @@ My recommendation to Robby: **eras within a match** for continuing a world (rule
 the cap: no handover, no accidental fork). Copying into a new match stays for deliberate
 forks, which start their own board. Boards: ladder = fresh only, plus world boards, plus
 optional merged versions. Waiting on Robby.
+
+Deployed (version 8dfe5c8c): pacing and table.queue, with their changelog line. move-queue.js is
+served on both gactant.com and the sandbox origin (gactantbox.com), where the game loads it.
