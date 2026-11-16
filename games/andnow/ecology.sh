@@ -20,7 +20,7 @@ scan() {
     [ -n "$f" ] || { echo "$dir: no checkpoint${AT:+ at $AT}"; continue; }
     [ "$(free_gb)" -ge "${NEED:-10}" ] || { echo "$(date): $(free_gb) GB free, waiting for ${NEED:-10}"; until [ "$(free_gb)" -ge "${NEED:-10}" ]; do sleep 300; done; }
     echo "--- $(date) $dir/$f"
-    /usr/bin/time -f "peak %M KB, %e s" nice -n 19 ionice -c3 node --max-old-space-size=${HEAP:-12288} dist/ecology.mjs "$dir/$f" --ticks "${TICKS:-200}" --out "runs/ecology/s$s-${f%.andnow.gz}.json" > /dev/null
+    /usr/bin/time -f "peak %M KB, %e s" nice -n 19 ionice -c3 node --max-old-space-size=${HEAP:-14336} dist/ecology.mjs "$dir/$f" --ticks "${TICKS:-200}" --out "runs/ecology/s$s-${f%.andnow.gz}.json" > /dev/null
   done
 }
 if [ -n "$FG" ]; then

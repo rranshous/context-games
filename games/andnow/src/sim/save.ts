@@ -161,6 +161,13 @@ export function loadWorld(bytes: Uint8Array): World {
     b.climbBase = CONFIG.climbBase; b.foodSpacing = CONFIG.plateFood;
   }
   world.yShift ??= 0;
+  // Owners were Int32 until ids passed 2^31 and wrapped (s2 crashed on one at 1.897M): unwrap.
+  const was = world.owner as ArrayLike<number>;
+  if (!(was instanceof Float64Array)) {
+    const o = new Float64Array(was.length);
+    for (let i = 0; i < o.length; i++) { const v = was[i]; o[i] = v < DEBRIS ? v + 2 ** 32 : v; }
+    world.owner = o;
+  }
   // Runs on rules before ids by zone (RULES < 3) kept bodies in one array by id: enough to
   // look at them (src/diet.ts compares runs across rules), never to carry them on.
   const old = world as unknown as { warriors?: unknown[] };

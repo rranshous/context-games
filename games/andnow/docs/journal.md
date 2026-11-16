@@ -2611,3 +2611,19 @@ This was the first scheduled round. It scanned s1 6.616M, s2 1.897M, s3 7.423M a
 Some good-for/bad-for pairs sit near |z| = 3 and flicker in and out of the list.
 
 **Detector fix.** Novelty counted species from the top 40 plans only, and `CLMD`'s 15k bodies are spread over hundreds of plans. Ecology reports now carry body counts by code row (`species`). Novelty flags any row with 1% of the bodies, and any row that rises 1.5× or halves between looks. The report header now uses local time.
+
+## Discovery round 2, and s2's crash (2026-11-15 evening)
+
+**s2 crashed at 2:36am, just after 1.897M.** The log showed `TypeError: Cannot read properties of undefined (reading 'delete')` in `setOwner`, called from a copy-delete mutation in `opDivide`.
+- **Cause:** body ids passed 2^31. An id is `n·64 + zone`, and s2's busiest zone has had more than 33 million births. The board kept owners in an `Int32Array`, so the newest child's cells held a wrapped, negative id that had no cell set.
+- **Fix:** `owner` is a `Float64Array` now. Loading a checkpoint unwraps any value below `DEBRIS` by adding 2^32. That's a small load-time repair, but without it s2 would be lost.
+- **Checks:**
+  - Nothing else changes: s7 run for 1,500 ticks on the old build and the new one gives the same hash (with owners turned back to Int32 for the hash).
+  - `check.mjs`: all 2,491 golden matches are identical.
+  - It costs 4 more bytes a cell for the owner array.
+- s2 is restarted from 1.897M on the fixed build. The other runs will reach the same limit when one zone passes 33M births.
+
+**Round 2** read s1 6.65M, s3 7.452M and s4 1.85M. s2 was still on its old checkpoint, so it was skipped. Scan peaks were 4.1, 13.0, 4.5 and 8.3 GB; s2 needed the new 14 GB cap.
+- **A second hunter.** s3's `CMx]m` is a deep Climber sprinter whose `D` became `]`. Its IP turns south onto the `B` below, and the empty-stack bite finds the relict Divers' `C4SDTMD` grazers: 13 bites and 4 kills. It's the same mutation as s4's `CmM]` hunter, and both hunted the other lineage's relict. Written up in the survey.
+- **Lookers and sprinters.** Sprinters touching s4's lookers did 0.44 worse, at z −3.0, which is just at the bar. Noted in the looker section as one to watch.
+- The rest was known: kin-biting mutants, vandals, husks.

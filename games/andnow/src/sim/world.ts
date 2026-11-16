@@ -222,7 +222,7 @@ export class World {
   board: Board;
   w: number;
   h: number;
-  owner: Int32Array;
+  owner: Float64Array; // body id (ids pass 2^31 in a crowded run), NONE or DEBRIS
   code: Uint8Array;
   resource: Uint8Array; // 0 none, 1 size, 2 speed
   ripe: Float32Array;   // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
@@ -260,7 +260,7 @@ export class World {
       : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
-    this.owner = new Int32Array(this.w * this.h).fill(NONE);
+    this.owner = new Float64Array(this.w * this.h).fill(NONE);
     this.code = new Uint8Array(this.w * this.h);
     this.resource = new Uint8Array(this.w * this.h);
     this.ripe = new Float32Array(this.w * this.h).fill(1);
@@ -377,7 +377,7 @@ export class World {
     if (dir > 0 && H % T) throw new Error(`step ${n} is ${H} rows, not whole ${T}-row tiles`);
     const made = makeClimbStep(this.seed, w, n, H, b.foodSpacing!);
     const D = dir > 0 ? H : 0, dI = D * w, newTop = dir > 0 ? 0 : oldH; // (rows the old world moves down; where the new step starts)
-    const grown = <A extends Int32Array | Uint8Array | Int8Array | Float32Array>(a: A, fill: number): A => {
+    const grown = <A extends Float64Array | Int32Array | Uint8Array | Int8Array | Float32Array>(a: A, fill: number): A => {
       const out = new (a.constructor as { new (n: number): A })(w * h);
       if (fill) out.fill(fill);
       out.set(a, dI);

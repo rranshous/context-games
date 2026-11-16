@@ -176,7 +176,7 @@ At 1.835M, 15,195 bodies run exactly `CLMD`.
 - Their insulation is 5 at step 5, and the ones at step 6 have 6.
 - Most eat both plants and meat. Several common plans have lost their spare `C` and eat only meat.
 
-The scan also caught `CLMB` mutants (the `D` turned to `B`) biting their `CLMD` kin.
+The scan also caught `CLMB` mutants (the `D` turned to `B`) biting their `CLMD` kin. One scan (1.85M) found that sprinters touching lookers do worse: 0.44 less survival plus children, at z −3.0, which is just at the bar. Lookers touching sprinters were unaffected. If this holds up in later scans, the lookers are crowding the sprinters out, not just outclimbing them.
 
 ![](img/survey/scene-s4-lookers.png)
 
@@ -263,6 +263,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-14 | s2, s4 | Growers smother their neighbours | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-14 | s2, s3, s4 | Husks do better beside the living (unexplained) | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-15 | s4 | Lookers: s4's Divers evolved `CLMD`, which now leads the climb onto step 6 | [Lookers in s4](#lookers-in-s4) |
+| 2026-11-15 | s3 | A second hunter, made by the same `D` → `]` mutation as s4's: it hunts the relict Divers | [Ecology scan](#what-the-ecology-scan-found) |
 
 ## How they interact
 
@@ -316,7 +317,15 @@ Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [
 
 - **Vandals.** In sprinters and lookers, a copy error can turn a code-row glyph into `W` (write): `CMWm`, `CMDW`, `CWD`. Such a mutant loses its divide or its move, and its loop writes into the nearest body instead, again and again, up to 112 times in 200 ticks. The nearest body is usually its own parent or child. Mostly it writes fat over the victim's code. Some write `@`, which kills whatever runs it.
 - **Steerers (s2).** `CTDW` mutants write turn arrows (`>`, `<`, `^`) into their own children, rewriting the direction the child's code runs. It's the closest thing to one body controlling another so far, though nothing shows it helps the writer.
-- **A hunter (s4).** One Diver sprinter, `CmM]` (its `D` mutated), bit the relict Climbers' `C4SDTM` grazers 12 times in 200 ticks and killed 3. It's the only cross-lineage predation the scans found.
+- **Hunters (s4, then s3).** Twice now, the same mutation has made a hunter out of a sprinter. Each time it hunted the relict of the other lineage.
+  - **The mutation:** the `D` in the code row became `]` (turn right). Both hunters carry a `B` just below that slot, so the IP turns south straight onto it. An empty-stack bite never targets kin, so the bite lands on the nearest body of the other lineage.
+  - **s4 (found 2026-11-14):** a Diver sprinter, `CmM]`, bit the relict Climbers' `C4SDTM` grazers 12 times in 200 ticks and killed 3.
+  - **s3 (found 2026-11-15):** a deep Climber sprinter, `CMx]m` with armor 2, bit the relict Divers' `C4SDTMD` grazers 13 times at step −2 and killed 4.
+  - **No `D`, no children:** a hunter can't divide, so it's a dead end. The s3 one was 799 ticks old, three times a sprinter's usual age. It's still the only predation between lineages the scans have found.
+
+  ![](img/survey/hunter-s3.png)
+
+  *The s3 hunter: `C M x ] m`, with `= C B` below. At `]` the IP turns south onto the `B`. Next to it in the run (not shown) was an unmutated `C M x D m` deep sprinter, with a `D` where the hunter has `]`.*
 - Most deaths by `@` are the dead body's own copy errors, not poisonings.
 
 **Scavenging.** Of the dead cells eaten, 42–49% came from a body of another plan, 9–17% from the same plan, and the rest were already there when the replay began. Sprinters mostly eat the dead husks their own lineage keeps producing (`D`, `Dm`, `mMD`: no `C`, never move, all dead within 200 ticks).
