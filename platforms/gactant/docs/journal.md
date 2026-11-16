@@ -3674,3 +3674,5 @@ Tested locally: a three-step job, reloaded after two steps. After the reload, "w
 woke it with the trail. It finished the third step, and then corrected itself in the chat
 about which steps came before the reload. The trail is per device for now; a ludant opened
 somewhere else doesn't see it.
+
+Deployed: the wake trail and the last 5 chat messages.
