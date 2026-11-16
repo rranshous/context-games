@@ -3604,3 +3604,5 @@ Things to talk through:
 - Marks: made.js records every chat message from a person as "asked", so game chat counts as
   a contribution.
 - The inspector is the only surface that's purely for shaping.
+
+To discuss later (Robby): what the actant gets on a wake after a browser refresh.
