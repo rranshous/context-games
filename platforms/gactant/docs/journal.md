@@ -3721,3 +3721,5 @@ sample: a one-look job ran 3 turns in 6.5 s, about 2.1 s per turn on the model, 
 tokens in, 47k of them cached, and 175 out.
 
 The chat window in each wake is the last 7 messages, not 5 (Robby: a bit more headroom for continuity).
+
+Deployed: the waiting card, wake telemetry, and the 7-message chat window.
