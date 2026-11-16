@@ -116,6 +116,7 @@ class Frame {
     this.madeOwn = false;
     // What its last wake did, kept on this device as it goes (see keepTrail).
     try { this.lastTrail = JSON.parse(localStorage.getItem(`gactant-trail-${record.id}`) ?? 'null'); } catch { this.lastTrail = null; }
+    if (this.lastTrail && !this.lastTrail.steps?.every((s) => s && typeof s === 'object')) this.lastTrail = null;   // an older shape
     this.trailNow = null;
     this.tabs = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gactant-tabs') : null;
   }
@@ -355,6 +356,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     if (!t || typeof t !== 'object') return;
     if (this.trailNow && this.trailNow.at !== t.at) this.lastTrail = this.trailNow;
     this.trailNow = t;
+    this.chat.showLife();
     try { localStorage.setItem(`gactant-trail-${this.recordId}`, JSON.stringify(t)); } catch {}
   }
 
@@ -364,7 +366,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     const mins = Math.round((Date.now() - t.at) / 60000);
     const ago = mins < 1 ? 'just now' : mins < 90 ? `${mins} minute${mins === 1 ? '' : 's'} ago` : mins < 2880 ? `${Math.round(mins / 60)} hours ago` : `${Math.round(mins / 1440)} days ago`;
     const how = t.ended ?? 'it was cut off before it finished: the page was reloaded or closed in the middle of it, so what you were doing may be half done';
-    const steps = (t.steps ?? []).map((s, i) => `  ${i + 1}. ${s}`).join('\n');
+    const steps = (t.steps ?? []).map((s, i) => `  ${i + 1}. ${s.tool} ${s.what}${s.failed ? ` → ${s.failed}` : ''}`).join('\n');
     return `\nYour last wake (${ago}, ${t.turns} turn${t.turns === 1 ? '' : 's'}; ${how}). What woke you: ${(t.woke ?? []).join('; ') || 'nothing recorded'}.${steps ? `\nWhat you did:\n${steps}` : ' You did nothing on the surfaces or your soma.'}${t.thought ? `\nThe last thing you wrote to yourself: ${t.thought}` : ''}`;
   }
 

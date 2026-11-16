@@ -259,7 +259,8 @@ export class Actant {
     let spoke = false, reminded = false;
     // A trail of this wake, sent to the frame after every turn, so the next wake hears what
     // this one did even if the page goes away in the middle of it.
-    const trail = { at: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null };
+    // asking: since when it has waited on the model; running: the step under way.
+    const trail = { at: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null };
     const keep = () => this.frame.send('trail', trail);
     keep();
     const offSpoke = this.chassis.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
@@ -271,6 +272,8 @@ export class Actant {
       let turn = 0;
       for (; turn < MAX_TURNS && !this.asleepForever; turn++) {
         if (turn) seen = await this.frame.call('perceive');
+        trail.asking = Date.now();
+        keep();
         // Inference is the frame's: it holds the key and pays (or knows who does).
         const res = await this.frame.call('infer', {
           messages: [{ role: 'system', content: system }, ...withCacheMark(messages), { role: 'system', content: this.nowText(seen) }],
@@ -279,6 +282,7 @@ export class Actant {
         });
         const msg = res.choices?.[0]?.message ?? {};
         if (msg.content) this.note('thought', msg.content);
+        trail.asking = null;
         trail.turns = turn + 1;
         if (msg.content?.trim()) trail.thought = clip(msg.content.trim(), 400);
         messages.push({ role: 'assistant', content: msg.content ?? '', ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
@@ -294,9 +298,12 @@ export class Actant {
 
         const images = [];
         for (const call of msg.tool_calls) {
+          trail.running = stepOf(call);
+          keep();
           const { text, images: pics = [] } = await this.runTool(call);
           messages.push({ role: 'tool', tool_call_id: call.id, content: text });
-          trail.steps = [...trail.steps, stepLine(call, text)].slice(-TRAIL_STEPS);
+          trail.running = null;
+          trail.steps = [...trail.steps, stepOf(call, text)].slice(-TRAIL_STEPS);
           for (const url of pics) images.push({ type: 'image_url', image_url: { url } });
         }
         keep();
@@ -320,6 +327,7 @@ export class Actant {
         }
       }
       if (turn >= MAX_TURNS) this.note('wake', `frame: the wake ended at its limit of ${MAX_TURNS} turns`);
+      trail.asking = trail.running = null;
       trail.ended = turn >= MAX_TURNS ? `it ran into the limit of ${MAX_TURNS} turns` : 'it finished';
       keep();
       this.thinking = false;
@@ -329,6 +337,7 @@ export class Actant {
       if (err.message.includes('nobody here has connected thinking')) {
         // Not a fault: the game plays on, and it hears all this once it can think.
         this.unheard = woke.slice(-UNHEARD_KEPT);
+        trail.asking = trail.running = null;
         trail.ended = 'nobody had connected thinking, so it waited';
         keep();
         this.note('wake', 'frame: nobody here has connected thinking, so this waits until someone does');
@@ -336,6 +345,7 @@ export class Actant {
         return;
       }
       this.note('fault', `thinking failed: ${err.message}`);
+      trail.asking = trail.running = null;
       trail.ended = `thinking failed: ${clip(err.message, 200)}`;
       keep();
       this.life('error', err.message.slice(0, 120));
@@ -484,17 +494,22 @@ function eventsBlock(events) {
 
 const clip = (s, n) => { s = String(s ?? ''); return s.length > n ? `${s.slice(0, n)}…` : s; };
 
-/** One line of a wake's trail: the tool, what it was given in brief, and how it went if it
- *  didn't simply work. */
-function stepLine(call, text) {
-  const name = call.function?.name ?? '?';
+/** One step of a wake's trail: the tool, what it was given in brief, and how it went if it
+ *  didn't simply work (without text: under way). The frame words it for the ludant and for
+ *  the people watching. */
+function stepOf(call, text = '') {
+  const tool = call.function?.name ?? '?';
   let input = {};
   try { input = JSON.parse(call.function?.arguments || '{}'); } catch {}
-  const what = name === 'say' ? `"${clip(input.text, 200)}"`
+  const what = tool === 'say' ? `"${clip(input.text, 200)}"`
     : typeof input.section === 'string' ? `${input.section}${Array.isArray(input.edits) ? ` (${input.edits.length} edits)` : ''}`
     : clip(JSON.stringify(input), 120);
-  const went = /^\{"(error|refused)"/.test(text) ? ` → ${clip(text, 160)}` : '';
-  return `${name} ${what}${went}`;
+  return {
+    tool, what,
+    ...(typeof input.section === 'string' ? { section: input.section } : {}),
+    ...(typeof input.name === 'string' ? { name: clip(input.name, 60) } : {}),
+    ...(/^\{"(error|refused)"/.test(text) ? { failed: clip(text, 160) } : {}),
+  };
 }
 
 function describeEvent(e) {

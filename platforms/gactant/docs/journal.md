@@ -3701,3 +3701,11 @@ Deployed: the read-the-chat wording.
   how long the wake has run, and what's done so far, in the chat area where people are looking,
   not only in the inside panel. And give the person something to do meanwhile: the game keeps
   running, the whiteboard is there.
+
+Built: better to wait through. The "thinking" line in the chat is now a small card from this
+wake's trail: what it's on (the step under way in people's words, like "changing the game" or
+"painting “boat”", else "thinking"), a clock of how long it has been awake, and the steps done
+so far (the last 4, with how many came before; a failed one shows as "✗ tried …"). The trail
+now records when it started waiting on the model and the step under way, so a long wait says
+so: past 45 s "the AI is slow right now", past 3 min "it may be stuck". Tested locally with a
+four-step job: the steps filled in as they happened.

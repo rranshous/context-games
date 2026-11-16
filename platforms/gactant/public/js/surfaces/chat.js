@@ -9,6 +9,37 @@ import { callName } from '../names.js';
 
 const KEEP = 200;
 const SHOWN = 5;   // messages shown with every wake
+const STEPS_SHOWN = 4;   // steps done so far, under what it's on now
+const SLOW_MS = 45_000, STUCK_MS = 180_000;   // waits on the AI worth saying so about
+
+/** A step of a wake, in people's words: [under way, done]. */
+function stepWords(s) {
+  const part = { game: 'the game', hooks: 'how it reacts', tools: 'what it can do', memory: 'its notes', title: 'its title', origin: 'its origin' }[s.section] ?? (s.section ? `its ${s.section.replace(/_/g, ' ')}` : 'itself');
+  const named = s.name ? ` “${s.name}”` : '';
+  const words = {
+    look_at_stage: ['looking at the game', 'looked at the game'],
+    restart_stage: ['restarting the game', 'restarted the game'],
+    play: ['playing the game to try it', 'played the game to try it'],
+    look_at_whiteboard: ['looking at the whiteboard', 'looked at the whiteboard'],
+    sketch: ['sketching on the whiteboard', 'sketched on the whiteboard'],
+    pass_whiteboard: ['passing the whiteboard', 'passed the whiteboard'],
+    make_art: [`painting${named || ' a picture'}`, `painted${named || ' a picture'}`],
+    concept_art: ['painting concept art', 'painted concept art'],
+    offer_choices: ['offering choices', 'offered choices'],
+    table: ['working on online play', 'worked on online play'],
+    store: ['updating saved data', 'updated saved data'],
+    read_chat: ['reading the chat', 'read the chat'],
+    read_section: [`reading ${part}`, `read ${part}`],
+    search_sections: ['searching itself', 'searched itself'],
+    write_section: [`rewriting ${part}`, `rewrote ${part}`],
+    edit_section: [`changing ${part}`, `changed ${part}`],
+    say: ['writing in the chat', 'wrote in the chat'],
+  }[s.tool];
+  const tool = String(s.tool ?? '').replace(/_/g, ' ');
+  return words ?? [`using ${tool}`, `used ${tool}`];
+}
+
+const clock = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export class Chat {
   id = 'chat';
@@ -88,10 +119,37 @@ export class Chat {
     this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
       detail && this.frame.payer?.() ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
     if (life === 'thinking' || painting.length) {
-      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, doing ?? 'thinking')));
-      this.log.append(this.thinkingEl);
-      this.log.scrollTop = this.log.scrollHeight;
-    } else this.thinkingEl.remove();
+      const wasLast = this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 40;
+      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), ...this.waiting(painting.length ? doing : null));
+      if (!this.thinkingEl.isConnected) this.log.append(this.thinkingEl);
+      if (wasLast) this.log.scrollTop = this.log.scrollHeight;
+      // The clock ticks while it's awake.
+      this.ticking ??= setInterval(() => this.showLife(), 1000);
+    } else {
+      this.thinkingEl.remove();
+      clearInterval(this.ticking);
+      this.ticking = null;
+    }
+  }
+
+  /** While it's awake: what it's on now, how long this has taken, and what it has done so
+   *  far, from the trail of this wake. A long wait on the AI says so, so a stall shows. */
+  waiting(painting) {
+    const t = this.frame.trailNow, now = Date.now();
+    if (!t || t.ended) return [el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, painting ?? 'thinking'))];
+    const asking = t.asking ? now - t.asking : 0;
+    const current = painting ?? (t.running ? stepWords(t.running)[0]
+      : asking > STUCK_MS ? `still waiting on the AI (${clock(asking)}): it may be stuck`
+      : asking > SLOW_MS ? `thinking (the AI is slow right now: ${clock(asking)})`
+      : 'thinking');
+    const done = (t.steps ?? []).filter((s) => s.tool !== 'say');
+    const shown = done.slice(-STEPS_SHOWN);
+    return [
+      el('div', { class: 'chat-text wait-card' },
+        el('div', { class: 'wait-now' }, el('span', { class: 'dots' }, current), el('span', { class: 'wait-clock', title: 'how long it has been awake' }, clock(now - t.at))),
+        done.length > shown.length ? el('div', { class: 'wait-step more' }, `${done.length - shown.length} earlier step${done.length - shown.length === 1 ? '' : 's'}`) : null,
+        ...shown.map((s) => el('div', { class: `wait-step${s.failed ? ' failed' : ''}`, title: s.failed ?? '' }, s.failed ? `✗ tried ${stepWords(s)[0]}` : `✓ ${stepWords(s)[1]}`))),
+    ];
   }
 
   /** Before anything has been said: what you might say, and, if nobody here has connected
