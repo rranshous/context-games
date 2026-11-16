@@ -3709,3 +3709,13 @@ so far (the last 4, with how many came before; a failed one shows as "✗ tried 
 now records when it started waiting on the model and the step under way, so a long wait says
 so: past 45 s "the AI is slow right now", past 3 min "it may be stuck". Tested locally with a
 four-step job: the steps filled in as they happened.
+
+Instrumentation (Robby: "did we already do that?"). Partly: a local install logs each
+inference call (`log/<id>`, with ms and usage), but the hosted site keeps nothing per think,
+only traffic, trouble and stage perf. Added a `wake` telemetry event: when a wake ends, the
+frame sends numbers from its trail (turns, whole ms, ms waiting on the model, ms running tools,
+the slowest single wait, tokens in, cached and out, section writes, the model, how it ended).
+ops.mjs sums them per model, and `tools/ops.mjs` prints the means. A page may now send 100
+events (it was 40), and wakes aren't deduplicated. The privacy page says so. First local
+sample: a one-look job ran 3 turns in 6.5 s, about 2.1 s per turn on the model, with 56k
+tokens in, 47k of them cached, and 175 out.

@@ -497,8 +497,9 @@ Both hosts keep a long view in their own store (`ops.mjs`):
 - **Traffic:** every API request counted by route and hour, with the mean time it took.
 - **Trouble:** grouped by what it says, so the same crash a hundred times is one entry with a count, browsers and a few ludant ids. It covers crashes in the platform's pages, faults the frame noticed, failed thinking, and our own 500s.
 - **The stage:** fps, pictures a second, round trip and game speed, sampled per browser.
+- **Wakes:** per model, each wake's turns, whole time, time waiting on the model and running tools, the slowest single wait, tokens in (cached) and out, section writes, and how it ended (finished, limit, failed, waiting). Numbers only.
 
-Pages send what they notice to `POST /api/events` (`public/js/telemetry.js`). It never sends names, chat, prompts, code or keys. A page sends at most 40 events and the same trouble once. The install takes at most 5,000 events a day and keeps 30 days of traffic and the 400 most recent kinds of trouble, so it can't grow without bound.
+Pages send what they notice to `POST /api/events` (`public/js/telemetry.js`). It never sends names, chat, prompts, code or keys. A page sends at most 100 events and the same trouble once. The install takes at most 5,000 events a day and keeps 30 days of traffic and the 400 most recent kinds of trouble, so it can't grow without bound.
 
 `node tools/ops.mjs https://gactant.com [days]` prints the summary (`--json` for all of it). It needs `GACTANT_ADMIN_TOKEN` in `.env`, sent in the body so it never lands in a request log. This is how Claude reads the live site without anyone relaying it.
 

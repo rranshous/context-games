@@ -355,6 +355,11 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   keepTrail(t) {
     if (!t || typeof t !== 'object') return;
     if (this.trailNow && this.trailNow.at !== t.at) this.lastTrail = this.trailNow;
+    // A wake that just ended: how long it took, and where the time went, for the install.
+    if (t.ended && !this.trailNow?.ended && t.stats) {
+      const ended = /^it finished/.test(t.ended) ? 'finished' : /limit/.test(t.ended) ? 'limit' : /failed/.test(t.ended) ? 'failed' : 'waiting';
+      report('wake', { ludant: this.recordId, ended, turns: t.turns, ms: Date.now() - t.at, ...t.stats });
+    }
     this.trailNow = t;
     this.chat.showLife();
     try { localStorage.setItem(`gactant-trail-${this.recordId}`, JSON.stringify(t)); } catch {}

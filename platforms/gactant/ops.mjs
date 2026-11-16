@@ -15,6 +15,7 @@ const FLUSH_MS = 60_000;
 const KEEP_HOURS = 30 * 24;
 const KEEP_TROUBLE = 400;
 const DAY_EVENTS = 5000;
+const WAKE_NUMBERS = ['turns', 'ms', 'modelMs', 'toolMs', 'slowestMs', 'tokensIn', 'tokensOut', 'cachedIn', 'writes'];
 const TEXT = 400;
 
 const hourOf = (d = new Date()) => d.toISOString().slice(0, 13).replace(/[-T]/g, '');
@@ -99,6 +100,12 @@ export function createOps({ store, log = () => {} }) {
         const k = `perf ${browser}${body.mobile ? ' mobile' : ''} ${e.three ? '3d' : '2d'}${e.pixels ? ' pixels' : ''}`;
         count(k);
         for (const f of ['fps', 'pictures', 'trip', 'speed']) sum(`${k} ${f}`, Number(e[f]));
+      } else if (kind === 'wake') {
+        // How long wakes take and where the time goes, per model, summed so the report can average.
+        const model = clip(e.model, 60).replace(/[^\w./:-]/g, '') || 'unknown';
+        count(`wake ${model}`);
+        count(`wake ended ${clip(e.ended, 12).replace(/[^a-z]/g, '')}`);
+        for (const f of WAKE_NUMBERS) sum(`wake ${model} ${f}`, Number(e[f]));
       } else if (['crash', 'fault', 'thinking', 'server'].includes(kind)) {
         await trouble({ kind, where: e.where, message: e.message, sample: e.sample, browser, ludant: /^[a-z0-9-]{1,60}$/.test(e.ludant ?? '') ? e.ludant : null });
       }

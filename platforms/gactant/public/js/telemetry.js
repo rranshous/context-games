@@ -1,14 +1,14 @@
 // What a page tells the install about how it's going, so whoever runs it (and the Claude
 // helping them) can see trouble without anyone relaying it: crashes in the platform's own
-// pages, faults the frame noticed, thinking that failed, and now and then how the stage
-// runs. Never names, chat, prompts, code or keys. Read with tools/ops.mjs.
+// pages, faults the frame noticed, thinking that failed, now and then how the stage
+// runs, and how long each wake took (numbers only). Never names, chat, prompts, code or keys. Read with tools/ops.mjs.
 //
 //   report(kind, { where, message, sample, ludant, ...numbers })
 //   watchPage(where)    report the page's own uncaught errors
 //
 // A page sends at most MAX_EVENTS in all, the same trouble once, in batches.
 
-const MAX_EVENTS = 40;
+const MAX_EVENTS = 100;
 const BATCH_MS = 15_000;
 
 let queue = [], sentCount = 0, timer = null;
@@ -31,7 +31,7 @@ export function report(kind, fields = {}) {
   const event = { kind, ...fields };
   for (const k of ['where', 'message', 'sample']) if (event[k] != null) event[k] = String(event[k]).slice(0, k === 'sample' ? 1500 : 400);
   const key = `${kind}|${event.where}|${event.message}`;
-  if (kind !== 'perf') { if (seen.has(key)) return; seen.add(key); }
+  if (kind !== 'perf' && kind !== 'wake') { if (seen.has(key)) return; seen.add(key); }
   queue.push(event);
   timer ??= setTimeout(send, BATCH_MS);
 }

@@ -260,7 +260,9 @@ export class Actant {
     // A trail of this wake, sent to the frame after every turn, so the next wake hears what
     // this one did even if the page goes away in the middle of it.
     // asking: since when it has waited on the model; running: the step under way.
-    const trail = { at: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null };
+    // stats: where the wake's time went, for the install's telemetry (numbers only).
+    const trail = { at: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null,
+      stats: { modelMs: 0, toolMs: 0, slowestMs: 0, tokensIn: 0, tokensOut: 0, cachedIn: 0, writes: 0, model: '' } };
     const keep = () => this.frame.send('trail', trail);
     keep();
     const offSpoke = this.chassis.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
@@ -282,6 +284,13 @@ export class Actant {
         });
         const msg = res.choices?.[0]?.message ?? {};
         if (msg.content) this.note('thought', msg.content);
+        const waited = Date.now() - trail.asking, st = trail.stats, u = res.usage ?? {};
+        st.modelMs += waited;
+        st.slowestMs = Math.max(st.slowestMs, waited);
+        st.tokensIn += u.prompt_tokens ?? 0;
+        st.tokensOut += u.completion_tokens ?? 0;
+        st.cachedIn += u.prompt_tokens_details?.cached_tokens ?? 0;
+        st.model = res.model ?? st.model;
         trail.asking = null;
         trail.turns = turn + 1;
         if (msg.content?.trim()) trail.thought = clip(msg.content.trim(), 400);
@@ -300,7 +309,10 @@ export class Actant {
         for (const call of msg.tool_calls) {
           trail.running = stepOf(call);
           keep();
+          const began = Date.now();
           const { text, images: pics = [] } = await this.runTool(call);
+          trail.stats.toolMs += Date.now() - began;
+          if (call.function?.name === 'write_section' || call.function?.name === 'edit_section') trail.stats.writes++;
           messages.push({ role: 'tool', tool_call_id: call.id, content: text });
           trail.running = null;
           trail.steps = [...trail.steps, stepOf(call, text)].slice(-TRAIL_STEPS);
