@@ -3510,3 +3510,38 @@ optional merged versions. Waiting on Robby.
 
 Deployed (version 8dfe5c8c): pacing and table.queue, with their changelog line. move-queue.js is
 served on both gactant.com and the sandbox origin (gactantbox.com), where the game loads it.
+
+### Batching, take two: invisible to the ludant
+
+Realm's first report on the queue: all 8 steps went as one batch and its rules applied 6, but
+every add resolved "ok", because only the rules knew how many they'd applied. I proposed a
+`reply(value)` primitive for rules; Robby didn't like it ("extra overhead for the ludant to
+manage"), and it was reverted. His idea instead: make batching transparent, the frame doing
+it on the client and the server applying moves one at a time, with no queue object in the
+game.
+Built:
+- **The frame (table.js `moved`/`sendMoves`):** a move goes at once if nothing is on its way
+  to that match. Otherwise it's held, and everything held goes together (up to 20) when the
+  answer comes. No timer: bursts batch, single moves don't change.
+- **The match:** `kind: 'moves'` applies each move on its own, in order, as if sent alone. A
+  refused one doesn't stop the rest; a move that ends the match refuses those after it; the
+  state-size check is per move. One entry keeps `outcomes` (1/0). If none applied, nothing
+  is kept and the answer is 422 with each move's outcome.
+- **Why each judged on its own is right here** when skip-and-report was wrong for plans: the
+  game made separate move() calls without awaiting, so one by one they'd have behaved exactly
+  so. A game that needs "only if the last worked" awaits.
+- **The World:** a batch is one step of the pace, but each move counts toward the day and the
+  site, so it isn't a way round them. Each move is still up to 4,000 characters.
+- check-match replays a batch move by move and checks the outcomes.
+- `table.queue` and move-queue.js are gone; its changelog line is replaced by this one, and
+  the pacing line kept.
+- Checked: smoke (a batch with a refusal in the middle, the limit of 20, an all-refused batch
+  is 422, check-match on it), and a real frame: 5 moves without awaiting went as move, then
+  moves:4; the refused one was refused alone, and the count ended at 4.
+Note: each batched move's answer carries the view after the whole batch.
+
+Robby asked whether moves travel over the websocket. They don't: a move is an HTTP POST through
+the World (pass, signature, pace, standings), then to the Match; the socket only carries
+pushes, shares and clock checks. A candidate for later: moves over the socket straight to the
+Match, which needs the World's checks moved or cached there. That's a real latency win for
+fast games.

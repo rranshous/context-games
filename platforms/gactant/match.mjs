@@ -8,7 +8,9 @@
 // Kept in the match's own store:
 //   match/it        { id, rulebook, name, source, seed, options, genesis, at, started, clock, updated, n, head,
 //                     members: { person: name }, state, result }
-//   actions/<n>     { n, kind, data, player, through, device, key, at, time, prev, signature, hash }   key: the signer's public key (JWK)
+//   actions/<n>     { n, kind, data, outcomes?, player, through, device, key, at, time, prev, signature, hash }   key: the signer's public key (JWK)
+//                   kind: join, move, or moves (data: a list of moves made together, each applied
+//                   on its own; outcomes: 1 applied, 0 refused, in order; a replay works them out again)
 //
 // Time: rules have no clock of their own, but every call gets { now, started }: the server's
 // time (milliseconds since 1970) when the action arrived, and when the match began. An
@@ -121,28 +123,45 @@ export function createMatch({ store, rules }) {
         const { kind, data, n, prev, signature, device, key, player, through } = body;
         if (n !== m.n || prev !== m.head) throw answer(409, 'the match moved on: act on its latest', { n: m.n, head: m.head });
         if (m.n >= MAX_ACTIONS) throw answer(413, `this match is as long as a match gets (${MAX_ACTIONS} actions)`);
-        if (m.result && kind === 'move') throw answer(422, 'the match is over', { refused: 'the match is over' });
         const time = { now: Math.max(Date.now(), m.clock ?? 0), started: m.started ?? null };
-        let out;
-        try { out = rules.call(m.source, kind, [m.state, player, data, time]); } catch (err) {
-          const s = said(err);
-          throw answer(422, s.broken ? `the rules broke: ${s.error}` : s.error, { refused: s.error, broken: s.broken, steps: s.steps });
+        // Moves made together (a game making several while one was on its way: tables.mjs)
+        // are applied one at a time, in order, each judged on its own, as if sent alone: a
+        // refused one is refused, and the rest carry on. One entry keeps them all.
+        const batch = kind === 'moves';
+        const steps = batch ? data : [data];
+        let state = m.state, result = m.result, used = 0;
+        const outcomes = [];
+        for (const one of steps) {
+          if (result && kind !== 'join') { outcomes.push({ refused: 'the match is over' }); continue; }
+          try {
+            const out = rules.call(m.source, batch ? 'move' : kind, [state, player, one, time]);
+            used += out.steps;
+            if (size(out.value) > MAX_STATE) { outcomes.push({ refused: `the rules made a state too big to keep (over ${MAX_STATE} characters)`, broken: true }); continue; }
+            state = out.value;
+            try { const r = rules.call(m.source, 'result', [state, time]); result = r.value ?? null; used += r.steps; } catch (err) { used += said(err).steps; }
+            outcomes.push({ ok: true });
+          } catch (err) {
+            const s = said(err);
+            used += s.steps ?? 0;
+            outcomes.push({ refused: s.broken ? `the rules broke: ${s.error}` : s.error, ...(s.broken ? { broken: true } : {}) });
+          }
         }
-        let steps = out.steps;
-        if (size(out.value) > MAX_STATE) throw answer(413, `the rules made a state too big to keep (over ${MAX_STATE} characters)`, { steps });
-        let result = null;
-        try { const r = rules.call(m.source, 'result', [out.value, time]); result = r.value ?? null; steps += r.steps; } catch (err) { steps += said(err).steps; }
+        // Nothing applied: nothing is kept, and the answer says why (each, for a batch).
+        if (!outcomes.some((o) => o.ok)) {
+          const first = outcomes[0];
+          throw answer(first.broken && !batch && /too big/.test(first.refused) ? 413 : 422, first.refused, { refused: first.refused, broken: first.broken, steps: used, ...(batch ? { outcomes } : {}) });
+        }
         const text = signedText({ match: m.id, n, prev, person: player.id, device, kind, data });
         const at = new Date(time.now).toISOString();
-        const entry = { n, kind, data, player, through, device, key: key ?? null, at, time: time.now, prev, signature: signature ?? null, hash: await entryHash(text, signature, time.now) };
+        const entry = { n, kind, data, ...(batch ? { outcomes: outcomes.map((o) => (o.ok ? 1 : 0)) } : {}), player, through, device, key: key ?? null, at, time: time.now, prev, signature: signature ?? null, hash: await entryHash(text, signature, time.now) };
         await store.put('actions', pad(n), entry);
-        Object.assign(m, { n: n + 1, head: entry.hash, state: out.value, result, updated: at, clock: time.now });
+        Object.assign(m, { n: n + 1, head: entry.hash, state, result, updated: at, clock: time.now });
         m.members[player.id] = player.name;
         await store.put('match', 'it', m);
         wake();
         const v = viewOf(m, player);
         const sum = summary(m);
-        return { ...sum, view: v.view, ...(v.error ? { viewError: v.error } : {}), steps: steps + v.steps };
+        return { ...sum, view: v.view, ...(v.error ? { viewError: v.error } : {}), ...(batch ? { outcomes } : {}), steps: used + v.steps };
       });
     },
 

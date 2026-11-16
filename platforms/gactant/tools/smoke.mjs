@@ -14,7 +14,6 @@ import { readFileSync } from 'node:fs';
 import { entryHash, genesisText, signedText } from '../match.mjs';
 import { recoveryProof } from '../public/js/recovery.js';
 import { markText } from '../public/js/marks.js';
-import { moveQueue } from '../public/js/move-queue.js';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 // --base <url>: against a server that's already running (`wrangler dev`, say, with ADMIN_TOKEN
@@ -279,18 +278,6 @@ try {
   ok('a draft changes', (await call('PUT', `drafts/${draft.json.id}`, { source: ttt }, as(pass))).json.missing?.length === 0);
   const tried = await call('POST', `drafts/${draft.json.id}/try`, { steps: [{ do: 'join', as: 'a' }, { do: 'join', as: 'b' }, { do: 'move', as: 'b', data: { cell: 0 } }, { do: 'move', as: 'a', data: { cell: 4 } }] }, as(pass));
   ok('a practice run: joins, a refusal, a move', tried.json.steps?.map((x) => x.ok).join() === 'true,true,false,true' && tried.json.steps[2].error === 'it\'s X\'s turn', JSON.stringify(tried.json).slice(0, 300));
-  // The queue (in the game): gathered moves go as one { batch }, in order, one at a time; a
-  // keyed action replaces the one waiting; a refusal reaches every action in its batch.
-  {
-    const sent = [];
-    const q = moveQueue(async (data) => { sent.push(data.batch); if (data.batch.includes('bad')) throw new Error('no'); return { n: sent.length }; }, { every: 30, max: 3, key: (a) => (a?.goto ? 'goto' : null) });
-    const a1 = q.add({ goto: [1, 1] }), a2 = q.add({ goto: [2, 2] }), a3 = q.add('step');
-    const [r1, r2, r3] = await Promise.all([a1, a2, a3]);
-    const b = q.add('bad'); const bErr = await b.catch((e) => e.message);
-    const c = q.add('x'), d = q.add('y'), e = q.add('z'), f = q.add('w');
-    await Promise.all([c, d, e, f]);
-    ok('the queue sends gathered moves as one batch, the latest of a key, in order', r1.replaced && r2.n === 1 && r3.n === 1 && JSON.stringify(sent[0]) === JSON.stringify([{ goto: [2, 2] }, 'step']) && bErr === 'no' && sent.slice(2).map((x) => x.join('')).join('|') === 'xyz|w', JSON.stringify(sent));
-  }
   // Time: every call gets { now, started }; a practice run's clock moves only by wait.
   const timed = (await call('POST', 'drafts', { name: 'cooldown', source: `function init(seed, o, t) { return { started: t.started, last: t.now }; }
 function join(s, p, r, t) { return { ...s, last: t.now }; }
@@ -409,6 +396,30 @@ function result(s, t) { return null; }` }, as(pass))).json;
     p.on('close', (code) => resolve({ code, out }));
   });
   ok('check-match replays it from outside: chain, signatures and result, at each action\'s time', checked.code === 0 && /checks out: the chain, every signature, and the replay/.test(checked.out), checked.out.slice(-400));
+  // Moves made together: one entry, each applied on its own, in order; a refused one doesn't
+  // stop the rest; the replay agrees.
+  {
+    const cd = (await call('POST', 'drafts', { name: 'counter', source: `function init() { return { count: 0 }; }
+function join(s) { return s; }
+function move(s, p, a) { if (a && a.bad) throw new Error('not that one'); return { count: s.count + 1 }; }
+function view(s) { return s; }
+function result(s) { return s.count >= 2 ? { winners: [] } : null; }` }, as(pass))).json;
+    const crb = (await call('POST', `drafts/${cd.id}/lock`, {}, as(pass))).json.rulebook;
+    const cm = (await call('POST', 'matches', { rulebook: crb }, as(pass))).json;
+    const send = async (kind, data, cn, chead) => call('POST', `matches/${cm.id}/act`, { kind, data, n: cn, prev: chead, signature: await A.sign(signedText({ match: cm.id, n: cn, prev: chead, person: A.person, device: A.id, kind, data })) }, as(pass));
+    const j = (await send('join', null, 0, cm.head)).json;
+    const together = await send('moves', [{}, { bad: true }, {}], j.n, j.head);
+    ok('moves sent together: each applied on its own, a refused one doesn\'t stop the rest', together.status === 200 && together.json.outcomes?.map((o) => (o.ok ? 'ok' : o.refused)).join() === 'ok,not that one,ok' && together.json.view?.count === 2 && together.json.result, JSON.stringify(together.json).slice(0, 300));
+    const allBad = await send('moves', [{ bad: true }], together.json.n, together.json.head);
+    ok('and too many together is refused', (await send('moves', Array.from({ length: 21 }, () => ({})), together.json.n, together.json.head)).status === 400 && allBad.status === 422);
+    const replay = await new Promise((resolve) => {
+      const p = spawn(process.execPath, [join(HERE, 'tools/check-match.mjs'), cm.id, base], { stdio: ['ignore', 'pipe', 'pipe'] });
+      let out = ''; p.stdout.on('data', (d) => { out += d; }); p.stderr.on('data', (d) => { out += d; });
+      p.on('close', (code) => resolve({ code, out }));
+    });
+    ok('check-match replays moves made together, refusal and all', replay.code === 0, replay.out.slice(-400));
+    await call('POST', `drafts/${cd.id}/remove`, {}, as(pass));
+  }
   ok('an archived match takes no actions', (await act(stranger, S, 'move', { cell: 8 })).status === 410);
   // A one-player game with a high-score table: a match per run, and the best kept in standings.
   const solo = 'function init() { return { points: 0, done: false, who: null } }\nfunction join(s, p) { if (s.who) throw new Error(\'one player\'); s.who = p.id; return s }\nfunction move(s, p, a) { s.points = a.points; s.done = true; return s }\nfunction view(s) { return s }\nfunction result(s) { return s.done ? { scores: { [s.who]: s.points } } : null }';

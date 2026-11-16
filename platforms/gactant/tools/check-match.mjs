@@ -48,7 +48,15 @@ for (const e of log) {
     const key = await crypto.subtle.importKey('jwk', e.key, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(e.signature, 'base64url'), new TextEncoder().encode(text))) fail(`action ${e.n}: the signature isn't ${e.player.name}'s device's`);
   }
-  if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data, at(e.time)]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
+  if (over && e.kind === 'moves') {
+    // Moves made together: each applied on its own, and refused or not as it was then.
+    let ended = false;   // a move that ends the match refuses the rest
+    e.data.forEach((one, i) => {
+      let applied = 0;
+      if (!ended) try { const v = rules.call(rb.source, 'move', [state, e.player, one, at(e.time)]).value; if (JSON.stringify(v).length <= 200_000) { state = v; applied = 1; ended = (rules.call(rb.source, 'result', [state, at(e.time)]).value ?? null) !== null; } } catch {}
+      if (applied !== (e.outcomes?.[i] ?? 1)) fail(`action ${e.n}, move ${i + 1} of ${e.data.length}: on replay it was ${applied ? 'applied' : 'refused'}, but the match says the opposite`);
+    });
+  } else if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data, at(e.time)]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
   console.log(`  ${String(e.n).padStart(3)} ${e.player.name}${e.through ? ` (through ${e.through.name})` : ''} ${e.kind} ${JSON.stringify(e.data)}`);
   prev = e.hash;
 }

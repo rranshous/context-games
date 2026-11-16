@@ -16,7 +16,6 @@
 // as local copies so game code can read them every frame: the store (writes go to the
 // frame too) and the chat's recent messages.
 
-import { moveQueue } from './move-queue.js';
 import { Actant } from './actant.js';
 import { Bridge } from './bridge.js';
 import { Bus } from './bus.js';
@@ -148,19 +147,7 @@ async function boot() {
       out[id] = Object.fromEntries(names.map((a) => [a, (...args) => frame.call('act', id, a, args)]));
     }
     if (out.chat) out.chat.read = (n = 20) => chat.slice(-n).map((m) => ({ ...m }));
-    if (out.table) {
-      out.table.serverNow = serverNow;
-      // Queued moves (move-queue.js): one queue per match, and a plain move waits for what's
-      // queued on its match to go first, so moves arrive in the order the game made them.
-      const queues = new Map(), move = out.table.move;
-      out.table.queue = (match, options) => {
-        queues.get(match)?.stop();
-        const q = moveQueue((data) => move(match, data), options);
-        queues.set(match, q);
-        return q;
-      };
-      out.table.move = async (match, action) => { await queues.get(match)?.flush(); return move(match, action); };
-    }
+    if (out.table) out.table.serverNow = serverNow;
     if (out.store) {
       const local = store.actions('');
       out.store = {

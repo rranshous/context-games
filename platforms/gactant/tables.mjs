@@ -48,7 +48,7 @@
 //   GET  matches/<id>/log?from=0         -> { id, rulebook, seed?, salt?, options, genesis, n, head, result, log, keys, more }
 //                                           seed and salt only once it's over (they decide what's dealt)
 //                                           keys: each signing device's public key (JWK), by device id
-//   POST matches/<id>/act { kind: join|move, data, n, prev, signature?, ludant? }
+//   POST matches/<id>/act { kind: join|move|moves, data, n, prev, signature?, ludant? }   moves: data is a list of up to 20 moves made together, applied one at a time (the answer's outcomes say which)
 //                                        -> { n, head, view, result, budget }   409 if n or prev aren't the latest;
 //                                           422 { refused } if the rules said no; 429 past a budget
 //   GET  tables/budget                   -> yours today: what's used and what's allowed
@@ -63,6 +63,7 @@ import { limits as matchLimits, signedText } from './match.mjs';
 
 const MAX_SOURCE = 60_000;          // characters in a rulebook
 const MAX_ACTION = 4_000;           // characters of JSON in one action, and in a match's options
+const MAX_TOGETHER = 20;           // moves sent together (a frame batches what's made while one is on its way)
 const MAX_DRAFTS = 50;              // drafts one person keeps
 // What one person may do in a day, and at once. Counted in memory: a restart forgives.
 const LOCKS_A_DAY = 30;
@@ -168,13 +169,17 @@ export function createTables({ store, people, httpError, owns, settings }) {
     const idx = await read('match-index', id);
     if (idx.archived) throw httpError(410, 'this match is over and archived; its log is still there to read', { archived: true });
     const kind = body.kind;
-    if (kind !== 'join' && kind !== 'move') throw httpError(400, 'an action is a join or a move');
+    if (kind !== 'join' && kind !== 'move' && kind !== 'moves') throw httpError(400, 'an action is a join or a move (or moves: several made together)');
     const n = Number(body.n), prev = String(body.prev ?? '');
     const data = body.data ?? null;
-    if (JSON.stringify(data).length > MAX_ACTION) throw httpError(413, `an action is up to ${MAX_ACTION} characters of JSON`);
+    // Moves made together are one request, one entry and one step of the pace, but each
+    // counts toward the day's actions, so sending them together isn't a way around them.
+    const count = kind === 'moves' ? (Array.isArray(data) ? data.length : 0) : 1;
+    if (kind === 'moves' && (count < 1 || count > MAX_TOGETHER)) throw httpError(400, `moves made together are a list of 1 to ${MAX_TOGETHER}`);
+    for (const one of kind === 'moves' ? data : [data]) if (JSON.stringify(one ?? null).length > MAX_ACTION) throw httpError(413, `an action is up to ${MAX_ACTION} characters of JSON`);
     const person = from.person;
-    within('actions', person, ACTIONS_A_DAY, `that's the ${ACTIONS_A_DAY} actions you may take in a day; more tomorrow`);
-    within('actions', 'world', WORLD_ACTIONS_A_DAY, 'tables are resting for today: the whole site has played as much as it can; tomorrow');
+    within('actions', person, ACTIONS_A_DAY - count + 1, `that's the ${ACTIONS_A_DAY} actions you may take in a day; more tomorrow`);
+    within('actions', 'world', WORLD_ACTIONS_A_DAY - count + 1, 'tables are resting for today: the whole site has played as much as it can; tomorrow');
     enoughSteps(person);
     if (kind === 'join' && idx.members?.[person] === undefined && await openAtOnce(person) >= OPEN_AT_ONCE) {
       throw httpError(429, `you're in ${OPEN_AT_ONCE} matches that aren't over and were played in within the last hour; finish one, or come back to a new one in a while`, { budget: budget(person) });
@@ -201,16 +206,16 @@ export function createTables({ store, people, httpError, owns, settings }) {
       out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, key: key ? await people.publicKey(person, from.device) : null, player: { id: person, name: from.name }, through }));
     } catch (err) {
       if (err.extra?.steps) steps(person, err.extra.steps);
-      if (err.code === 422) { add('actions', person); add('actions', 'world'); } else giveBack();
+      if (err.code === 422) { add('actions', person, count); add('actions', 'world', count); } else giveBack();
       throw err;
     }
     steps(person, out.steps);
-    add('actions', person); add('actions', 'world');
-    settings.count?.('table actions');
+    add('actions', person, count); add('actions', 'world', count);
+    settings.count?.('table actions', count);
     const before = await read('match-index', id);
     if (!before.result && out.result) await ended(before.rulebook, out.result, out.members, id);
     await store.put('match-index', id, indexed(before, out));
-    return { n: out.n, head: out.head, view: out.view, result: out.result, now: out.now, ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
+    return { n: out.n, head: out.head, view: out.view, result: out.result, now: out.now, ...(out.outcomes ? { outcomes: out.outcomes } : {}), ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
   }
 
   // ---------- standings: per rulebook, from every match of it that ended ----------
