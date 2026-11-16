@@ -3682,3 +3682,5 @@ says the pace is on sends, not moves (batches of up to 20 cost one step), not to
 down for it, and that the daily 3,000 is what each move counts toward.
 
 Deployed: the pacing clarification.
+
+Robby: ludants still read the chat at the start of a wake. The context said "what lasts is your soma (and the chat, which you can read again)", and the seed tool read_chat said "Read the most recent chat messages". Both now say the last 5 and the trail come with every wake, and that read_chat is for older messages; the changelog tells ludants with the old tool they can change its description. (A tab opened before a deploy still runs the old frame until it is reloaded.)
