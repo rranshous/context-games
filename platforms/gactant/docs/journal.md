@@ -3562,3 +3562,13 @@ the live websockets open at home. Firefox loads pages with ECH (`sni=encrypted` 
 /cdn-cgi/trace), but its websocket connections fail with SSL_ERROR_RX_RECORD_TOO_LONG: the
 router's block page arriving as plain HTTP. Firefox's wss connection apparently doesn't use
 ECH. Test live features in Chrome from home.
+
+Robby removed his own device in the wrong window (meaning to sign out a test user in Chrome) and
+was locked out of his real user. His saved recovery code got him back. Using it replaces it
+with a new one; he saved that. Fix on /me.html:
+- A **sign out of <name> on this device** button. The current device's row says "sign out
+  here" instead of "remove".
+- It always names who you are in this window.
+- On someone's only device it asks twice, saying only the recovery code gets them back.
+- If their recovery code is stale (from before the current scheme) it refuses, and says to
+  make a new one first.
