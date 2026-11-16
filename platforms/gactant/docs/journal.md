@@ -3574,3 +3574,9 @@ with a new one; he saved that. Fix on /me.html:
   make a new one first.
 
 Deployed: sign out on this device.
+
+Spectrum accepted Robby's report and took gactant.com off its blocked list (2026-11-16).
+Checked from lilg: plain curl now gets the Worker's own 301 for http, and
+`/cdn-cgi/trace` answers over https with `sni=plaintext`, so the name is visible and no
+longer cut. Firefox's live sockets should work from home now, and curl and the admin tools
+can use gactant.com directly again.
