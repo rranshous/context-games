@@ -3650,3 +3650,5 @@ Deployed: the view surface, no identity section in new seeds, the share spinner 
 Robby: with nothing changed since the last update, "send update" looked clickable and did
 nothing. It was disabled, but there was no disabled style anywhere. Now disabled buttons are
 dimmed with a not-allowed cursor, and this one reads "no changes to send".
+
+Deployed: disabled buttons look disabled; "no changes to send".
