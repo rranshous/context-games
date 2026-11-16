@@ -3624,3 +3624,11 @@ new shows in the doings. He wonders whether something broke, or whether moving f
 did it. Worth finding out: what happens to an inference call when the tab is in the
 background, and whether the frame can show how long it has waited on the model (and on
 what), so a stall is visible instead of looking like thinking.
+
+Robby: ludants never change their identity section. Either drop it, or make it something we
+don't expect to be updated. Worth knowing: it's seeded as "I'm new. I don't know yet what game
+I am, so I have no title yet...", so a ludant that never touches it carries a stale "I'm new"
+at every wake, long after it has become a game. That's worse than having no section at all.
+Options: drop it (origin already says what a ludant is, and title and game say what it became),
+or turn it into something fixed by nature, such as the seed's words, kept as written, the way
+origin is.
