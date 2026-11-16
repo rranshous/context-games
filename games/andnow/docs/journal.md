@@ -2627,3 +2627,32 @@ Some good-for/bad-for pairs sit near |z| = 3 and flicker in and out of the list.
 - **A second hunter.** s3's `CMx]m` is a deep Climber sprinter whose `D` became `]`. Its IP turns south onto the `B` below, and the empty-stack bite finds the relict Divers' `C4SDTMD` grazers: 13 bites and 4 kills. It's the same mutation as s4's `CmM]` hunter, and both hunted the other lineage's relict. Written up in the survey.
 - **Lookers and sprinters.** Sprinters touching s4's lookers did 0.44 worse, at z −3.0, which is just at the bar. Noted in the looker section as one to watch.
 - The rest was known: kin-biting mutants, vandals, husks.
+
+## Discovery round 3, and scans in half the memory (2026-11-16)
+
+**The s2 scan was OOM-killed** at tick ~190 of 200, at 7:35am. Nothing else died. The bakes, s2's included, run on. It had been the riskiest part of a round: 13.7 GB at its peak, next to bakes that take 2–8 GB each. Robby asked if there was a lower-memory way, and there were two:
+- **Loading:** a load held the checkpoint about three times over: `gunzipSync`'s chunks, the buffer it joins them into, and a `slice` copy of every array in the world (s2's checkpoint is 3.8 GB unzipped).
+  - `readSave` (`src/readsave.ts`) inflates straight into one buffer the size the gzip trailer gives.
+  - `loadWorld(bytes, true)` makes the world's arrays views onto that buffer, not copies. Only the tools that replay a while and exit use it (ecology, diet). A bake still copies: once the board grows, a view would keep the old arrays pinned in the buffer for good.
+  - s1's scan peak went from 4.3 GB to 2.8 GB, and its report came out byte for byte the same.
+- **Heap cap:** the rest was garbage. The scan's live heap at the end is about 2.7 GB, but with a 14 GB cap V8 let it climb past 5 GB before it collected. `ecology.sh` now caps the heap at 6 GB.
+- **Together:** s2's scan peaked at 8.5 GB instead of 13.7, and took 23 minutes instead of 29.
+- Scans now log heap, buffers and RSS with each progress line.
+
+**Round 3** read s1 6.68M, s3 7.478M, s4 1.863M, and s2 1.914M (rescanned in the evening).
+- **T-crawlers (s2).** `Cx:TMMD` is the crawler with a `T` for its `m`, so it walks at random, not steered by how full it is. It's 5% of s2 and lives on step 3, one step above the crawlers. It's been there since at least 1.0M (the README's "T shapes"), but the survey never had it. It was flagged now because s2's reports had no species counts until this one. Written up in the survey.
+- **Giants with new rows:**
+  - s4's biggest, `mvD` (a forager whose `M` became `v`: its IP turns down to `C G` and it grows a thread, 1,132 cells by 1.874M);
+  - s1's `^DmM`;
+  - s3's `:G`.
+  
+  All are the known giant route: a turn into a column with a `G`.
+- **Noise:** the rest of the good-for/bad-for pairs were a row next to a piece bitten off it (`CLMD` and `LMD`, `C4SDTM` and `C4SDT`, `CMxDm` and `MxDm`), and `CmM$`, a sterile `D → $` mutant.
+- **Unchecked in s2:**
+  - looker rows without their `M` (`CLD` 4.0k, `LD` 2.8k, `L` 2.1k);
+  - a few kills between sprinters (`C[DM`, `C^DM` on `CLDM`);
+  - `CLWM` writing turn arrows into its kin.
+
+  These are for next round, once a second s2 report shows whether they're steady.
+
+**Detector fix.** Novelty skips a good-for/bad-for pair when one row is part of the other: that's a bitten piece, not a relationship.

@@ -146,6 +146,24 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 ![](img/survey/scene-s2-close.png)
 
+#### T-crawlers (s2)
+
+*Found 2026-11-16.*
+
+![](img/survey/tcrawler-s2.png)
+
+**Program `C : : T M M D`:** the crawler's row with a `T` where the crawler has its `m`. Where the crawler steers by how full it is, the T-crawler walks at random: `T` pushes a random direction and both `M`s take it. The mast hangs from the `T`, not from the `C`, which is why the README calls them T shapes. The second glyph varies (`Cm:TMMD`, `C::TMMD`, `Co:TMMD`), much as it does in the crawlers.
+
+**Where they live:** one step above the crawlers. 98% of the T-crawlers are on step 3, against 95% of the crawlers on step 2. With insulation 3 and a heavier mast, they're slower (pace 1.8 against the crawler's 3.4), and die younger (median age 180 against 390).
+
+**How common:** 11,800 bodies (5% of s2) at 1.9M and again at 1.91M, against 16,200 crawlers. They've been around since at least 1.0M, but in small numbers then.
+
+![](img/survey/scene-s2-tcrawlers.png)
+
+T-crawlers at step 3, where they're densest, with lookers' masts among them.
+
+[A T-crawler in the viewer (1.9M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=1900000&pick=1752281385)
+
 ### Lookers in s4
 
 *Found 2026-11-15.*
@@ -264,6 +282,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-14 | s2, s3, s4 | Husks do better beside the living (unexplained) | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-15 | s4 | Lookers: s4's Divers evolved `CLMD`, which now leads the climb onto step 6 | [Lookers in s4](#lookers-in-s4) |
 | 2026-11-15 | s3 | A second hunter, made by the same `D` → `]` mutation as s4's: it hunts the relict Divers | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-16 | s2 | T-crawlers: the crawler with `T` for `m`, walking at random, one step higher (5% of s2) | [T-crawlers](#t-crawlers-s2) |
 
 ## How they interact
 

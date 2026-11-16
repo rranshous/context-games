@@ -121,6 +121,9 @@ for (const f of files) {
   const strength = (e: Report['eco'][0]) => Math.max(Math.abs(e.onA?.z ?? 0), Math.abs(e.onB?.z ?? 0));
   for (const e of r.eco) {
     if (/neutral|same row: 0|same row: \?|too rare/.test(e.kind) || strength(e) < 3) continue;
+    // A row that's part of the other (CLMD and LMD, C4SDTM and C4SDT) is a piece bitten off it,
+    // and does worse beside the whole ones: damage, not a relationship.
+    if (e.a !== e.b && (e.a.includes(e.b) || e.b.includes(e.a))) continue;
     const pair = e.a === e.b ? e.a : `${e.a} / ${e.b}`;
     const d = (x?: { d: number; z: number }) => (x ? `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)})` : '?');
     note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, A on B ${d(e.onB)}${e.a === e.b ? '' : `, B on A ${d(e.onA)}`}`);

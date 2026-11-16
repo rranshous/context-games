@@ -13,7 +13,8 @@
 import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { createGzip, gunzipSync } from 'node:zlib';
+import { createGzip } from 'node:zlib';
+import { readSave } from './readsave';
 import { bakingPid, dropFiles, holdBaking, toThin } from './bake-thin';
 import { applyDish, genomeOf } from './sim/dish';
 import { loadWorld, saveChunks } from './sim/save';
@@ -58,7 +59,7 @@ if (resume && existsSync(`${out}/index.json`)) {
     const m = index.marks[index.marks.length - 1];
     if (!m) throw new Error(`${out} has no checkpoint that reads`);
     if (!m.file) { index.marks.pop(); continue; } // (thinned: its file is gone, not broken)
-    try { world = loadWorld(gunzipSync(readFileSync(`${out}/${m.file}`))); break; }
+    try { world = loadWorld(await readSave(`${out}/${m.file}`)); break; }
     catch (e) { console.log(`skipping ${m.file}: ${(e as Error).message}`); index.marks.pop(); }
   }
   console.log(`resuming at tick ${world.t}`);

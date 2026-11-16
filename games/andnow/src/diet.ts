@@ -8,7 +8,7 @@
 // meat eaters' average and biggest size, and the dead cells lying about (rich: a kill's).
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { gunzipSync } from 'node:zlib';
+import { readSave } from './readsave';
 import { loadWorld } from './sim/save';
 import { DEBRIS } from './sim/world';
 
@@ -24,7 +24,7 @@ for (const dir of args) {
   console.log(`${pad('tick', 8)} ${pad('alive', 6)} ${pad('plants', 7)} ${pad('meat', 6)} ${pad('both', 6)} ${pad('none', 5)}  ${pad('meat %', 6)} ${pad('meat avg', 8)} ${pad('meat max', 8)}  ${pad('dead cells', 10)} ${pad('rich', 6)}`);
   for (const m of index.marks) {
     if (m.t % every || m.t > to || !m.file) continue; // (thinned marks have no file)
-    const w = loadWorld(gunzipSync(readFileSync(`${dir}/${m.file}`)));
+    const w = loadWorld(await readSave(`${dir}/${m.file}`), true);
     let plants = 0, meat = 0, both = 0, none = 0, mCells = 0, mMax = 0;
     for (const b of w.living()) {
       const tr = b.traits;

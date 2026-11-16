@@ -13,10 +13,10 @@
 // by its code row (frame row 0) and the rest of its working cells, sorted: `CLDM+BCIMx`.
 // "Touching" is 4-neighbour contact; a parent and its own child don't count as touching (a
 // body that just divided has its child beside it, and half its food gone with it).
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { gunzipSync } from 'node:zlib';
 import { glyphOf } from './sim/glyphs';
+import { readSave } from './readsave';
 import { loadWorld, readHeader } from './sim/save';
 import { CODE, CONFIG, DEBRIS, NONE, Warrior } from './sim/world';
 
@@ -28,16 +28,17 @@ const src = args[0];
 if (!src) { console.log('usage: node dist/ecology.mjs <checkpoint.andnow.gz> [--ticks 200] [--top 40] [--every 5] [--out report.json]'); process.exit(1); }
 
 const t0clock = Date.now();
-const bytes = gunzipSync(readFileSync(src));
+const bytes = await readSave(src);
 const query = readHeader(bytes).query;
 // (The world's private parts are watched by wrapping its methods on the instance: calls
 // inside it go through `this.x`, so they find the wrappers.)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const w = loadWorld(bytes) as any;
+const w = loadWorld(bytes, true) as any;
 const W: number = w.w, FAT = CODE['.'], K = CODE['K'];
 const T0: number = w.t;
 const link = (id: number) => `http://lilg:8765/?${query}&bake=${dirname(src)}&t=${T0}&pick=${id}`;
-const log = (s: string) => console.error(`[${((Date.now() - t0clock) / 1000).toFixed(0)}s] ${s}`);
+const mem = () => { const m = process.memoryUsage(), g = (n: number) => (n / 2 ** 30).toFixed(1); return `heap ${g(m.heapUsed)} buffers ${g(m.arrayBuffers)} rss ${g(m.rss)} GB`; };
+const log = (s: string) => console.error(`[${((Date.now() - t0clock) / 1000).toFixed(0)}s ${mem()}] ${s}`);
 log(`loaded ${src}: t${T0}, ${w.living().length} alive`);
 
 // ---------- body plans ----------

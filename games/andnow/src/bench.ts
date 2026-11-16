@@ -4,14 +4,13 @@
 // Prints ms/tick every 50 ticks (wall clock, and CPU time at the end), then the hash of the whole saved world at the end (same
 // checkpoint and ticks → same hash, or the change altered the run).
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { gunzipSync } from 'node:zlib';
+import { readSave } from './readsave';
 import { loadWorld, saveWorld } from './sim/save';
 
 const [file, ticksArg] = process.argv.slice(2);
 if (!file) { console.log('usage: node dist/bench.mjs <checkpoint.andnow.gz> [ticks]'); process.exit(1); }
 const ticks = Number(ticksArg ?? 200);
-const world = loadWorld(gunzipSync(readFileSync(file)));
+const world = loadWorld(await readSave(file));
 const t0 = world.t;
 console.log(`bench: tick ${t0}, ${world.living().length} alive, ${ticks} ticks`);
 let start = performance.now(), lap = start;

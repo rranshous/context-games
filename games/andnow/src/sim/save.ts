@@ -116,8 +116,11 @@ function layout(bytes: Uint8Array): { header: SaveHeader; tableAt: number; blobA
 /** Just the header (query, tick, config) without rebuilding the world. */
 export function readHeader(bytes: Uint8Array): SaveHeader { return layout(bytes).header; }
 
-/** Rebuild a saved world. Sets CONFIG to the saved one, as the world depends on it. */
-export function loadWorld(bytes: Uint8Array): World {
+/** Rebuild a saved world. Sets CONFIG to the saved one, as the world depends on it. With
+ *  `share`, its arrays are views onto `bytes` rather than copies: half the memory, for a tool
+ *  that replays a while and exits (a bake copies, or a grown board would leave the old
+ *  arrays pinned in `bytes` for good). */
+export function loadWorld(bytes: Uint8Array, share = false): World {
   const { header, tableAt, blobAt: start } = layout(bytes);
   if (![1, 2, 3].includes(header.version)) throw new Error(`unknown save version ${header.version}`);
   const table = (header.table ?? readTable(bytes.subarray(tableAt, tableAt + header.tableBytes!))) as Record<string, Enc>[];
@@ -129,6 +132,7 @@ export function loadWorld(bytes: Uint8Array): World {
     if ('$ta' in e) {
       const C = TYPED[e.$ta as TypedName];
       const at = bytes.byteOffset + start + (e.off as number);
+      if (share && at % C.BYTES_PER_ELEMENT === 0) return new C(bytes.buffer as ArrayBuffer, at, e.len as number);
       return new C(bytes.buffer.slice(at, at + (e.len as number) * C.BYTES_PER_ELEMENT) as ArrayBuffer);
     }
     if ('$a' in e) return [];
