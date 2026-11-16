@@ -3680,3 +3680,5 @@ Deployed: the wake trail and the last 5 chat messages.
 Robby: a ludant cited the 2-a-second limit as if it capped moves. The table description now
 says the pace is on sends, not moves (batches of up to 20 cost one step), not to slow a game
 down for it, and that the daily 3,000 is what each move counts toward.
+
+Deployed: the pacing clarification.
