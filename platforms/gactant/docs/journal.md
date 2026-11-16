@@ -3632,3 +3632,9 @@ at every wake, long after it has become a game. That's worse than having no sect
 Options: drop it (origin already says what a ludant is, and title and game say what it became),
 or turn it into something fixed by nature, such as the seed's words, kept as written, the way
 origin is.
+
+Dropped the identity section from the seed (Robby: "lets go ahead and drop it"). Ludants that
+have one keep it: it's part of their soma, and the changelog tells them they can empty it.
+Moderation (check.mjs) read identity as "About itself"; it now reads every section a ludant
+added itself (anything but origin, title, memory, game, hooks, tools), so an old identity is
+still checked, and so is any section a ludant writes. Smoke passes.

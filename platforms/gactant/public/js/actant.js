@@ -10,7 +10,7 @@
 //   tools   what it can do while awake: [{ name, description, input_schema, run(input, me, surfaces) }]
 //   game    a factory (stage, me) => { frame(dt), key(e), pointer(e) }: the facet people play
 //   hooks   (on, me, surfaces) => void: listens to surface events, runs the game, decides what wakes it
-// Everything else is text it carries (origin, identity, memory, whatever it adds).
+// Everything else is text it carries (origin, memory, whatever it adds).
 //
 // Six tools are innate and not in the soma: write_section and edit_section, and
 // read_section and search_sections for what the view of it leaves out. However the actant

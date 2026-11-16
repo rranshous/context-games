@@ -20,6 +20,8 @@ const CATEGORIES = { S3: 'sex crimes', S4: 'child sexual exploitation', S7: 'pri
 const LOOK = `You check pictures from a public site of small browser games that anyone, children included, may play. Answer with JSON only: {"ok": true} if this picture is fine there, or {"ok": false, "why": "<a few words>"} if it shows any of: sexual content or nudity, anything sexual involving a minor, graphic gore, hate symbols or slurs, or a real person's private information. Cartoon violence, monsters, weapons and spooky things are fine.`;
 
 /** The words a publication shows: its names and notes, and the strings in its code. */
+const SEEDED = new Set(['origin', 'title', 'memory', 'game', 'hooks', 'tools']);
+
 export function publicText({ name, title, note, soma }) {
   const sections = soma?.sections ?? {};
   const strings = new Set();
@@ -29,7 +31,9 @@ export function publicText({ name, title, note, soma }) {
       if (s.length >= 3 && /[a-z]{2}/i.test(s) && !/^[\w.-]+$/.test(s)) strings.add(s.slice(0, 300));
     }
   }
-  return [`Name: ${name}`, `Title: ${title}`, note && `Note: ${note}`, sections.identity && `About itself: ${sections.identity}`,
+  // Sections it added itself are its own words too (the seed's are code, or written by gactant).
+  const own = Object.entries(sections).filter(([k, v]) => !SEEDED.has(k) && typeof v === 'string' && v.trim()).map(([k, v]) => `${k}: ${v}`);
+  return [`Name: ${name}`, `Title: ${title}`, note && `Note: ${note}`, own.length && `Its own sections:\n${own.join('\n')}`,
     strings.size && `Text in its game:\n${[...strings].join('\n')}`].filter(Boolean).join('\n\n').slice(0, MAX_TEXT);
 }
 

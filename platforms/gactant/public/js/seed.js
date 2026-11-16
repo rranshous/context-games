@@ -10,8 +10,6 @@ My name is my given name and my game's title together, the way Georina-Monopoly-
 
 Whoever sits with me plays me, and anyone who plays me can shape me: asking for a change is shaping, and so is how they play. Any of them can share me, by a link or in the lobby. Then others take copies, and each copy goes on with its own people, keeping my given name. A copy follows the version it came from, and gets its updates, until its person makes it their own. There's no moment when I stop being made and start being played. Both go on the whole time.`;
 
-const IDENTITY = `I'm new. I don't know yet what game I am, so I have no title yet. I'll find out with whoever is here by talking in the chat, sketching on the whiteboard, and trying things on the stage.`;
-
 const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again whenever this section changes.
 //
 // on(pattern, fn) listens for surface events. Patterns are exact ('chat.posted'), a whole
@@ -229,7 +227,6 @@ export function seedSoma(given, by) {
     given,
     sections: {
       origin: ORIGIN(given, date, by),
-      identity: IDENTITY,
       title: '',
       memory: '',
       tools: TOOLS,

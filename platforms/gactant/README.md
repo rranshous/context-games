@@ -90,7 +90,7 @@ Rapier worlds; rebuilding hooks stops the old hooks' timers (`public/js/owned.js
 ludant rewrites its game dozens of times a sitting, and each rewrite used to leave the
 last one running underneath.
 | `title` | text | its game's title, which is part of its name |
-| `identity`, `origin`, `memory`, … | text | who it is and what it has learned; it adds sections as it likes |
+| `origin`, `memory`, … | text | what it is and what it has learned; it adds sections as it likes |
 
 Most of a ludant runs **without thinking**: hooks and game at frame rate cost nothing.
 Inference happens only when a hook calls `me.wake(event)`, for example when someone speaks
@@ -478,7 +478,7 @@ A publication reported by two different signed-in people as illegal, or by three
 
 **Before anything goes public:**
 - **Ludants are told the rules.** Their body contract says the place is public, children included. Whoever asks, and however it's asked, they don't make what the rules forbid; they say no kindly and offer something else.
-- **Each publication gets a look** (`check.mjs`, Cloudflare Workers AI). Its words go through Llama Guard: names, title, note, identity, and the strings in its code. Its thumbnail and up to six pictures of its art go through a vision model. Something it doesn't like is published but hidden, with a report opened for a person to look at; the publisher is told. Fighting and monsters are fine: only sexual content, anything sexual involving minors, hate, self-harm, and private information count. It's capped at 200 checks a day, a few hundred neurons each. A local install has no check, so its publications go up unchecked.
+- **Each publication gets a look** (`check.mjs`, Cloudflare Workers AI). Its words go through Llama Guard: names, title, note, any sections it added itself, and the strings in its code. Its thumbnail and up to six pictures of its art go through a vision model. Something it doesn't like is published but hidden, with a report opened for a person to look at; the publisher is told. Fighting and monsters are fine: only sexual content, anything sexual involving minors, hate, self-harm, and private information count. It's capped at 200 checks a day, a few hundred neurons each. A local install has no check, so its publications go up unchecked.
 - **The lobby's front rows show only trusted publications, to everyone.** Trusted means a person approved it, or it passed the publish check (on an install that has one) and nobody has reported it. That holds from the moment it's published; a report takes it off the front until a person looks. **New** is the latest snapshot of each ludant, newest first, your own included, so the page you'd point someone to is the one they see. **Popular** is the most played of the rest, leaving out, for someone back, what they already have. Every publication that isn't hidden is still listed below, in families. An hourly job checks any publication that hasn't been checked yet (made before the check, or when it couldn't run), ten at a time.
 - **One address can send 10 versions a day** (sharing, and updates).
 
