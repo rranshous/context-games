@@ -8,7 +8,7 @@ import { LIFE_WORDS } from '../lights.js';
 import { callName } from '../names.js';
 
 const KEEP = 200;
-const SHOWN = 5;   // messages shown with every wake
+const SHOWN = 7;   // messages shown with every wake
 const STEPS_SHOWN = 4;   // steps done so far, under what it's on now
 const SLOW_MS = 45_000, STUCK_MS = 180_000;   // waits on the AI worth saying so about
 

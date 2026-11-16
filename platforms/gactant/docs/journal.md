@@ -3719,3 +3719,5 @@ ops.mjs sums them per model, and `tools/ops.mjs` prints the means. A page may no
 events (it was 40), and wakes aren't deduplicated. The privacy page says so. First local
 sample: a one-look job ran 3 turns in 6.5 s, about 2.1 s per turn on the model, with 56k
 tokens in, 47k of them cached, and 175 out.
+
+The chat window in each wake is the last 7 messages, not 5 (Robby: a bit more headroom for continuity).

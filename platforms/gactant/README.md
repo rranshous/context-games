@@ -101,7 +101,7 @@ note what's left in memory, and the inspector says when a wake ends at the limit
 arrives during a wake (a chat message, say) joins it at the next turn, as "Meanwhile".
 
 Each wake is a fresh conversation. What carries over is the soma (memory above all), the
-last 5 chat messages (shown with what's happening now), and a **trail of the last wake**:
+last 7 chat messages (shown with what's happening now), and a **trail of the last wake**:
 what woke it, each step (the tool, in brief, and how it went if it failed), the last thing
 it wrote to itself, and how it ended. The trail is kept on the device after every turn, so
 if the page is reloaded or closed mid-wake, the next wake is told it was cut off and how
