@@ -2621,7 +2621,7 @@ Some good-for/bad-for pairs sit near |z| = 3 and flicker in and out of the list.
   - Nothing else changes: s7 run for 1,500 ticks on the old build and the new one gives the same hash (with owners turned back to Int32 for the hash).
   - `check.mjs`: all 2,491 golden matches are identical.
   - It costs 4 more bytes a cell for the owner array.
-- s2 is restarted from 1.897M on the fixed build. The other runs will reach the same limit when one zone passes 33M births.
+- s2 is restarted from 1.897M on the fixed build. The other runs will reach the same limit when one zone passes 33M births. It saved 1,898,000 at 9:35pm and runs on, past the crash.
 
 **Round 2** read s1 6.65M, s3 7.452M and s4 1.85M. s2 was still on its old checkpoint, so it was skipped. Scan peaks were 4.1, 13.0, 4.5 and 8.3 GB; s2 needed the new 14 GB cap.
 - **A second hunter.** s3's `CMx]m` is a deep Climber sprinter whose `D` became `]`. Its IP turns south onto the `B` below, and the empty-stack bite finds the relict Divers' `C4SDTMD` grazers: 13 bites and 4 kills. It's the same mutation as s4's `CmM]` hunter, and both hunted the other lineage's relict. Written up in the survey.
