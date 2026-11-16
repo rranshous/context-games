@@ -392,8 +392,12 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   /** Checkpoints and sharing wait for the ludant to finish what it's doing, so they
    *  never catch it halfway through answering the very message that asked for them. */
   async settled(why) {
-    if (this.actant.thinking || this.actant.pending) this.status.setLife(this.status.life, `waiting for ${this.actant.name} to finish before ${why}…`);
+    if (this.actant.thinking || this.actant.pending) {
+      this.status.setLife(this.status.life, `waiting for ${this.actant.name} to finish before ${why}…`);
+      this.step?.(`waiting for ${callName(this.actant.soma)} to finish thinking…`);
+    }
     await this.actant.idle();
+    this.step?.('saving…');
     await this.save();
   }
 
@@ -411,11 +415,13 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
    *  section first. -> the line */
   async share({ title = null, public: open, note = '' } = {}, by = this.seat) {
     await this.settled('sharing');
+    this.step?.('taking a picture of the game…');
     await this.sendThumb();
     if (title != null && title.trim() && title.trim() !== (this.actant.soma.sections.title ?? '').trim()) {
       if (await this.actant.writeSection('title', title.trim(), by) === null) throw new Error('kept following: the title stays as it is');
       await this.save();
     }
+    this.step?.('sharing… this can take a little while');
     try {
       const line = await api('POST', `ludants/${this.recordId}/share`, { token: this.token, by, note, ...(typeof open === 'boolean' ? { public: open } : {}) });
       return this.shared(line, by);
@@ -425,7 +431,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   /** Send an update: everyone following gets the game as it is now, next time they open it. */
   async sendUpdate(note = '', by = this.seat) {
     await this.settled('sending the update');
+    this.step?.('taking a picture of the game…');
     await this.sendThumb();
+    this.step?.('sending the update… this can take a little while');
     try { return this.shared(await api('POST', `ludants/${this.recordId}/update`, { token: this.token, by, note }), by); }
     finally { this.status.setLife(this.status.life); }
   }
@@ -499,6 +507,15 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     const close = () => panel.remove();
     const said = el('p', { class: 'ask-fail' });
     const fail = (err) => { said.textContent = err.message; };
+    // Sharing can take a while (waiting for the ludant, the picture, the check): the panel
+    // says what it's on, and can't be pressed again meanwhile.
+    const working = async (text, fn) => {
+      const doing = el('span', {}, text);
+      const mask = el('div', { class: 'working', role: 'status' }, el('span', { class: 'spinner' }), doing);
+      box.append(mask);
+      this.step = (t) => { doing.textContent = t; };
+      try { return await fn(); } finally { this.step = null; mask.remove(); }
+    };
     const name = callName(this.actant.soma);
     const draw = () => {
       const line = this.record.line, f = this.record.follows;
@@ -517,7 +534,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
           el('p', { class: 'share-follow' }, 'Shared games are open: whoever takes a copy can read all of it (its code, art, notes and memory, not what was said or sketched) and play, change and share their copy. ', el('a', { href: '/terms.html', target: '_blank' }, 'Terms')),
           ...[follows].filter(Boolean), title, vis, said,
           el('button', { class: 'top-btn primary', onclick: async () => {
-            try { await this.share({ title: title.value, public: open }); draw(); } catch (err) { fail(err); }
+            try { await working('sharing…', () => this.share({ title: title.value, public: open })); draw(); } catch (err) { fail(err); }
           } }, 'share'),
           el('button', { class: 'top-btn', onclick: close }, 'cancel'));
         return;
@@ -528,14 +545,14 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       const followers = line.followers ?? 0;
       const update = el('button', { class: `top-btn${line.behind ? ' primary' : ''}`, disabled: !line.behind, onclick: async () => {
         update.disabled = true;
-        try { const r = await this.sendUpdate(); if (r.held) said.textContent = `Held back: a check thought something in it might break the rules (${r.held.replace(/^the publish check: /, '')}). A person will look soon; until then, followers keep the version they have.`; draw(); }
+        try { const r = await working('sending the update…', () => this.sendUpdate()); if (r.held) said.textContent = `Held back: a check thought something in it might break the rules (${r.held.replace(/^the publish check: /, '')}). A person will look soon; until then, followers keep the version they have.`; draw(); }
         catch (err) { update.disabled = false; fail(err); }
       } }, 'send update');
       box.replaceChildren(
         el('p', {}, el('strong', {}, `${this.actant.soma.sections.title || name}, shared. `), `${followers ? `${followers} ${followers === 1 ? 'person follows' : 'people follow'} it. ` : 'Nobody follows it yet. '}${line.behind ? 'You\'ve changed it since your last update.' : 'Everyone following has your latest.'} Updates reach them the next time they open it.`),
         el('div', { class: 'share-row' }, link, copyBtn),
         this.visibility(line.public, async (v) => {
-          try { this.record.line = { ...this.record.line, ...(await api('POST', `ludants/${this.recordId}/share`, { token: this.token, by: this.seat, public: v })) }; draw(); } catch (err) { fail(err); draw(); }
+          try { this.record.line = { ...this.record.line, ...(await working(v ? 'putting it in the lobby…' : 'taking it out of the lobby…', () => api('POST', `ludants/${this.recordId}/share`, { token: this.token, by: this.seat, public: v }))) }; draw(); } catch (err) { fail(err); draw(); }
         }),
         ...[follows].filter(Boolean), said, update,
         el('button', { class: 'top-btn', onclick: close }, 'close'));

@@ -3638,3 +3638,9 @@ have one keep it: it's part of their soma, and the changelog tells them they can
 Moderation (check.mjs) read identity as "About itself"; it now reads every section a ludant
 added itself (anything but origin, title, memory, game, hooks, tools), so an old identity is
 still checked, and so is any section a ludant writes. Smoke passes.
+
+Robby: sharing can take a while, with nothing to show it's happening. The share panel now
+covers itself with a spinner and says what it's on: waiting for the ludant to finish thinking,
+saving, taking a picture of the game, then sharing (or sending the update, or moving it in or
+out of the lobby). It can't be pressed twice meanwhile. Tested locally, with the share call
+held back 4 s.
