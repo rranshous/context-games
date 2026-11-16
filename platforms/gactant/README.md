@@ -67,6 +67,7 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 | **art** | pictures painted by an image model, kept with the ludant | sprites, backgrounds, its game reimagined in a style |
 | **choices** | a question with pictured options, over the stage | let people pick instead of type |
 | **table** | shared play: rulebooks and matches kept on the server, the same for every ludant | play with other people and their ludants, whatever each game looks like |
+| **view** | which of the stage, chat, whiteboard and inside show in this window, kept per ludant on this device; the person's switches set it too, and the last change wins | build its own modes: a chat game shows stage and chat, a drawing round brings in the whiteboard |
 | **inspector** | the soma, a log of what it did, the store | (for people: a window inside) |
 
 Above them, the frame's own **lights** (not a surface): who's here, whether the ludant is
@@ -220,8 +221,9 @@ Anyone sitting with a ludant can:
   kept through it ("the body goes back; the memory stays").
 - **share** it (see Sharing, below). Others **take a copy**, a full ludant that follows
   yours until its person makes it their own, and can be shared again.
-- **play mode**: hide everything but the stage. The ludant's chat pops up over it, and the
-  ludant is told you can only see the stage.
+- **just the game** / **show all** and **inside**: switches for what shows. They set the
+  same view the ludant can (the last change wins, and it hears view.changed). The stage alone
+  is play mode; whenever the chat is hidden, the ludant's chat pops up over the stage.
 
 ![pink ember, a house rule for a six-year-old](docs/shots/07-house-rules-pink.png)
 

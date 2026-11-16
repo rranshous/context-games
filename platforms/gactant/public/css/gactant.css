@@ -64,8 +64,8 @@ body.frame-page > .top { flex: none; }
   grid-template-rows: minmax(0, 1.9fr) minmax(0, 1fr);
   grid-template-areas: "stage chat insp" "wb chat insp";
 }
-.frame.folded { grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "stage chat" "wb chat"; }
-.frame.folded .insp-pane { display: none; }
+/* The view lays the grid out for what shows (frame.js laidOut); a hidden pane takes no room. */
+.frame .pane.off { display: none; }
 .pane { background: var(--pane); border: 1px solid var(--line); border-radius: 10px; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .stage-pane { grid-area: stage; background: #08090c; }
 .wb-pane { grid-area: wb; }
@@ -159,8 +159,7 @@ body.frame-page > .top { flex: none; }
 .game-card strong { font-size: 20px; }
 .game-card-by { color: var(--ink-3); font-size: 13px; }
 .game-card p { flex: none !important; margin: 6px 0 0 !important; color: var(--ink-2); }
-.frame.playing, .frame.playing.folded { grid-template-columns: 1fr; grid-template-rows: 1fr; grid-template-areas: "stage"; }
-.frame.playing .wb-pane, .frame.playing .chat-pane, .frame.playing .insp-pane { display: none; }
+.frame.playing { grid-template-columns: 1fr; grid-template-rows: 1fr; grid-template-areas: "stage"; }
 .top-btn.on { border-color: var(--green); color: var(--green); }
 .stage-pane { position: relative; }
 .toasts { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; pointer-events: none; z-index: 5; }
@@ -234,9 +233,9 @@ body.frame-page > .top { flex: none; }
 
 @media (max-width: 900px) {
   body.frame-page { height: auto; min-height: 100vh; }
-  .frame.playing, .frame.playing.folded { grid-template-rows: auto; height: auto; }
+  .frame.playing { grid-template-rows: auto; height: auto; }
   .frame.playing .stage-wrap { min-height: 55vh; }
-  .frame:not(.playing), .frame.folded:not(.playing) { height: auto; grid-template-columns: 1fr; grid-template-rows: auto 48vh 50vh 60vh; grid-template-areas: "stage" "chat" "wb" "insp"; }
+  .frame:not(.playing) { height: auto; }
   .stage-wrap { min-height: 32vh; }
   .top { height: auto; min-height: 44px; flex-wrap: wrap; padding: 6px 10px; gap: 8px; }
   .status { flex: 1 1 100%; order: 3; }
@@ -381,7 +380,7 @@ body.fullplay .full-bar { display: flex; gap: 6px; position: absolute; top: max(
 /* playing: the way to the chat stays on the stage */
 .talk-float { display: none; position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 6; padding: 8px 16px; border-radius: 999px; background: rgba(26, 29, 36, 0.85); border: 1px solid var(--amber); color: var(--ink); font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
 .talk-float:hover { background: var(--amber); color: #1a1408; }
-.frame.playing .talk-float { display: block; }
+.frame.no-chat .talk-float { display: block; }
 body.fullplay .talk-float { bottom: auto; left: auto; transform: none; top: max(8px, env(safe-area-inset-top)); right: calc(max(8px, env(safe-area-inset-right)) + 84px); padding: 7px 14px; }
 /* on a phone, the first sitting's hint floats over the game */
 .hint-float { position: absolute; left: 8px; right: 8px; top: 54px; z-index: 7; flex-wrap: wrap; border: 1px solid #4a3a1a; border-radius: 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }

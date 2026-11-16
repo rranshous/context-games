@@ -28,6 +28,7 @@ import { Lights } from './lights.js';
 import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
+import { View } from './surfaces/view.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
 import { api, askName, el, forget, remember, showRecovery } from './ui.js';
 import { installExplorer } from './explorer.js';
@@ -98,7 +99,8 @@ class Frame {
     this.choices = new Choices(this);
     this.admins = new Admins(this);
     this.table = new Table(this);
-    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.art, this.choices, this.table, this.admins, this.inspector];
+    this.view = new View(this);
+    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.art, this.choices, this.table, this.view, this.admins, this.inspector];
     // What people here contributed: saved and sealed with the surfaces, but not one the ludant sees.
     this.made = new Made(this);
     for (const s of [...this.surfaces, this.made]) s.load?.(record.surfaces?.[s.id]);
@@ -326,7 +328,8 @@ class Frame {
     const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Your title section is your game's name where it counts: it makes your name, and it's what people see when you're shared. A name the game has only on the stage or in the chat isn't your title until it's written there.`;
     const busy = this.stage.personPlaying() ? ` ${this.seat} is playing your game right now (they gave it input moments ago): a change to your game section restarts it under their hands, so it may be kind to say so first, or wait for a pause.` : '';
     const away = document.hidden ? ` Nobody is looking at the frame right now (its window is in the background): your game keeps running only while you're busy, and what you post waits until ${this.seat} comes back.` : '';
-    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (${this.stage.touch ? 'filling their phone\'s screen, with on-screen buttons over it' : 'and the lights at the top'}). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
+    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (${this.stage.touch ? 'filling their phone\'s screen, with on-screen buttons over it' : 'and the lights at the top'}). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.`
+      : !this.view.panes.chat ? ` ${this.seat}'s chat is hidden: your chat messages pop up briefly over the stage.` : '';
     const rate = this.status.rate();
     const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
     const left = this.left();
@@ -643,14 +646,11 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       el('a', { class: 'brand', href: '/' }, 'gactant'),
       el('div', { class: 'status' }),
       el('div', { class: 'top-actions' }));
-    // The inside starts folded until someone opens it: new people need the game and the
-    // chat first.
-    let folded = true, playing = false;
-    try { folded = localStorage.getItem('gactant-fold') !== '0'; playing = localStorage.getItem('gactant-play') === '1'; } catch {}
-    // A play link (&play) starts in play mode, whatever was chosen last time.
-    if (new URLSearchParams(location.search).has('play')) playing = true;
-    this.playing = playing;
-    const main = el('main', { class: `frame${folded ? ' folded' : ''}${playing ? ' playing' : ''}` },
+    // What shows is the view's: as this window last left it for this ludant (the inside
+    // starts hidden until someone opens it: new people need the game and the chat first).
+    this.view.restore();
+    this.playing = false;
+    const main = el('main', { class: 'frame' },
       el('section', { class: 'pane stage-pane' }),
       el('section', { class: 'pane wb-pane' }),
       el('section', { class: 'pane chat-pane' }),
@@ -678,8 +678,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     main.querySelector('.stage-pane').append(el('button', { class: 'talk-float', title: `talk to ${callName(this.actant.soma)}`, onclick: () => this.talk() }, '💬 talk to it'));
     document.addEventListener('fullscreenchange', () => { this.fullBtn.hidden = Boolean(document.fullscreenElement); this.stage.fit(); });
     this.fullBtn.hidden = !document.documentElement.requestFullscreen;
-    document.body.classList.toggle('fullplay', this.playing && this.stage.touch);
-    this.bus.on('chat.posted', (e) => { if (this.playing && e.who !== this.seat) this.toast(e.who, e.text); }, 'frame');
+    this.laidOut();
+    matchMedia('(max-width: 900px)').addEventListener('change', () => this.laidOut());
+    this.bus.on('chat.posted', (e) => { if (!this.view.panes.chat && e.who !== this.seat) this.toast(e.who, e.text); }, 'frame');
     this.hint();
   }
 
@@ -756,7 +757,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 
   /** From playing to talking with it: the chat shows, ready to type in. */
   talk() {
-    if (this.playing) this.setPlaying(false);
+    this.view.show(this.seat, { chat: true });
     const input = this.main.querySelector('.chat-input');
     // On a narrow screen the chat is under the game: start from the game, so a change can
     // be watched, with the chat right below it.
@@ -765,21 +766,51 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     input?.focus({ preventScroll: true });
   }
 
-  /** Play mode: hide every surface but the stage. The ludant is told, since it changes
-   *  what the person can see. */
+  /** Play mode is the stage on its own. Out of it, everything but the inside shows (the
+   *  inside stays as it was). */
   setPlaying(on) {
-    this.playing = on;
-    this.main.classList.toggle('playing', on);
-    if (this.playBtn) this.playBtn.textContent = on ? 'show chat' : 'just the game';
-    try { localStorage.setItem('gactant-play', on ? '1' : '0'); } catch {}
-    this.bus.emit('frame.view', { who: this.seat, playing: on });
-    document.body.classList.toggle('fullplay', on && this.stage.touch);
-    if (this.stage.touch) {
-      if (on) this.goFullscreen();
-      else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    this.view.show(this.seat, on ? { stage: true, chat: false, whiteboard: false, inside: false } : { stage: true, chat: true, whiteboard: true });
+    if (on) this.stage.wrap?.focus();
+  }
+
+  /** Lay the panes out as the view says: the stage over the whiteboard on the left, then
+   *  the chat, then the inside, with whatever's hidden taking no room. */
+  laidOut() {
+    const v = this.view.panes, main = this.main;
+    if (!main) return;
+    const panes = { stage: '.stage-pane', chat: '.chat-pane', whiteboard: '.wb-pane', inside: '.insp-pane' };
+    for (const [p, sel] of Object.entries(panes)) main.querySelector(sel).classList.toggle('off', !v[p]);
+    main.classList.toggle('no-chat', !v.chat);
+    const playing = v.stage && !v.chat && !v.whiteboard && !v.inside;
+    const grid = { cols: '', rows: '', areas: '' };
+    if (playing) {
+      // play mode has its own layout (gactant.css), on a phone the whole screen
+    } else if (matchMedia('(max-width: 900px)').matches) {
+      const sizes = { stage: 'auto', chat: '48vh', whiteboard: '50vh', inside: '60vh' };
+      const names = { stage: 'stage', chat: 'chat', whiteboard: 'wb', inside: 'insp' };
+      const on = Object.keys(panes).filter((p) => v[p]);
+      Object.assign(grid, { cols: '1fr', rows: on.map((p) => sizes[p]).join(' '), areas: on.map((p) => `"${names[p]}"`).join(' ') });
+    } else {
+      const cols = [], top = [], bottom = [];
+      if (v.stage || v.whiteboard) { cols.push('minmax(0, 1fr)'); top.push(v.stage ? 'stage' : 'wb'); bottom.push(v.whiteboard ? 'wb' : 'stage'); }
+      if (v.chat) { cols.push(v.inside ? '320px' : '340px'); top.push('chat'); bottom.push('chat'); }
+      if (v.inside) { cols.push('400px'); top.push('insp'); bottom.push('insp'); }
+      if (!v.stage && !v.whiteboard) cols[0] = 'minmax(0, 1fr)';
+      Object.assign(grid, { cols: cols.join(' '), rows: 'minmax(0, 1.9fr) minmax(0, 1fr)', areas: `"${top.join(' ')}" "${bottom.join(' ')}"` });
+    }
+    Object.assign(main.style, { gridTemplateColumns: grid.cols, gridTemplateRows: grid.rows, gridTemplateAreas: grid.areas });
+    if (this.playBtn) this.playBtn.textContent = v.stage && v.chat && v.whiteboard ? 'just the game' : 'show all';
+    this.insideBtn?.classList.toggle('on', v.inside);
+    if (playing !== this.playing) {
+      this.playing = playing;
+      main.classList.toggle('playing', playing);
+      document.body.classList.toggle('fullplay', playing && this.stage.touch);
+      if (this.stage.touch) {
+        if (playing) this.goFullscreen();
+        else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      }
     }
     this.stage.fit();
-    if (on) this.stage.wrap?.focus();
   }
 
   /** The browser's own full screen, where it has one (not on iPhones: there, play mode
@@ -842,14 +873,14 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       el('button', { class: 'top-btn more', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
       this.shareBtn = el('button', { class: 'top-btn share-btn', onclick: () => this.askShare() }, 'share'),
       el('a', { class: 'top-btn', href: '/', title: 'more games, and your own' }, 'home'),
-      this.playBtn = el('button', { class: 'top-btn', title: 'just the game, or the game with its chat and whiteboard', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show chat' : 'just the game'),
-      el('button', { class: 'top-btn more', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
-        // Inside is beside the game, not over it: playing hides it, so opening it stops playing.
-        if (this.playing) { this.setPlaying(false); main.classList.remove('folded'); }
-        else main.classList.toggle('folded');
-        const f = main.classList.contains('folded');
-        try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}
-        if (!f) main.querySelector('.insp-pane').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      this.playBtn = el('button', { class: 'top-btn', title: 'just the game, or the game with its chat and whiteboard', onclick: () => {
+        const v = this.view.panes;
+        this.setPlaying(v.stage && v.chat && v.whiteboard);
+      } }, 'just the game'),
+      this.insideBtn = el('button', { class: 'top-btn more', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
+        const open = !this.view.panes.inside;
+        this.view.show(this.seat, { inside: open });
+        if (open) main.querySelector('.insp-pane').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } }, 'inside'),
       el('button', { class: 'top-btn more', title: 'report something that doesn\'t belong here', 'aria-label': 'report', onclick: () => this.askReport() }, '⚑'),
       history,
@@ -878,7 +909,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     const actions = Object.fromEntries(this.surfaces.filter((s) => s.id !== 'stage' && s.id !== 'inspector').map((s) => [s.id, Object.keys(s.actions(''))]));
     await this.art.fetch();
     await this.sandbox.call('init', {
-      soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, people: [...this.people], actions, following: this.following,
+      soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, view: this.view.panes, people: [...this.people], actions, following: this.following,
       art: this.art.forSandbox(),
     });
     await this.sandbox.checkPictures();

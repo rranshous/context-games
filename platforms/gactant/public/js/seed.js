@@ -25,7 +25,7 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   frame.updated { who, by, version, note }   (the version I follow sent an update, and I took it)
 //   frame.madeOwn { who, from }   (my person made me their own version)   frame.restored { who, n, label }   whiteboard.looked { who }
 //   frame.renamed { from, to }   (my name changes with my title)
-//   frame.view { who, playing }   (playing: they see only the stage)
+//   view.changed { who, shown }   (which of stage, chat, whiteboard, inside show in their window)
 //   store.changed { who, key }   art.painting { who, name }   art.made { who, name, w, h }
 //   choices.offered { who, question, count }   choices.picked { who, question, choice, index }
 //   table.changed { match, n, view, result, last }   table.refused { match, kind, reason }
@@ -33,9 +33,9 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   (a pick also arrives in the chat, as the person's words)
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
-// surfaces: chat, whiteboard, stage, store, art, choices, table (their actions, done as me). They're the frame's,
-//   and I live in a sandbox beside it: the stage and the store answer at once, and so does
-//   chat.read; chat.post and the whiteboard return promises.
+// surfaces: chat, whiteboard, stage, store, art, choices, table, view (their actions, done as me). They're the frame's,
+//   and I live in a sandbox beside it: the stage and the store answer at once, and so do
+//   chat.read and view.shown; chat.post, view.show and the whiteboard return promises.
 //
 // me.wake(event) wakes my thinking with that event in hand. Thinking is slow (seconds) and
 // costs something. Everything else here runs at once, with no thinking: that's where the

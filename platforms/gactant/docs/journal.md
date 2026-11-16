@@ -3606,3 +3606,21 @@ Things to talk through:
 - The inspector is the only surface that's purely for shaping.
 
 To discuss later (Robby): what the actant gets on a wake after a browser refresh.
+
+Built: the view surface. `view.shown()` / `view.show({ chat: false })`, kept per ludant on
+the device (`gactant-view-<id>`), with the person's switches ("just the game"/"show all",
+"inside") setting the same state and the last change winning. The frame lays the grid out
+from it: stage over whiteboard on the left, then chat, then inside, and whatever's hidden
+takes no room. The stage alone is still play mode, so the phone's full screen and Xbox's
+View button work as before. Whenever the chat is hidden, the ludant's messages pop up over
+the stage, and "talk to it" floats there. The sandbox keeps a copy so `shown()` answers at
+once. `frame.view` became `view.changed { who, shown }`. Tested locally: the person's
+switches, the ludant's calls through the sandbox, the refusals, keeping it across a reload,
+and narrow widths stacking only what shows. The phone and Xbox layouts beyond play mode
+aren't designed yet (Robby: later).
+
+Robby: sometimes a wake goes so long that he stops believing the "thinking", and nothing
+new shows in the doings. He wonders whether something broke, or whether moving focus away
+did it. Worth finding out: what happens to an inference call when the tab is in the
+background, and whether the frame can show how long it has waited on the model (and on
+what), so a stall is visible instead of looking like thinking.

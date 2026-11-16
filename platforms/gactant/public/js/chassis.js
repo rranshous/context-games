@@ -12,9 +12,9 @@
 //   the frame asks      init, tick, event, store, people, stage(action, args), restart,
 //                       write, load, idle, sleep, gameState, wake (an event that wakes it whatever its hooks say)
 //
-// Surfaces across the bridge are proxies whose actions return promises. Two are kept
+// Surfaces across the bridge are proxies whose actions return promises. Three are kept
 // as local copies so game code can read them every frame: the store (writes go to the
-// frame too) and the chat's recent messages.
+// frame too), the chat's recent messages, and what the view shows.
 
 import { Actant } from './actant.js';
 import { Bridge } from './bridge.js';
@@ -52,7 +52,7 @@ async function boot() {
 
   const chassis = { bus, stage, people: [], surfaces: null, frame: null, isPerson: (who) => chassis.people.includes(who) };
   let actant = null;
-  let chat = [];
+  let chat = [], view = {};
   // The store's local copy. It checks and applies writes here (so reads right after see
   // them, and a full store refuses here), then the frame keeps them.
   const store = new Store({ bus: { emit() {} }, changed() {} });
@@ -78,6 +78,7 @@ async function boot() {
   const frame = new Bridge(port, {
     async init(state) {
       chat = state.chat ?? [];
+      view = { ...state.view };
       store.load({ data: state.store ?? {} });
       chassis.people = state.people ?? [];
       // Its art, ready before its game is built, so stage.image() has it from the first frame.
@@ -98,6 +99,7 @@ async function boot() {
     restart() { stage.restarted(); },
     event(e) {
       if (e.type === 'table.clock') clock.offset = e.offset;
+      if (e.type === 'view.changed') view = { ...e.shown };
       if (e.type === 'chat.posted') {
         chat.push({ who: e.who, text: e.text, at: e.at });
         if (chat.length > KEEP_CHAT) chat.splice(0, chat.length - KEEP_CHAT);
@@ -148,6 +150,7 @@ async function boot() {
     }
     if (out.chat) out.chat.read = (n = 20) => chat.slice(-n).map((m) => ({ ...m }));
     if (out.table) out.table.serverNow = serverNow;
+    if (out.view) out.view.shown = () => ({ ...view });
     if (out.store) {
       const local = store.actions('');
       out.store = {
