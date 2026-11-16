@@ -3686,3 +3686,18 @@ Deployed: the pacing clarification.
 Robby: ludants still read the chat at the start of a wake. The context said "what lasts is your soma (and the chat, which you can read again)", and the seed tool read_chat said "Read the most recent chat messages". Both now say the last 5 and the trail come with every wake, and that read_chat is for older messages; the changelog tells ludants with the old tool they can change its description. (A tab opened before a deploy still runs the old frame until it is reloaded.)
 
 Deployed: the read-the-chat wording.
+
+## To do: faster building, and better waiting (Robby, 2026-11-16)
+
+"It takes a long time to build these games. The turns are so slow. I'm just left watching
+'thinking…'." Two threads to keep working on:
+- **Faster:** fewer and quicker turns. Ideas so far: the context already carries the recent
+  chat and the last wake (saving a read). Next, measure where a wake's time goes (model latency
+  per turn, output length, whole-section writes against edits, the model choice, the cache
+  hits) before choosing. Also earlier: show how long it has waited on the model, so a stall
+  shows as a stall.
+- **Better to wait through:** "thinking…" alone says nothing. Show what it's doing as it goes
+  (the step it's on, from the trail: "editing the game", "painting a sprite", "trying it"),
+  how long the wake has run, and what's done so far, in the chat area where people are looking,
+  not only in the inside panel. And give the person something to do meanwhile: the game keeps
+  running, the whiteboard is there.
