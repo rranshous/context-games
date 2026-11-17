@@ -3725,3 +3725,31 @@ The chat window in each wake is the last 7 messages, not 5 (Robby: a bit more he
 Deployed: the waiting card, wake telemetry, and the 7-message chat window.
 
 The waiting card times each step (from the end of the step before, so the thinking that led to it counts), lists them in order with the step under way last and ticking, and the time awake under them (Robby liked the step lines and wanted to see how long each took).
+
+## Trimming long wakes (built)
+
+Robby asked how many messages a wake carries within itself: all of them. A wake grew by every
+reply and tool result (each result up to 16,000 characters, and pictures too) until the
+50-turn cap. Nothing trimmed it, and nothing guarded the model's context limit. He knows the
+technique (truncate old tool calls, drop old thinking) and asked for it done well.
+
+`public/js/trim.js`: every 8 turns (`trimDue`), what's older than the last 6 turns is shrunk
+in place. Nothing is removed, so tool calls and results stay paired.
+- A tool result over 600 characters becomes "(trimmed to save room: the result of read_section,
+  9,000 characters, began: …)".
+- Pictures become "(trimmed: a picture you looked at earlier)".
+- The ludant's own text alongside its calls is cut to 300 characters. Its private thinking
+  was never kept.
+- A call's arguments: every string over 300 characters is cut inside the parsed JSON, which is
+  stringified again, so a write_section of a 10k game stays valid and says how long it was.
+- The first message (what woke it) stays whole: it's why it's awake.
+In batches, not every turn, because a trim changes earlier messages and spends the cache from
+there on. The ludant is told (context, and the changelog). Wake telemetry counts trims.
+
+Tested: a synthetic 20-turn wake (pairs intact, arguments still valid JSON, the waking message
+whole, the last 6 turns untouched; 420k characters down to 233k), and a real 11-step wake
+locally: the trim at turn 8 went through to the model with no error, and it still answered
+from its soma.
+
+Robby pointed out that messages come in pairs. The 7 chat messages are text inside the "now"
+note, not messages, so they don't pair. The pairing matters for trimming, which keeps it.

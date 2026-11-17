@@ -107,6 +107,14 @@ it wrote to itself, and how it ended. The trail is kept on the device after ever
 if the page is reloaded or closed mid-wake, the next wake is told it was cut off and how
 far it got.
 
+Within a wake, nothing was dropped before, so a long one grew with every turn. Now, every 8
+turns, what's older than the last 6 turns is **trimmed in place** (`public/js/trim.js`):
+tool results and pictures become a short note saying what they were, and long text in the
+ludant's earlier replies and in its calls' arguments is cut (inside the JSON, which stays
+valid). Nothing is removed, so every tool call keeps its result. What woke it stays whole,
+and its soma is shown whole on every call. Trimming in batches spends the cached prefix
+now and then rather than on every turn.
+
 Every think starts with a **system text** that stays the same while the ludant is here: a
 context block that explains the experiment, what a ludant is, the levels, and that people
 see only the surfaces; then who it is and its lineage, what each surface is, and how the

@@ -28,6 +28,7 @@
 
 import { recentChanges } from './changes.js';
 import { applyEdits } from './edits.js';
+import { KEEP_TURNS, trimDue, trimOld } from './trim.js';
 import { nameOf } from './names.js';
 import { cancel, end, later, life, within } from './owned.js';
 import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.js';
@@ -263,7 +264,8 @@ export class Actant {
     // stats: where the wake's time went, for the install's telemetry (numbers only).
     // since: when the last step ended (or the wake began): each step took from then to its end.
     const trail = { at: Date.now(), since: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null,
-      stats: { modelMs: 0, toolMs: 0, slowestMs: 0, tokensIn: 0, tokensOut: 0, cachedIn: 0, writes: 0, model: '' } };
+      stats: { modelMs: 0, toolMs: 0, slowestMs: 0, tokensIn: 0, tokensOut: 0, cachedIn: 0, writes: 0, trims: 0, model: '' } };
+    const turnAt = [];   // where each turn's reply sits in messages
     const keep = () => this.frame.send('trail', trail);
     keep();
     const offSpoke = this.chassis.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
@@ -275,6 +277,11 @@ export class Actant {
       let turn = 0;
       for (; turn < MAX_TURNS && !this.asleepForever; turn++) {
         if (turn) seen = await this.frame.call('perceive');
+        // A long wake: what's older than the last few turns is shrunk (see trim.js).
+        if (trimDue(turn)) {
+          const changed = trimOld(messages, 1, turnAt[turn - KEEP_TURNS]);
+          if (changed) { trail.stats.trims++; this.note('wake', `frame: trimmed ${changed} older messages of this wake to save room`); }
+        }
         trail.asking = Date.now();
         keep();
         // Inference is the frame's: it holds the key and pays (or knows who does).
@@ -295,6 +302,7 @@ export class Actant {
         trail.asking = null;
         trail.turns = turn + 1;
         if (msg.content?.trim()) trail.thought = clip(msg.content.trim(), 400);
+        turnAt[turn] = messages.length;
         messages.push({ role: 'assistant', content: msg.content ?? '', ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
         if (!msg.tool_calls?.length) {
           if (byPerson && !spoke && !reminded && msg.content?.trim()) {

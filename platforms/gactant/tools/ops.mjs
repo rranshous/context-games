@@ -63,7 +63,7 @@ if (wakes.length) {
   console.log('\nwakes (means): turns, whole wake, waiting on the model, running tools, slowest wait, per turn; tokens in (cached) / out; section writes');
   for (const [k, n] of wakes) {
     const turns = mean(k, 'turns', n);
-    console.log(`  ${k.slice(5).padEnd(34)} ×${String(n).padEnd(4)} ${turns.toFixed(1)} turns, ${s(mean(k, 'ms', n))}, model ${s(mean(k, 'modelMs', n))}, tools ${s(mean(k, 'toolMs', n))}, slowest ${s(mean(k, 'slowestMs', n))}, ${s(mean(k, 'modelMs', n) / Math.max(turns, 1))}/turn; ${Math.round(mean(k, 'tokensIn', n))} (${Math.round(mean(k, 'cachedIn', n))}) / ${Math.round(mean(k, 'tokensOut', n))}; ${mean(k, 'writes', n).toFixed(1)} writes`);
+    console.log(`  ${k.slice(5).padEnd(34)} ×${String(n).padEnd(4)} ${turns.toFixed(1)} turns, ${s(mean(k, 'ms', n))}, model ${s(mean(k, 'modelMs', n))}, tools ${s(mean(k, 'toolMs', n))}, slowest ${s(mean(k, 'slowestMs', n))}, ${s(mean(k, 'modelMs', n) / Math.max(turns, 1))}/turn; ${Math.round(mean(k, 'tokensIn', n))} (${Math.round(mean(k, 'cachedIn', n))}) / ${Math.round(mean(k, 'tokensOut', n))}; ${mean(k, 'writes', n).toFixed(1)} writes, ${mean(k, 'trims', n).toFixed(1)} trims`);
   }
   console.log(`  ended: ${pick('wake ended ').map(([k, v]) => `${k.slice(11)} ×${v}`).join(', ')}`);
 }

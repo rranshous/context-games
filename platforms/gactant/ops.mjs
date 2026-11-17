@@ -15,7 +15,7 @@ const FLUSH_MS = 60_000;
 const KEEP_HOURS = 30 * 24;
 const KEEP_TROUBLE = 400;
 const DAY_EVENTS = 5000;
-const WAKE_NUMBERS = ['turns', 'ms', 'modelMs', 'toolMs', 'slowestMs', 'tokensIn', 'tokensOut', 'cachedIn', 'writes'];
+const WAKE_NUMBERS = ['turns', 'ms', 'modelMs', 'toolMs', 'slowestMs', 'tokensIn', 'tokensOut', 'cachedIn', 'writes', 'trims'];
 const TEXT = 400;
 
 const hourOf = (d = new Date()) => d.toISOString().slice(0, 13).replace(/[-T]/g, '');
