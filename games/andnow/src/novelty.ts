@@ -78,8 +78,12 @@ for (const f of files) {
   // over every body matters: a species can spread over hundreds of plans, none of them common.
   const rows = new Map<string, number>(Object.entries(r.species ?? {}));
   if (!r.species) for (const p of r.plans) rows.set(p.name.split('+')[0], (rows.get(p.name.split('+')[0]) ?? 0) + p.n);
+  // A row that's part of a commoner one (CLD, LD, L beside CLDM) is mostly what's left of it after
+  // shedding or a bite: say so, as it's rarely a species of its own.
+  const whole = (row: string, n: number) => [...rows].find(([o, m]) => m > n && o !== row && o.includes(row))?.[0];
   for (const [row, n] of rows) {
-    if (n >= r.alive / 100) note(seed, 'species', row, where, `species **${row}**: ${n.toLocaleString()} bodies, ${(100 * n / r.alive).toFixed(1)}%`);
+    const of = whole(row, n);
+    if (n >= r.alive / 100) note(seed, 'species', row, where, `species **${row}**: ${n.toLocaleString()} bodies, ${(100 * n / r.alive).toFixed(1)}%${of ? ` (part of **${of}**: likely what's left after shedding or a bite)` : ''}`);
     const k = `s${seed}|row|${row}`, prev = ledger.records[k];
     if (prev && n >= 1000 && n >= prev.v * 1.5) at(seed).notes.push(`**${row}** rising: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
     if (prev && prev.v >= 1000 && n <= prev.v / 2) at(seed).notes.push(`**${row}** falling: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
@@ -124,6 +128,10 @@ for (const f of files) {
     // A row that's part of the other (CLMD and LMD, C4SDTM and C4SDT) is a piece bitten off it,
     // and does worse beside the whole ones: damage, not a relationship.
     if (e.a !== e.b && (e.a.includes(e.b) || e.b.includes(e.a))) continue;
+    // So is a sterile copy of the other (CmMD and CmM$: its D became something else), which
+    // exists only by fresh mutation.
+    const sterile = (x: string, y: string) => x.length === y.length && !x.includes('D') && y.includes('D') && [...x].filter((g, i) => g !== y[i]).length === 1;
+    if (sterile(e.a, e.b) || sterile(e.b, e.a)) continue;
     const pair = e.a === e.b ? e.a : `${e.a} / ${e.b}`;
     const d = (x?: { d: number; z: number }) => (x ? `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)})` : '?');
     note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, A on B ${d(e.onB)}${e.a === e.b ? '' : `, B on A ${d(e.onA)}`}`);

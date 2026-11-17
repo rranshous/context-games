@@ -146,6 +146,27 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 ![](img/survey/scene-s2-close.png)
 
+#### Hungry lookers shed their row (s2)
+
+*Found 2026-11-16.*
+
+| `CLD` | `LD` | `L` |
+|---|---|---|
+| ![](img/survey/shed-cld.png) | ![](img/survey/shed-ld.png) | ![](img/survey/shed-l.png) |
+
+When hunger brings a body's max size below its cell count, it sheds a cell each tick. Fat goes first, then code, farthest from the IP first, and armor and insulation (with the `x`s beside them) last. The body has to stay in one piece.
+
+A looker's fat is all inside its mast, where dropping a cell would cut the body in two, and its foot is `I` and `x`, which are kept till last. So the first cells a hungry looker can drop are the ends of its row:
+- `CLDM` → `CLD`: the `M` goes first. Without it the looker can't move, but it can still look, eat and divide.
+- `CLD` → `LD` or `CL`: then the `C` or the `D`. An `LD` can't eat: a `C` lower down the mast is off its IP's path.
+- → `L`: a bare LOOK on a mast, which only looks.
+
+**How common:** about 10,400 bodies, 4.6% of s2, at both 1.9M and 1.915M: `CLD` 4,100, `LD` 2,800, `L` 2,100, `CL` 1,500. In a 30-tick replay from 1.915M, 42,000 of the 131,000 `CLDM` shed their `M`, and not one body grew it back. They're young (median age 25–75), so most of the shed lookers die soon.
+
+The ages and parents fit. A `CLD`'s children are often `CLDM`: the parent divided while it still had its `M` and shed it afterwards.
+
+[A shed `CLD` in the viewer (1.9M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=1900000&pick=1735402645)
+
 #### T-crawlers (s2)
 
 *Found 2026-11-16.*
@@ -157,6 +178,8 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 **Where they live:** one step above the crawlers. 98% of the T-crawlers are on step 3, against 95% of the crawlers on step 2. With insulation 3 and a heavier mast, they're slower (pace 1.8 against the crawler's 3.4), and die younger (median age 180 against 390).
 
 **How common:** 11,800 bodies (5% of s2) at 1.9M and again at 1.91M, against 16,200 crawlers. They've been around since at least 1.0M, but in small numbers then.
+
+**Crowding:** T-crawlers do worse beside their own row (z −3.2 in both s2 scans), and `CTDM` sprinters do worse beside them (−0.25 at z −2.4, then −0.50 at z −3.8). One to watch.
 
 ![](img/survey/scene-s2-tcrawlers.png)
 
@@ -283,6 +306,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-15 | s4 | Lookers: s4's Divers evolved `CLMD`, which now leads the climb onto step 6 | [Lookers in s4](#lookers-in-s4) |
 | 2026-11-15 | s3 | A second hunter, made by the same `D` → `]` mutation as s4's: it hunts the relict Divers | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-16 | s2 | T-crawlers: the crawler with `T` for `m`, walking at random, one step higher (5% of s2) | [T-crawlers](#t-crawlers-s2) |
+| 2026-11-16 | s2 | Hungry lookers shed their row from the ends (`CLDM` → `CLD` → `LD` → `L`): 4.6% of s2 | [Hungry lookers](#hungry-lookers-shed-their-row-s2) |
 
 ## How they interact
 

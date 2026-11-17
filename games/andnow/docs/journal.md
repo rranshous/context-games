@@ -2656,3 +2656,25 @@ Some good-for/bad-for pairs sit near |z| = 3 and flicker in and out of the list.
   These are for next round, once a second s2 report shows whether they're steady.
 
 **Detector fix.** Novelty skips a good-for/bad-for pair when one row is part of the other: that's a bitten piece, not a relationship.
+
+## Discovery round 4 (2026-11-16 evening)
+
+Read s1 6.71M, s2 1.915M, s3 7.504M and s4 1.876M. All four scans ran in an hour, s2 peaking at 8.6 GB.
+
+**Hungry lookers shed their row (s2).** Last round's open lead was looker rows without their `M` (`CLD`, `LD`, `L`, `CL`), steady at about 10,400 bodies across both s2 scans. They're not mutants:
+- **Parents:** a `CLDM`'s children include `CLD`s, and a `CLD`'s children are more often `CLDM` than `CLD`. That's too often for copy errors, and climb runs have no copy inserts or deletes.
+- **Replay:** a 30-tick replay that watched each looker's row-end cell caught 42,000 of the 131,000 `CLDM` losing their `M`, one cell, the slot left empty. Not one grew it back.
+- **Cause:** shedding. When hunger brings a body's max size below its cell count, `shed()` drops fat first, then code, farthest from the IP first, keeping the body connected.
+  - A looker's fat is all inside its mast, and its foot (`I`, `x`) is protected.
+  - So the ends of its row go first: `CLDM` → `CLD` → `LD`/`CL` → `L`.
+  - A parent sheds after dividing, which is why a `CLD` has `CLDM` children.
+
+Written up in the survey with pictures.
+
+**T-crawlers** do worse beside their own row in both s2 scans (z −3.2), and `CTDM` does worse beside them (z −2.4, then −3.8). It's noted in their section as one to watch.
+
+**Noise:** the only other pairs were `CDmM` crowding s1's relict `C4SDTM` (z −3.5), and `CmM3`, another sterile `D` mutant.
+
+**Detectors:**
+- Novelty now skips good-for/bad-for pairs with a sterile copy of the other row (one glyph different, and that glyph was the `D`).
+- It labels a common row that's part of a commoner one as "likely what's left after shedding or a bite", instead of listing it as a new species.
