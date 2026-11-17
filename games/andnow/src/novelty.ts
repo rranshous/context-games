@@ -40,6 +40,15 @@ const nameOf = (key: string) => {
   return rest ? `${row}+${rest}` : row || '(fat only)';
 };
 const rowOf = (key: string) => nameOf(key).split('+')[0];
+// Kinds the survey already knows, by what's in a code row: most of a round's list is these
+// turning up again in new mutants, so each line says which it looks like.
+const kindOf = (row: string) =>
+  row.includes('W') ? 'vandal' : row.includes('G') ? 'grower' : row.includes('B') ? 'biter'
+  : !row.includes('D') && /[[\]]/.test(row) ? 'hunter-like (D turned into a turn)' : !row.includes('C') ? 'husk' : !row.includes('D') ? 'sterile' : '';
+const known = (...rows: string[]) => {
+  const ks = [...new Set(rows.map((r) => (kindOf(r) ? `\`${r}\` ${kindOf(r)}` : '')).filter(Boolean))];
+  return ks.length ? ` · *known kinds: ${ks.join(', ')}*` : '';
+};
 const link = (seed: string, t: number, id?: number) =>
   `http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=${seed}&bake=runs/bake/climb7-s${seed}&t=${t}${id ? `&pick=${id}` : ''}`;
 
@@ -92,15 +101,15 @@ for (const f of files) {
   for (const p of r.plans.slice(0, 10)) note(seed, 'plan', p.name, where, `body plan **${p.name}** in the top 10 (${p.n})`);
 
   // Bites and kills, by row pair.
-  const bites = new Map<string, { hits: number; killed: number; ex?: Report['bites'][0]['ex']; rel: string }>();
+  const bites = new Map<string, { hits: number; killed: number; ex?: Report['bites'][0]['ex']; rel: string; rows: string[] }>();
   for (const b of r.bites) {
-    const k = `${rowOf(b.pair[0])} → ${rowOf(b.pair[1])}`, e = bites.get(k) ?? { hits: 0, killed: 0, rel: b.rel };
+    const k = `${rowOf(b.pair[0])} → ${rowOf(b.pair[1])}`, e = bites.get(k) ?? { hits: 0, killed: 0, rel: b.rel, rows: [rowOf(b.pair[0]), rowOf(b.pair[1])] };
     e.hits += b.hits; e.killed += b.killed; e.ex ??= b.ex; bites.set(k, e);
   }
   for (const [k, e] of bites) {
     const ex = e.ex ? ` [example](${link(seed, e.ex.t, e.ex.by)})` : '';
-    if (e.hits >= 10) note(seed, 'bite', k, where, `bites **${k}**: ${e.hits} in ${r.ticks} ticks (${e.rel})${ex}`);
-    if (e.killed >= 3) note(seed, 'kill', k, where, `kills **${k}**: ${e.killed}${ex}`);
+    if (e.hits >= 10) note(seed, 'bite', k, where, `bites **${k}**: ${e.hits} in ${r.ticks} ticks (${e.rel})${ex}${known(...e.rows)}`);
+    if (e.killed >= 3) note(seed, 'kill', k, where, `kills **${k}**: ${e.killed}${ex}${known(...e.rows)}`);
   }
 
   // Code written into others, by row pair, and which glyphs.
@@ -117,7 +126,7 @@ for (const f of files) {
     for (const [g, n] of e.glyphs) glyphs.set(g, (glyphs.get(g) ?? 0) + n);
     const ex = e.ex ? ` [example](${link(seed, e.ex.t, e.ex.by)})` : '';
     const gs = [...e.glyphs].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([g, n]) => `\`${g}\`×${n}`).join(' ');
-    if (e.n >= 50 && e.victims >= 3) note(seed, 'write', k, where, `writes **${k}**: ${e.n} into ${e.victims} bodies, ${gs} (${e.rel})${ex}`);
+    if (e.n >= 50 && e.victims >= 3) note(seed, 'write', k, where, `writes **${k}**: ${e.n} into ${e.victims} bodies, ${gs} (${e.rel})${ex}${known(...k.split(' → '))}`);
   }
   for (const [g, n] of glyphs) if (n >= 30) note(seed, 'written', g, where, `glyph \`${g}\` written into others ${n} times`);
 
@@ -134,7 +143,7 @@ for (const f of files) {
     if (sterile(e.a, e.b) || sterile(e.b, e.a)) continue;
     const pair = e.a === e.b ? e.a : `${e.a} / ${e.b}`;
     const d = (x?: { d: number; z: number }) => (x ? `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)})` : '?');
-    note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, A on B ${d(e.onB)}${e.a === e.b ? '' : `, B on A ${d(e.onA)}`}`);
+    note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, A on B ${d(e.onB)}${e.a === e.b ? '' : `, B on A ${d(e.onA)}`}${known(e.a, e.b)}`);
     const was = ledger.eco[`${seed}|${pair}`];
     if (was && was !== e.kind) at(seed).notes.push(`**${pair}** flipped: was ${was}, now ${e.kind}`);
     ledger.eco[`${seed}|${pair}`] = e.kind;

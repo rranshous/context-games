@@ -2678,3 +2678,26 @@ Written up in the survey with pictures.
 **Detectors:**
 - Novelty now skips good-for/bad-for pairs with a sterile copy of the other row (one glyph different, and that glyph was the `D`).
 - It labels a common row that's part of a commoner one as "likely what's left after shedding or a bite", instead of listing it as a new species.
+
+## Discovery round 5 (2026-11-17 morning)
+
+Read s1 6.744M, s2 1.926M, s3 7.533M and s4 1.891M, in 53 minutes, with s2 peaking at 8.6 GB.
+
+Nothing new this time. Every flag was a known kind turning up in a new mutant:
+- **Vandals:** `WmMD` in s4 writing fat and `0` into its kin.
+- **Kin-biters:** `BTDM`, whose `C` became `B`, biting its siblings; `CLBM` biting a grower.
+- **Growers smothering:** `CGDM` is bad for the shed `CLD` lookers (z −7.1).
+- **T-crawlers:** another crowding pair (`C::TMMD` on `Co:TMMD`, z −3.4), as noted last round.
+- **The rest:**
+  - s1's relict `C4SDTM` and `C6SDTM` now compete;
+  - s3's fastest mover yet is `MxD`, a husk;
+  - s3's `Gfs` giant grows the usual way;
+  - two new top-10 plans are mast variants of known rows.
+
+**Detector:** novelty now tags each bite, kill, write and good-for/bad-for line with the known kinds its rows look like, so a round's list can be skimmed for what isn't one. The kinds are:
+- vandal (`W` in the row);
+- grower (`G`);
+- biter (`B`);
+- hunter-like (no `D`, and a `[` or `]`);
+- husk (no `C`);
+- sterile (no `D`).
