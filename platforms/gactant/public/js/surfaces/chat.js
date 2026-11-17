@@ -144,11 +144,14 @@ export class Chat {
       : 'thinking');
     const done = (t.steps ?? []).filter((s) => s.tool !== 'say');
     const shown = done.slice(-STEPS_SHOWN);
+    // Each step's time runs from the end of the one before, so the thinking that led to it counts.
+    const row = (cls, text, ms, title = '') => el('div', { class: cls, title }, el('span', {}, text), ms == null ? null : el('span', { class: 'wait-clock' }, clock(ms)));
     return [
       el('div', { class: 'chat-text wait-card' },
-        el('div', { class: 'wait-now' }, el('span', { class: 'dots' }, current), el('span', { class: 'wait-clock', title: 'how long it has been awake' }, clock(now - t.at))),
         done.length > shown.length ? el('div', { class: 'wait-step more' }, `${done.length - shown.length} earlier step${done.length - shown.length === 1 ? '' : 's'}`) : null,
-        ...shown.map((s) => el('div', { class: `wait-step${s.failed ? ' failed' : ''}`, title: s.failed ?? '' }, s.failed ? `✗ tried ${stepWords(s)[0]}` : `✓ ${stepWords(s)[1]}`))),
+        ...shown.map((s) => row(`wait-step${s.failed ? ' failed' : ''}`, s.failed ? `✗ tried ${stepWords(s)[0]}` : `✓ ${stepWords(s)[1]}`, s.took, s.failed ?? '')),
+        row('wait-now', el('span', { class: 'dots' }, current), now - (t.since ?? t.at)),
+        el('div', { class: 'wait-total' }, `awake ${clock(now - t.at)}`)),
     ];
   }
 

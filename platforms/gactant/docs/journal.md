@@ -3723,3 +3723,5 @@ tokens in, 47k of them cached, and 175 out.
 The chat window in each wake is the last 7 messages, not 5 (Robby: a bit more headroom for continuity).
 
 Deployed: the waiting card, wake telemetry, and the 7-message chat window.
+
+The waiting card times each step (from the end of the step before, so the thinking that led to it counts), lists them in order with the step under way last and ticking, and the time awake under them (Robby liked the step lines and wanted to see how long each took).

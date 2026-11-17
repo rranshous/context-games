@@ -277,9 +277,12 @@ iframe.sandbox { position: absolute; width: 0; height: 0; border: 0; visibility:
 .chat-head .chat-head-detail { flex: 1 10 0; min-width: 0; }
 .chat-thinking .chat-text { color: var(--ink-3); font-style: italic; }
 .chat-thinking .wait-card { display: flex; flex-direction: column; gap: 3px; font-style: normal; min-width: 220px; }
-.wait-now { display: flex; gap: 10px; justify-content: space-between; color: var(--ink-2); font-style: italic; }
+.wait-now, .wait-step { display: flex; gap: 10px; justify-content: space-between; }
+.wait-now { color: var(--ink-2); font-style: italic; }
+.wait-total { font: 11px var(--mono); color: var(--ink-3); text-align: right; opacity: 0.8; }
 .wait-clock { font-family: var(--mono, monospace); font-style: normal; font-size: 12px; color: var(--ink-3); }
 .wait-step { font-size: 12.5px; color: var(--ink-3); }
+.wait-step .wait-clock { font-size: 11px; }
 .wait-step.more { font-style: italic; }
 .wait-step.failed { color: var(--red, #e06c6c); }
 .dots::after { content: ''; animation: dots 1.4s steps(4) infinite; }

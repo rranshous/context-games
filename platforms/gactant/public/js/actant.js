@@ -261,7 +261,8 @@ export class Actant {
     // this one did even if the page goes away in the middle of it.
     // asking: since when it has waited on the model; running: the step under way.
     // stats: where the wake's time went, for the install's telemetry (numbers only).
-    const trail = { at: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null,
+    // since: when the last step ended (or the wake began): each step took from then to its end.
+    const trail = { at: Date.now(), since: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null,
       stats: { modelMs: 0, toolMs: 0, slowestMs: 0, tokensIn: 0, tokensOut: 0, cachedIn: 0, writes: 0, model: '' } };
     const keep = () => this.frame.send('trail', trail);
     keep();
@@ -315,7 +316,9 @@ export class Actant {
           if (call.function?.name === 'write_section' || call.function?.name === 'edit_section') trail.stats.writes++;
           messages.push({ role: 'tool', tool_call_id: call.id, content: text });
           trail.running = null;
-          trail.steps = [...trail.steps, stepOf(call, text)].slice(-TRAIL_STEPS);
+          const ended = Date.now();
+          trail.steps = [...trail.steps, { ...stepOf(call, text), took: ended - trail.since }].slice(-TRAIL_STEPS);
+          trail.since = ended;
           for (const url of pics) images.push({ type: 'image_url', image_url: { url } });
         }
         keep();
