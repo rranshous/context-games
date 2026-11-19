@@ -2701,3 +2701,18 @@ Nothing new this time. Every flag was a known kind turning up in a new mutant:
 - hunter-like (no `D`, and a `[` or `]`);
 - husk (no `C`);
 - sterile (no `D`).
+
+## Discovery round 6 (2026-11-18 evening)
+
+Three round prompts queued up while the session was logged out. One round covered them all. It read s1 6.848M, s2 1.961M, s3 7.625M and s4 1.938M in 87 minutes, with s2 peaking at 9.5 GB.
+
+Nothing new:
+- **`C6SDTM` grazers:** their plans entered the top 10 in s1 and s3. That's the relict scanner with SCAN type 6 (either resource) instead of 4 (size). It has been steady at about 2,000 in s1 and 1,700 in s3 through every scan, and the survey already notes s1's `C6SDTM` colony.
+- **s1's husks rose:** `D` 693 → 1,220 and `Dm` 1,176 → 1,774, as the population went from 94.9k to 98.0k. One to watch: s3 has held 9.5k `Dm` steadily.
+- **The rest:**
+  - a hunter-shaped `C]DM` killing four `CLDM` in s2 (all one lineage there, so its bites must be aimed by stray numbers);
+  - a vandal and a sterile biter;
+  - giants whose code rows are pieces (`%`, `8`, `C1GM`);
+  - two flips that sit near the bar.
+
+**Detector fix.** A bitten or shed piece needn't be a substring of the whole: `CMD` is `CLMD` without its `L`. Novelty now tests for a subsequence, for both the good-for/bad-for filter and the species label.

@@ -40,6 +40,8 @@ const nameOf = (key: string) => {
   return rest ? `${row}+${rest}` : row || '(fat only)';
 };
 const rowOf = (key: string) => nameOf(key).split('+')[0];
+// Is row a what's left of row b after losing cells: its glyphs in b's order, gaps allowed (CMD in CLMD)?
+const partOf = (a: string, b: string) => { let i = 0; for (const g of b) if (g === a[i]) i++; return a !== b && i === a.length; };
 // Kinds the survey already knows, by what's in a code row: most of a round's list is these
 // turning up again in new mutants, so each line says which it looks like.
 const kindOf = (row: string) =>
@@ -89,7 +91,7 @@ for (const f of files) {
   if (!r.species) for (const p of r.plans) rows.set(p.name.split('+')[0], (rows.get(p.name.split('+')[0]) ?? 0) + p.n);
   // A row that's part of a commoner one (CLD, LD, L beside CLDM) is mostly what's left of it after
   // shedding or a bite: say so, as it's rarely a species of its own.
-  const whole = (row: string, n: number) => [...rows].find(([o, m]) => m > n && o !== row && o.includes(row))?.[0];
+  const whole = (row: string, n: number) => [...rows].find(([o, m]) => m > n && partOf(row, o))?.[0];
   for (const [row, n] of rows) {
     const of = whole(row, n);
     if (n >= r.alive / 100) note(seed, 'species', row, where, `species **${row}**: ${n.toLocaleString()} bodies, ${(100 * n / r.alive).toFixed(1)}%${of ? ` (part of **${of}**: likely what's left after shedding or a bite)` : ''}`);
@@ -134,9 +136,9 @@ for (const f of files) {
   const strength = (e: Report['eco'][0]) => Math.max(Math.abs(e.onA?.z ?? 0), Math.abs(e.onB?.z ?? 0));
   for (const e of r.eco) {
     if (/neutral|same row: 0|same row: \?|too rare/.test(e.kind) || strength(e) < 3) continue;
-    // A row that's part of the other (CLMD and LMD, C4SDTM and C4SDT) is a piece bitten off it,
+    // A row that's part of the other (CLMD and LMD or CMD, C4SDTM and C4SDT) is a piece bitten off it,
     // and does worse beside the whole ones: damage, not a relationship.
-    if (e.a !== e.b && (e.a.includes(e.b) || e.b.includes(e.a))) continue;
+    if (partOf(e.a, e.b) || partOf(e.b, e.a)) continue;
     // So is a sterile copy of the other (CmMD and CmM$: its D became something else), which
     // exists only by fresh mutation.
     const sterile = (x: string, y: string) => x.length === y.length && !x.includes('D') && y.includes('D') && [...x].filter((g, i) => g !== y[i]).length === 1;
