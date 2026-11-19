@@ -2716,3 +2716,18 @@ Nothing new:
   - two flips that sit near the bar.
 
 **Detector fix.** A bitten or shed piece needn't be a substring of the whole: `CMD` is `CLMD` without its `L`. Novelty now tests for a subsequence, for both the good-for/bad-for filter and the species label.
+
+## Discovery round 7 (2026-11-19 morning)
+
+Read s1 6.865M, s2 1.966M, s3 7.641M and s4 1.946M in 87 minutes (s2 peaked at 9.7 GB).
+
+Nothing new:
+- **Three "new" top-10 plans** (`CDmM+BCIMMxxxxx` in s1; `CMDm+BCIMnxxxx` and `CMDm+BCIMnnxxxx` in s3) are the sprinters with a few more or fewer tail cells than plans already seen.
+- **s1's husks** kept rising, more slowly: `D` 1,220 → 1,304 and `Dm` 1,774 → 1,900, at 98.3k bodies.
+- **The rest are known kinds:**
+  - s2: a `Co:vMMD` biting its own lineage's grower `CoGTMMD`, `CLDB` biters killing each other, and two vandals;
+  - s3: a vandal;
+  - s4: a `CLMB` biter killing `CLMD`;
+  - two good-for/bad-for flips near the bar.
+
+**Detector fix.** A top-10 plan is no longer listed when it only has more or fewer of the same off-row glyphs than a plan already seen (same row, same set of tail glyphs). It still goes in the ledger.

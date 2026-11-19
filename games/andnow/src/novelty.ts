@@ -100,7 +100,14 @@ for (const f of files) {
     if (prev && prev.v >= 1000 && n <= prev.v / 2) at(seed).notes.push(`**${row}** falling: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
     if (n >= 100 || prev) ledger.records[k] = { v: n, at: where };
   }
-  for (const p of r.plans.slice(0, 10)) note(seed, 'plan', p.name, where, `body plan **${p.name}** in the top 10 (${p.n})`);
+  // A plan that only has more or fewer of the same off-row glyphs than one seen before (CMDm+BCIMnxxxx
+  // beside CMDm+BCIMMnnxxxxx) is the same body with a longer or shorter tail: noted, but not listed.
+  const shape = (name: string) => { const [row, rest = ''] = name.split('+'); return `${row}+${[...new Set(rest)].join('')}`; };
+  const shapes = new Set(Object.keys(ledger.seen).filter((k) => k.startsWith('plan|')).map((k) => shape(k.slice(5))));
+  for (const p of r.plans.slice(0, 10)) {
+    if (!ledger.seen[`plan|${p.name}`] && shapes.has(shape(p.name))) { ledger.seen[`plan|${p.name}`] = { first: where, seeds: [seed] }; continue; }
+    note(seed, 'plan', p.name, where, `body plan **${p.name}** in the top 10 (${p.n})`);
+  }
 
   // Bites and kills, by row pair.
   const bites = new Map<string, { hits: number; killed: number; ex?: Report['bites'][0]['ex']; rel: string; rows: string[] }>();
