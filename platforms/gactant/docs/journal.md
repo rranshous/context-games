@@ -3753,3 +3753,5 @@ from its soma.
 
 Robby pointed out that messages come in pairs. The 7 chat messages are text inside the "now"
 note, not messages, so they don't pair. The pairing matters for trimming, which keeps it.
+
+**Deployed (version d3d87ef2):** the waiting card's step timers and wake trimming.
