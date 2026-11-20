@@ -3938,3 +3938,18 @@ Everything above from "New ludants started with tools that didn't compile" on wa
 - **Deployed:** the seed fix (857b5005), then practice matches and look_at_art (26028ea9).
 - **Pull before deploying again,** or a deploy from an older copy would undo them.
 - **Open:** the publish check is out of Workers AI's free allowance (see "Where the time goes, a day on"). Whether to try a lower reasoning effort is Robby's call.
+
+## The publish check, within the free allowance (2026-11-20)
+
+Robby chose fewer pictures over Workers Paid. Reading the code, most of the spend was looking at the same things again:
+- every new version, copy and hourly retry ran Llama Guard on the text and the vision model on every picture (the thumb plus up to 12 pieces of art), even when they were the same as last time;
+- the hourly sweep retried *every* unchecked publication, including old versions of a line that nobody sees any more;
+- a publication with a picture too big to look at stays unchecked by design, so it was looked at again, in full, every hour, forever;
+- once the allowance ran out, the sweep kept trying the rest.
+
+**Changed:**
+- **Passed things are remembered** (`check.mjs`): text and each picture keyed by a hash of what they are (`looked` in the store). Only what passed is remembered; something flagged is looked at again. A copy, a new version with the same art, or a retry pays only for what's new.
+- **The sweep checks only the version each line shows,** and stops at the first check that can't run.
+- README: the vision model looks at up to twelve pictures, not six (it said six), and the above.
+
+Robby also passed on a doing line from a tanks ludant: "the cannons aren't lining up with where shots are going", the drift from "Tanks as a shared-code case" showing up in practice.

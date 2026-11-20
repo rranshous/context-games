@@ -4,8 +4,12 @@
 // binding; without one (a local install), publications go up unchecked.
 //
 //   const check = makeCheck(env.AI)
-//   await check({ text, images: [dataUrl] }) -> { flagged: false } | { flagged: true, why }
+//   await check({ text, images: [dataUrl], seen }) -> { flagged: false } | { flagged: true, why }
 //   (throws if the check couldn't run)
+//
+// seen ({ has(key), add(key) }, async) remembers words and pictures that passed, by a hash
+// of what they are, so a new version, a copy or the hourly retry doesn't pay to look at
+// them again. The free allowance is about a hundred pictures a day.
 
 const GUARD = '@cf/meta/llama-guard-3-8b';
 const EYES = '@cf/meta/llama-4-scout-17b-16e-instruct';
@@ -39,24 +43,36 @@ export function publicText({ name, title, note, soma }) {
 
 export function makeCheck(ai) {
   if (!ai) return null;
-  return async function check({ text, images = [] }) {
-    const guard = await ai.run(GUARD, { messages: [{ role: 'user', content: text }] });
-    const said = typeof guard?.response === 'string' ? guard.response : JSON.stringify(guard?.response ?? guard);
-    const codes = said.includes('unsafe') ? [...said.matchAll(/S\d+/g)].map((m) => m[0]) : [];
-    const bad = codes.filter((c) => CATEGORIES[c]);
-    if (bad.length) return { flagged: true, why: `its words: ${bad.map((c) => CATEGORIES[c]).join(', ')}` };
+  return async function check({ text, images = [], seen = { has: async () => false, add: async () => {} } }) {
+    const textKey = `t-${await sha(text)}`;
+    if (!(await seen.has(textKey))) {
+      const guard = await ai.run(GUARD, { messages: [{ role: 'user', content: text }] });
+      const said = typeof guard?.response === 'string' ? guard.response : JSON.stringify(guard?.response ?? guard);
+      const codes = said.includes('unsafe') ? [...said.matchAll(/S\d+/g)].map((m) => m[0]) : [];
+      const bad = codes.filter((c) => CATEGORIES[c]);
+      if (bad.length) return { flagged: true, why: `its words: ${bad.map((c) => CATEGORIES[c]).join(', ')}` };
+      await seen.add(textKey);
+    }
     // A picture it can't look at (too big, or past how many it looks at) means it wasn't
     // checked whole: that's unchecked, not clean, and waits for a person.
     const all = images.filter((u) => typeof u === 'string');
     const looked = all.filter((u) => u.length <= MAX_IMAGE).slice(0, MAX_IMAGES);
     for (const url of looked) {
-      const seen = await ai.run(EYES, { messages: [{ role: 'user', content: [{ type: 'text', text: LOOK }, { type: 'image_url', image_url: { url } }] }], max_tokens: 60 });
-      const answer = typeof seen?.response === 'string' ? seen.response : JSON.stringify(seen?.response ?? '');
+      const key = `i-${await sha(url)}`;
+      if (await seen.has(key)) continue;
+      const said = await ai.run(EYES, { messages: [{ role: 'user', content: [{ type: 'text', text: LOOK }, { type: 'image_url', image_url: { url } }] }], max_tokens: 60 });
+      const answer = typeof said?.response === 'string' ? said.response : JSON.stringify(said?.response ?? '');
       const json = answer.match(/\{[\s\S]*\}/)?.[0];
       let verdict = null;
       try { verdict = JSON.parse(json); } catch {}
       if (verdict && verdict.ok === false) return { flagged: true, why: `a picture: ${String(verdict.why ?? 'not fine').slice(0, 80)}` };
+      if (verdict?.ok === true) await seen.add(key);
     }
     return looked.length < all.length ? { flagged: false, partly: true } : { flagged: false };
   };
+}
+
+async function sha(s) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(d).slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
 }

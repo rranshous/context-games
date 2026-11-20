@@ -792,21 +792,23 @@ export function createCore({ store, settings }) {
     const today = now().slice(0, 10);
     if (today !== checkDay) { checkDay = today; checksToday = 0; }
     if (++checksToday > MAX_CHECKS_A_DAY) { ops.count('check over the day\'s allowance'); return { checked: 'unchecked' }; }
+    // What passed before isn't looked at again (check.mjs).
+    const seen = { has: async (k) => Boolean(await store.get('looked', k)), add: (k) => store.put('looked', k, { at: now() }) };
     try {
-      const verdict = await settings.check({ text: publicText(pub), images: images.filter(Boolean) });
+      const verdict = await settings.check({ text: publicText(pub), images: images.filter(Boolean), seen });
       ops.count(`check ${verdict.flagged ? 'flagged' : 'clean'}`);
       if (verdict.flagged) return { checked: 'flagged', why: `the publish check: ${verdict.why}` };
       if (verdict.partly) { ops.count('check couldn\'t see every picture'); return { checked: 'unchecked' }; }
       return { checked: 'clean' };
     } catch (err) {
       await ops.trouble({ kind: 'server', where: 'publish check', message: err.message, sample: err.stack }).catch(() => {});
-      return { checked: 'unchecked' };
+      return { checked: 'unchecked', failed: true };
     }
   }
 
   async function recheck(pub) {
     const look = await lookAt(pub, await picturesOf(`p-${pub.id}`, pub.assets));
-    if (look.checked === 'unchecked') return;
+    if (look.checked === 'unchecked') return look;
     pub.checked = look.checked;
     if (look.why) {
       pub.hidden = { by: 'check', at: now(), note: look.why };
@@ -1415,8 +1417,12 @@ export function createCore({ store, settings }) {
    *  couldn't run) get it, a few at a time: the Worker calls this hourly. */
   async function checkSome(n = 10) {
     if (!settings.check) return { checked: 0 };
-    const due = (await store.list('published')).filter((p) => !p.hidden && !p.cleared && (p.checked ?? 'unchecked') === 'unchecked').slice(0, n);
-    for (const p of due) await recheck(p);
+    // Only the version each line shows: older ones nobody sees aren't worth the allowance.
+    const all = await store.list('published'), byId = new Map(all.map((p) => [p.id, p]));
+    const shown = new Set((await store.list('lines')).map((l) => [...l.versions].reverse().find((id) => byId.get(id) && !byId.get(id).hidden)));
+    const due = all.filter((p) => !p.hidden && !p.cleared && (!p.line || shown.has(p.id)) && (p.checked ?? 'unchecked') === 'unchecked').slice(0, n);
+    // A check that couldn't run (out of the day's allowance, most likely) won't run for the next one either.
+    for (const p of due) if ((await recheck(p))?.failed) break;
     await ops.flush(true);
     return { checked: due.length };
   }
