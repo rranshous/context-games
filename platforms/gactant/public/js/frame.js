@@ -584,7 +584,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     document.body.append(panel);
     const close = () => panel.remove();
     const said = el('p', { class: 'ask-fail' });
-    const fail = (err) => { said.textContent = err.message; };
+    // What a switch between private and public just did, so it's plain that it took.
+    const switched = el('p', { class: 'share-done' });
+    const fail = (err) => { said.textContent = err.message; switched.textContent = ''; };
     // Sharing can take a while (waiting for the ludant, the picture, the check): the panel
     // says what it's on, and can't be pressed again meanwhile.
     const working = async (text, fn) => {
@@ -643,9 +645,12 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
               }
               return api('POST', `ludants/${this.recordId}/share`, { token: this.token, by: this.seat, public: v });
             })) };
+            said.textContent = '';
+            switched.textContent = v ? '✓ Public: it\'s in the lobby now, for anyone.' : '✓ Private: it\'s out of the lobby. Only people with the link can open it.';
             draw();
           } catch (err) { fail(err); draw(); }
         }),
+        switched,
         ...[follows].filter(Boolean), said, update,
         el('button', { class: 'top-btn', onclick: close }, 'close'));
     };
