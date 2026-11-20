@@ -3834,3 +3834,23 @@ Robby seeded a ludant and its doings showed `fault tools: missing } after proper
 - **Guard:** the smoke test (and so `deploy`) compiles the seed's tools, hooks and game sections the way `actant.js` does. Against the old seed it fails.
 - **Already seeded:** ludants made since Nov 16 still carry the broken line. They can fix it themselves from the fault, or it can be edited in their tools section.
 - **Deployed** as version 857b5005. Robby is deleting the ludant that showed the fault.
+
+## Talk: a tanks game, and playtesting a game that needs a second player (2026-11-20)
+
+**Tanks as a shared-code case.** Robby: "maybe this is another example where shared code could be helpful: a game where two stationary tanks aim and shoot at one another."
+- **The shot is where game and rules must agree.** The rules decide where the shell lands (angle, power, gravity, maybe wind; hit or miss, terrain damage), and the game animates the same arc. A copied physics that drifts shows the shell landing short of where the server says it hit: a visible contradiction, worse than lag.
+- **That part works today without shared code:** the rules put the flight in the result (sampled points and the impact) and the game plays it back. It's turn-based, so waiting a round trip before the shell flies is fine, and playback handles randomness (gusts, jitter) that a shared function couldn't predict.
+- **Where shared code still pays: the aiming guide,** a dotted arc following angle and power before firing. It needs the rules' physics with no round trip on every drag. Wind is visible to both, so nothing is hidden: the same case as `legal(view, move)`.
+- **For the list above:** "showing what will happen". Moves that animate a continuous process get a playback convention (the rules return the path); shared code only for previews. Robby: "noted gap". Nothing built.
+
+**Playtesting with a second player.** Robby: "how is the actant supposed to play test a game which requires a second player?"
+- **Today it can't, for the game.**
+  - `tryDraft` tests the *rules* with as many players as it likes (each step names who acts).
+  - But its *game* plays real matches for one person: every action is signed by that person's device, so one frame holds one seat. Turn handling, drawing the other side's moves from `table.changed`, the result screen and what the other seat sees all go untested until a second person joins.
+  - Vedina said so when it built tic-tac-toe ("couldn't test a full game without a second player"). Robby tested multiplayer with a second person on a second device (Robby-tmp-01).
+- **Proposal 1, practice matches** (the smaller step):
+  - `open(hash, { practice: true })` makes a match that isn't signed, archived or counted in standings, where one frame may take every seat (`join(match, request, { as: 'B' })`, `move(match, action, { as: 'B' })`).
+  - The game shows seat A as usual. The ludant plays A through `play`, moves B through the table tool, and looks at the stage to see its game answer B's moves the way it will a real opponent's.
+  - For tanks: aim and fire as A, fire back as B, look: did the arc play on A's screen, did the damage show?
+- **Proposal 2, seeing the other seat:** a second, hidden copy of the game bound to seat B (`look_at_stage({ as: 'B' })`, `play` with `as`), for real-time games where both screens matter, and for hidden information (does B see A's cards?).
+- **Recommendation:** proposal 1 first. It covers the turn-based games in the lobby. Proposal 2 waits until a real-time or hidden-hand game needs it.
