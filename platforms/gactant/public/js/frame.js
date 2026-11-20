@@ -248,14 +248,22 @@ class Frame {
     return res;
   }
 
-  /** The model that thinks here: the install's, unless ?model= chose another for this tab. */
+  /** The model that thinks here: the install's, unless ?model= chose another for this tab.
+   *  Only the names in THINKING_MODELS count (looked up as its own keys, so "constructor" and
+   *  the like aren't models). A link can carry ?model=, so whoever sits here is told once when
+   *  it isn't the install's: it changes what they pay. */
   thinkingModel() {
     let name = new URLSearchParams(location.search).get('model');
     try {
       if (name) sessionStorage.setItem(MODEL, name);
       else name = sessionStorage.getItem(MODEL);
     } catch {}
-    return THINKING_MODELS[name] ?? this.config.model;
+    const model = name && Object.hasOwn(THINKING_MODELS, name) ? THINKING_MODELS[name] : this.config.model;
+    if (model !== this.config.model && !this.toldModel) {
+      this.toldModel = true;
+      this.chat.notice(`This tab thinks with ${model.replace(/^anthropic\//, '')}, not ${this.config.model.replace(/^anthropic\//, '')}, because its link said so (model=${name}). That changes what thinking costs; ?model=sonnet goes back.`);
+    }
+    return model;
   }
 
   /** One turn's numbers, for the install's telemetry: how long the model took (to start, to
