@@ -621,6 +621,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       const link = el('input', { class: 'name-input share-link', value: url, readonly: true, onclick: () => link.select() });
       const copyBtn = el('button', { class: 'top-btn', onclick: async () => { try { await navigator.clipboard.writeText(url); copyBtn.textContent = 'copied'; } catch { link.select(); } } }, 'copy link');
       const followers = line.followers ?? 0;
+      // Shared without a title, it can't go in the lobby until it has one: ask for it here.
+      const untitled = !(this.actant.soma.sections.title ?? '').trim();
+      const title = untitled ? el('input', { class: 'name-input', placeholder: 'its title (the lobby needs one)', maxlength: 80, ...(this.following ? { disabled: true } : {}) }) : null;
       const update = el('button', { class: `top-btn${line.behind ? ' primary' : ''}`, disabled: !line.behind, onclick: async () => {
         update.disabled = true;
         try { const r = await working('sending the update…', () => this.sendUpdate()); if (r.held) said.textContent = `Held back: a check thought something in it might break the rules (${r.held.replace(/^the publish check: /, '')}). A person will look soon; until then, followers keep the version they have.`; draw(); }
@@ -629,8 +632,19 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       box.replaceChildren(
         el('p', {}, el('strong', {}, `${this.actant.soma.sections.title || name}, shared. `), `${followers ? `${followers} ${followers === 1 ? 'person follows' : 'people follow'} it. ` : 'Nobody follows it yet. '}${line.behind ? 'You\'ve changed it since your last update.' : 'Everyone following has your latest.'} Updates reach them the next time they open it.`),
         el('div', { class: 'share-row' }, link, copyBtn),
+        ...[title].filter(Boolean),
         this.visibility(line.public, async (v) => {
-          try { this.record.line = { ...this.record.line, ...(await working(v ? 'putting it in the lobby…' : 'taking it out of the lobby…', () => api('POST', `ludants/${this.recordId}/share`, { token: this.token, by: this.seat, public: v }))) }; draw(); } catch (err) { fail(err); draw(); }
+          try {
+            this.record.line = { ...this.record.line, ...(await working(v ? 'putting it in the lobby…' : 'taking it out of the lobby…', async () => {
+              if (v && title?.value.trim()) {
+                await this.settled('sharing');
+                if (await this.actant.writeSection('title', title.value.trim(), this.seat) === null) throw new Error('kept following: the title stays as it is');
+                await this.save();
+              }
+              return api('POST', `ludants/${this.recordId}/share`, { token: this.token, by: this.seat, public: v });
+            })) };
+            draw();
+          } catch (err) { fail(err); draw(); }
         }),
         ...[follows].filter(Boolean), said, update,
         el('button', { class: 'top-btn', onclick: close }, 'close'));

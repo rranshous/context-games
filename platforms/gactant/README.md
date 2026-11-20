@@ -273,7 +273,9 @@ links back up to what it's based on. The rest are private, so they're only count
 
 People share games; they don't publish snapshots. **Share** in a frame's top bar gives a
 link to text or email, and a choice: **private** (only people with the link) or **public**
-(the lobby too; a public game needs a title). Whoever opens the link gets their own copy,
+(the lobby too; a public game needs a title). Private and public can be switched at any time,
+changed or not; a game shared without a title is asked for one when it goes public, and gets a
+version with it (if nothing else changed) so the lobby shows it. Whoever opens the link gets their own copy,
 alive, which **follows** yours: when you **send an update**, their copy becomes your newest
 the next time they open it, keeping its own memory, chat and saves, and they're told
 ("Updated to Robby's latest"). Share shows **share •** when you've changed the game since

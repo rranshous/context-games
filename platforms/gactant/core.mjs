@@ -501,11 +501,12 @@ export function createCore({ store, settings }) {
   }
 
   /** A new version on a ludant's line: a snapshot, checked like any publication. Its name
-   *  is the ludant's; versions don't need names of their own. -> { pub, held? } */
-  async function newVersion(ludant, line, { by, note = '' }, from) {
+   *  is the ludant's; versions don't need names of their own. retitled: only its title is
+   *  new (the same game otherwise is fine). -> { pub, held? } */
+  async function newVersion(ludant, line, { by, note = '', retitled = false }, from) {
     const counted = limit('publish', from.ip, PUBLISH_A_DAY, `that's ${PUBLISH_A_DAY} updates from here today; more tomorrow`);
     const last = line.versions.length ? await store.get('published', line.versions.at(-1)) : null;
-    if (last && sameGame(last.soma, ludant.soma)) throw httpError(409, 'nothing has changed since the last update');
+    if (last && !retitled && sameGame(last.soma, ludant.soma)) throw httpError(409, 'nothing has changed since the last update');
     const name = nameOf(ludant.soma);
     const title = (ludant.soma.sections?.title ?? '').trim() || ludant.soma.given;
     const look = await lookAt({ name, title, note, soma: ludant.soma }, await picturesOf(`l-${ludant.id}`, ludant.assets));
@@ -1276,7 +1277,16 @@ export function createCore({ store, settings }) {
           await store.put('lines', line.id, line);
         }
         let held = null;
-        if (!line.versions.length) ({ held } = await newVersion(ludant, line, { by: body.by, note: body.note }, from));
+        const last = line.versions.length ? await store.get('published', line.versions.at(-1)) : null;
+        const title = (ludant.soma.sections?.title ?? '').trim().slice(0, MAX_TITLE);
+        if (!last) ({ held } = await newVersion(ludant, line, { by: body.by, note: body.note }, from));
+        // Going public with a title given since it was last shared (shared privately without
+        // one, say): the lobby shows its newest version, so it gets one that has the title.
+        // Only when the title is all that changed; when the game changed too, that's an
+        // update for its person to send, and it carries the title.
+        else if (body.public && title && last.title !== title && sameGame({ ...last.soma, sections: { ...last.soma.sections, title: ludant.soma.sections?.title } }, ludant.soma)) {
+          ({ held } = await newVersion(ludant, line, { by: body.by, note: body.note, retitled: true }, from));
+        }
         return { ...(await lineInfo(line)), ...(held ? { held } : {}) };
       }
       // Send an update: a new version on its line, for everyone following it.
