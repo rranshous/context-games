@@ -3854,3 +3854,15 @@ Robby seeded a ludant and its doings showed `fault tools: missing } after proper
   - For tanks: aim and fire as A, fire back as B, look: did the arc play on A's screen, did the damage show?
 - **Proposal 2, seeing the other seat:** a second, hidden copy of the game bound to seat B (`look_at_stage({ as: 'B' })`, `play` with `as`), for real-time games where both screens matter, and for hidden information (does B see A's cards?).
 - **Recommendation:** proposal 1 first. It covers the turn-based games in the lobby. Proposal 2 waits until a real-time or hidden-hand game needs it.
+
+**Too much?** Robby: "is adding practice matching adding too much complexity? it sounds good, though, would the actant use it well?"
+- **Size:**
+  - On the server: a flag on a match (no signature check, one person may hold several seats, not archived, not counted in standings), plus `as` on join and move.
+  - Practice runs already have their own home (`practice-<person>`), so it's mostly reuse.
+  - For the ludant: one option and one argument, described in a line of the table's description. Small, but it's another thing for ludants to read, and one more way a match can differ.
+- **Would they use it?** The signs are good:
+  - ludants already run practice runs on their own (the chat's "testing multiplayer rules for…" line);
+  - the seed tells them a change isn't done until they've played it;
+  - Vedina noticed by itself that it couldn't test the two-player part.
+  - The risk is awkwardness: seat A through keys and clicks, seat B through JSON moves, then a look. A model handles that fine, but it may skip it when nobody asks.
+- **Suggestion:** build the smallest form and watch one ludant. Ask it to build a two-player game, without mentioning practice matches, and see whether it uses them. If it doesn't, or uses them badly, take them out again.
