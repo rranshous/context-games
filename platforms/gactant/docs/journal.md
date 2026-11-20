@@ -3893,3 +3893,11 @@ Robby: "lets try the minimalist version of practice matches. are they run on the
 - **Smoke:** opener joins unsigned, a stranger is refused, `as` is refused on a real match, a second seat by `as`, a game played to a win, not counted in standings, not listed, and the log naming the made-up seat with no signatures. The budget check's expected actions went from 4 to 11 (practice moves count). The pacing check failed once, timing-flaky under load, and passed on the rerun.
 
 **The trial:** ask a ludant for a two-player game without mentioning practice matches, and see whether it opens one and plays the other seat. If it doesn't, or the test never catches anything, take them out.
+
+## look_at_art (2026-11-20)
+
+Robby: "Can the actant view a piece of art it had generated?" Only partly:
+- `make_art` returns the picture, so the ludant sees it when it's made. But trimming shrinks pictures older than its last 6 turns.
+- The art surface has `look(name)`, but no seed tool called it. `look_at_stage` and `look_at_whiteboard` existed; `look_at_art` didn't.
+
+**Added:** a seed tool `look_at_art`. With a name it shows that picture, its size and the prompt it was made from; without a name it lists the art. Plus a changelog line that gives existing ludants the one-line `run` to add it themselves.

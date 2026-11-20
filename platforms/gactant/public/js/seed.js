@@ -146,6 +146,12 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
     run: (input, me, s) => s.whiteboard.look(),
   },
   {
+    name: 'look_at_art',
+    description: 'See a picture of my art by name, with its size and the prompt it was made from. Without a name: the list of my art.',
+    input_schema: { type: 'object', properties: { name: { type: 'string' } } },
+    run: (input, me, s) => (input.name ? s.art.look(input.name) : s.art.list()),
+  },
+  {
     name: 'sketch',
     description: 'Draw on the whiteboard. It is 100 wide and 60 tall, origin top-left. Each shape has a type: path {points:[[x,y],...], fill?}, line {from:[x,y], to:[x,y]}, rect {x,y,w,h, fill?}, circle {x,y,r, fill?}, text {x,y,text,size?}. Any shape may have color (CSS) and width (line width, default 0.5).',
     input_schema: { type: 'object', properties: { shapes: { type: 'array', items: { type: 'object' } } }, required: ['shapes'] },
