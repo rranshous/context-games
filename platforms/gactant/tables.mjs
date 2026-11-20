@@ -39,7 +39,10 @@
 //                                           of it that ended with winners or scores, whichever ludant it was played
 //                                           through; by=best ranks those with a score by their best (highest first);
 //                                           you: your line, if you're on it
-//   POST matches { rulebook, options? }  -> { id, n, head }                 a new match, nobody in it yet
+//   POST matches { rulebook, options?, practice? } -> { id, n, head }       a new match, nobody in it yet. practice: a
+//                                           match for testing a game alone: only its opener acts in it, in as
+//                                           many seats as they like (act's as), unsigned, out of the rulebook's
+//                                           list and standings, and archived after an hour without an action
 //   GET  matches/<id>?after=<n>          -> { id, rulebook, name, at, n, head, view, result, you, last, archived? }
 //                                           view: yours. With after, it waits (up to 50 seconds) until the
 //                                           match has more than n actions. Hosted, the Worker takes this
@@ -48,7 +51,9 @@
 //   GET  matches/<id>/log?from=0         -> { id, rulebook, seed?, salt?, options, genesis, n, head, result, log, keys, more }
 //                                           seed and salt only once it's over (they decide what's dealt)
 //                                           keys: each signing device's public key (JWK), by device id
-//   POST matches/<id>/act { kind: join|move|moves, data, n, prev, signature?, ludant? }   moves: data is a list of up to 20 moves made together, applied one at a time (the answer's outcomes say which)
+//   POST matches/<id>/act { kind: join|move|moves, data, n, prev, signature?, ludant?, as? }   as (practice matches
+//                                           only): a made-up name for another seat of yours, played as player
+//                                           { id: '<you>:<as>', name: '<your name> as <as>' }   moves: data is a list of up to 20 moves made together, applied one at a time (the answer's outcomes say which)
 //                                        -> { n, head, view, result, budget }   409 if n or prev aren't the latest;
 //                                           422 { refused } if the rules said no; 429 past a budget
 //   GET  tables/budget                   -> yours today: what's used and what's allowed
@@ -80,6 +85,8 @@ const WORLD_ACTIONS_A_DAY = 20_000;
 const WORLD_MATCHES_A_DAY = 5_000;
 const ARCHIVE_OVER_MS = 3600_000;   // a match that's over is archived after this
 const ARCHIVE_IDLE_DAYS = 30;       // any match nobody acted in for this long is archived
+const PRACTICE_IDLE_MS = 3600_000;  // a practice match nobody acted in for this long is archived
+const SEAT = /^[A-Za-z0-9 _-]{1,20}$/;   // a practice seat's made-up name
 const LISTED = 30;                  // matches listed for a rulebook
 const STANDING = 5_000;             // people a rulebook's standings keep (the least recent go first)
 const SHOWN = 100;                  // people standings show at most
@@ -161,7 +168,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
   const listed = (idx) => ({ id: idx.id, at: idx.at, updated: idx.updated, n: idx.n, over: Boolean(idx.result), players: Object.values(idx.members ?? {}), view: idx.onlooker ?? null, ...(idx.archived ? { archived: true } : {}) });
   async function openAtOnce(person) {
     const lately = Date.now() - OPEN_LATELY_MS;
-    return (await store.list('match-index')).filter((m) => m.members?.[person] !== undefined && !m.result && !m.archived && Date.parse(m.updated ?? m.at) > lately).length;
+    return (await store.list('match-index')).filter((m) => !m.practice && m.members?.[person] !== undefined && !m.result && !m.archived && Date.parse(m.updated ?? m.at) > lately).length;
   }
 
   async function act(id, body, from) {
@@ -178,14 +185,21 @@ export function createTables({ store, people, httpError, owns, settings }) {
     if (kind === 'moves' && (count < 1 || count > MAX_TOGETHER)) throw httpError(400, `moves made together are a list of 1 to ${MAX_TOGETHER}`);
     for (const one of kind === 'moves' ? data : [data]) if (JSON.stringify(one ?? null).length > MAX_ACTION) throw httpError(413, `an action is up to ${MAX_ACTION} characters of JSON`);
     const person = from.person;
+    // A practice match is its opener's alone, and they may play any seat in it.
+    const as = body.as == null ? null : String(body.as);
+    if (as != null && !idx.practice) throw httpError(400, 'only a practice match takes as (open one with practice: true)');
+    if (as != null && !SEAT.test(as)) throw httpError(400, 'as is a made-up seat name: up to 20 letters, digits, spaces, - or _');
+    if (idx.practice && idx.by !== person) throw httpError(403, 'a practice match is played only by the one who opened it');
+    const player = as ? { id: `${person}:${as}`, name: `${from.name ?? 'someone'} as ${as}` } : { id: person, name: from.name };
     within('actions', person, ACTIONS_A_DAY - count + 1, `that's the ${ACTIONS_A_DAY} actions you may take in a day; more tomorrow`);
     within('actions', 'world', WORLD_ACTIONS_A_DAY - count + 1, 'tables are resting for today: the whole site has played as much as it can; tomorrow');
     enoughSteps(person);
-    if (kind === 'join' && idx.members?.[person] === undefined && await openAtOnce(person) >= OPEN_AT_ONCE) {
+    if (kind === 'join' && !idx.practice && idx.members?.[person] === undefined && await openAtOnce(person) >= OPEN_AT_ONCE) {
       throw httpError(429, `you're in ${OPEN_AT_ONCE} matches that aren't over and were played in within the last hour; finish one, or come back to a new one in a while`, { budget: budget(person) });
     }
     // The signature, by the device the pass names, before the match hears of it.
-    const key = await people.deviceKey(person, from.device);
+    // (Not in practice: nothing there needs proving, and a seat of yours isn't a person to sign for.)
+    const key = idx.practice ? null : await people.deviceKey(person, from.device);
     if (key) {
       let ok = false;
       try { ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, unb64u(body.signature ?? ''), enc.encode(signedText({ match: id, n, prev, person, device: from.device, kind, data }))); } catch {}
@@ -203,7 +217,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     const giveBack = pace(person);
     let out;
     try {
-      out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, key: key ? await people.publicKey(person, from.device) : null, player: { id: person, name: from.name }, through }));
+      out = await fromMatch(host.op(id, 'act', { kind, data, n, prev, signature: key ? String(body.signature) : null, device: from.device, key: key ? await people.publicKey(person, from.device) : null, player, through }));
     } catch (err) {
       if (err.extra?.steps) steps(person, err.extra.steps);
       if (err.code === 422) { add('actions', person, count); add('actions', 'world', count); } else giveBack();
@@ -213,7 +227,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     add('actions', person, count); add('actions', 'world', count);
     settings.count?.('table actions', count);
     const before = await read('match-index', id);
-    if (!before.result && out.result) await ended(before.rulebook, out.result, out.members, id);
+    if (!before.result && out.result && !before.practice) await ended(before.rulebook, out.result, out.members, id);
     await store.put('match-index', id, indexed(before, out));
     return { n: out.n, head: out.head, view: out.view, result: out.result, now: out.now, ...(out.outcomes ? { outcomes: out.outcomes } : {}), ...(out.viewError ? { viewError: out.viewError } : {}), budget: budget(person) };
   }
@@ -337,7 +351,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
         return { rulebook: rb.id, name: rb.name, matches: (await store.get('standings', rb.id))?.matches ?? 0, players: all.slice(0, n), you: mine };
       }
       if (c === 'matches') {
-        return (await store.list('match-index')).filter((m) => m.rulebook === rb.id)
+        return (await store.list('match-index')).filter((m) => m.rulebook === rb.id && !m.practice)
           .sort((x, y) => (y.updated ?? y.at).localeCompare(x.updated ?? x.at)).slice(0, LISTED).map(listed);
       }
     }
@@ -363,7 +377,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
         steps(from.person, made.steps);
         add('matches', from.person); add('matches', 'world');
         settings.count?.('table matches opened');
-        await store.put('match-index', id, indexed({ id, rulebook: rb.id, name: rb.name, by: from.person, at: now(), genesis: made.genesis }, made));
+        await store.put('match-index', id, indexed({ id, rulebook: rb.id, name: rb.name, by: from.person, at: now(), genesis: made.genesis, ...(body.practice ? { practice: true } : {}) }, made));
         return { id, n: 0, head: made.head };
       }
       const idx = await read('match-index', b);
@@ -402,7 +416,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     for (const idx of index) {
       if (idx.archived) continue;
       const idle = Date.now() - Date.parse(idx.updated ?? idx.at);
-      if ((idx.result && idle > (settings.archiveOverMs ?? ARCHIVE_OVER_MS)) || idle > ARCHIVE_IDLE_DAYS * 86400_000) {
+      if ((idx.result && idle > (settings.archiveOverMs ?? ARCHIVE_OVER_MS)) || idle > ARCHIVE_IDLE_DAYS * 86400_000 || (idx.practice && idle > PRACTICE_IDLE_MS)) {
         try { await archived(idx); done++; } catch (err) { settings.opsLog?.({ trouble: 'archiving a match', match: idx.id, message: err.message }); }
       } else kept++;
     }

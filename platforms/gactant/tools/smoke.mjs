@@ -369,6 +369,26 @@ function result(s, t) { return null; }` }, as(pass))).json;
   ok('each player sees their own view', seen.view?.you === 'O' && seen.you === true && seen.n === 7);
   ok('a look carries the server\'s time and when the match began', typeof seen.now === 'number' && seen.started <= seen.now);
   ok('the rulebook lists its matches', (await call('GET', `rulebooks/${rb}/matches`)).json[0]?.id === match.id);
+  // Practice: one person plays every seat, to test a game alone. Unsigned, unlisted, uncounted.
+  const prac = (await call('POST', 'matches', { rulebook: rb, practice: true }, as(pass))).json;
+  let pn = 0, phead = prac.head;
+  const pact = async (who, kind, data, extra = {}) => {
+    const r = await call('POST', `matches/${prac.id}/act`, { kind, data, n: pn, prev: phead, ...extra }, as(who));
+    if (r.status === 200) { pn = r.json.n; phead = r.json.head; }
+    return r;
+  };
+  ok('a practice match: its opener joins, unsigned', (await pact(pass, 'join', null)).json.view?.you === 'X');
+  ok('nobody else acts in a practice match', (await pact(stranger, 'join', null)).status === 403);
+  ok('as is only for practice matches', (await call('POST', `matches/${match.id}/act`, { kind: 'move', data: { cell: 8 }, n, prev: head, as: 'B' }, as(pass))).status === 400);
+  ok('the opener takes another seat with as', (await pact(pass, 'join', null, { as: 'B' })).json.view?.you === 'O');
+  for (const [cell, seat] of [[0], [3, 'B'], [1], [4, 'B']]) await pact(pass, 'move', { cell }, seat ? { as: seat } : {});
+  const pwon = await pact(pass, 'move', { cell: 2 });
+  ok('a practice match plays to the end', pwon.json.result?.winners?.[0] === me.id, JSON.stringify(pwon.json).slice(0, 200));
+  ok('a practice match isn\'t counted in standings', (await call('GET', `rulebooks/${rb}/standings`)).json.matches === 1);
+  ok('or listed with the rulebook\'s matches', !(await call('GET', `rulebooks/${rb}/matches`)).json.some((m) => m.id === prac.id));
+  const plog = (await call('GET', `matches/${prac.id}/log`)).json;
+  ok('its log names the made-up seat, unsigned', plog.log?.[1]?.player?.id === `${me.id}:B` && plog.log[1].player.name === 'Smoke as B' && plog.log.every((e) => e.signature === null), JSON.stringify(plog.log?.[1] ?? plog).slice(0, 200));
+  await new Promise((r) => setTimeout(r, 4000));   // let the pace's bucket fill again
   // Anyone can check the log: the chain, every signature, and the replay.
   const { log, seed: mSeed, salt, options, genesis, keys, started } = (await call('GET', `matches/${match.id}/log`)).json;
   const sha = async (t) => Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))).toString('hex');
@@ -389,7 +409,7 @@ function result(s, t) { return null; }` }, as(pass))).json;
   ok('a report brings the matches its game was in', mf?.matches?.length === 1 && mf.matches[0].id === match.id && mf.matches[0].players.includes('Smoke') && mf.matches[0].n === 7, JSON.stringify(mf?.matches));
   await call('POST', 'admin/moderate', { token: TOKEN, action: 'dismiss', flag: withMatch.id });
   const spent = (await call('GET', 'tables/budget', undefined, as(pass))).json;
-  ok('a budget says what\'s been used today', spent.actions?.used === 4 && spent.steps?.used > 0 && spent.steps.allowed > spent.steps.used, JSON.stringify(spent).slice(0, 200));
+  ok('a budget says what\'s been used today', spent.actions?.used === 4 + 7 && spent.steps?.used > 0 && spent.steps.allowed > spent.steps.used, JSON.stringify(spent).slice(0, 200));
   // Over: archived on the next sweep, its log whole, still checkable, and closed to actions.
   const swept = (await call('POST', 'admin/sweep', { token: TOKEN })).json;
   ok('a match that\'s over is archived', swept.archived >= 1, JSON.stringify(swept));

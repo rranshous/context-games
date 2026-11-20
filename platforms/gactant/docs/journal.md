@@ -3866,3 +3866,30 @@ Robby seeded a ludant and its doings showed `fault tools: missing } after proper
   - Vedina noticed by itself that it couldn't test the two-player part.
   - The risk is awkwardness: seat A through keys and clicks, seat B through JSON moves, then a look. A model handles that fine, but it may skip it when nobody asks.
 - **Suggestion:** build the smallest form and watch one ludant. Ask it to build a two-player game, without mentioning practice matches, and see whether it uses them. If it doesn't, or uses them badly, take them out again.
+
+## Practice matches, the minimal version (2026-11-20)
+
+Robby: "lets try the minimalist version of practice matches. are they run on the server? will it count against the moves and stuff? is the current draft matches on the server and counting against the limits?"
+
+**How it was already:**
+- **Practice runs** (`tryDraft`) run on the server, in a Durable Object per person (`practice-<person>`). Nothing is kept.
+- They count against two daily limits: 300 practice runs a day, and the 50,000 steps of rules a day (shared with real matches).
+- They don't count against the 3,000 actions a day or the pace (2 a second, bursts of 10).
+- **Real matches** count against everything: matches opened (300 a day, 10 open at once), actions, the pace, and steps.
+
+**What's built:**
+- **Server** (`tables.mjs`):
+  - `POST matches { rulebook, options, practice: true }` marks the match as practice in the index.
+  - In a practice match only its opener may act (403 for anyone else). `act` takes `as` (a made-up seat name: up to 20 letters, digits, spaces, `-` or `_`), played as `{ id: '<person>:<as>', name: '<name> as <as>' }`. `as` on a real match is a 400.
+  - Practice actions aren't signed: nothing needs proving, and a made-up seat isn't a person to sign for. The log keeps them as unsigned entries.
+  - Practice matches stay out of the rulebook's match list, standings, and the 10-open-at-once count. The sweep archives them after an hour without an action.
+  - They still count against matches opened, actions, the pace and steps, like any match: they cost the server the same.
+  - `match.mjs` didn't change.
+- **Frame** (`surfaces/table.js`):
+  - `open(hash, options, { practice: true })`, `join(match, request, { as })` and `move(match, action, { as })`.
+  - Another seat's moves go one at a time, not into the game's batch.
+  - The ludant's own game keeps playing its own seat and hears the other seat's moves as `table.changed`, exactly as from a real opponent.
+- **Teaching:** a few sentences in the table's description, and a changelog line (`changes.js`).
+- **Smoke:** opener joins unsigned, a stranger is refused, `as` is refused on a real match, a second seat by `as`, a game played to a win, not counted in standings, not listed, and the log naming the made-up seat with no signatures. The budget check's expected actions went from 4 to 11 (practice moves count). The pacing check failed once, timing-flaky under load, and passed on the rerun.
+
+**The trial:** ask a ludant for a two-player game without mentioning practice matches, and see whether it opens one and plays the other seat. If it doesn't, or the test never catches anything, take them out.
