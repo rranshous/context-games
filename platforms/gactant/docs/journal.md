@@ -3953,3 +3953,5 @@ Robby chose fewer pictures over Workers Paid. Reading the code, most of the spen
 - README: the vision model looks at up to twelve pictures, not six (it said six), and the above.
 
 Robby also passed on a doing line from a tanks ludant: "the cannons aren't lining up with where shots are going", the drift from "Tanks as a shared-code case" showing up in practice.
+
+**Deployed** as version b2a53062.
