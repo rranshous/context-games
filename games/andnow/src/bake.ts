@@ -62,6 +62,9 @@ if (resume && existsSync(`${out}/index.json`)) {
     try { world = loadWorld(await readSave(`${out}/${m.file}`)); break; }
     catch (e) { console.log(`skipping ${m.file}: ${(e as Error).message}`); index.marks.pop(); }
   }
+  // The unzipped save (as big as the world) is garbage now, but V8 under a roomy heap cap leaves it
+  // for weeks: collect it now (bake.sh runs node with --expose-gc).
+  (globalThis as { gc?: () => void }).gc?.();
   console.log(`resuming at tick ${world.t}`);
 } else if (existsSync(`${out}/index.json`)) console.log(`(overwriting ${out})`);
 
