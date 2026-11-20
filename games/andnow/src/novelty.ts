@@ -197,8 +197,8 @@ for (const f of files) {
     never += m.never; all += m.n;
     if (m.n < 20 || !m.ticks) continue;
     const speed = m.net / m.ticks;
-    record(seed, `s${seed}|speed`, speed, where, `fastest yet in s${seed}: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick net (${m.n} bodies)`, 1.2);
-    record(seed, 'all|speed', speed, where, `fastest in any run: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick (s${seed})`, 1.2);
+    record(seed, `s${seed}|speed`, speed, where, `fastest yet in s${seed}: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick net (${m.n} bodies)${known(rowOf(m.key))}`, 1.2);
+    record(seed, 'all|speed', speed, where, `fastest in any run: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick (s${seed})${known(rowOf(m.key))}`, 1.2);
   }
   if (all) {
     const share = never / all, k = `s${seed}|still`, prev = ledger.records[k];

@@ -2748,3 +2748,18 @@ Nothing new:
 - **The rest are known kinds:** biters (`CBLM` killing sprinters in s1, `BM` killing `C4SDTM` in s4), a `C8M]` hunter-like biting its own lineage, a vandal and near-bar flips.
 
 **Detector.** When one row has the same significant effect from three or more different partners, novelty now writes one line for the row instead of one per pair. The line says "mostly growers" (or whichever kind) when two thirds of the partners are one kind, and "touching anyone against being alone" otherwise. Bitten-off pieces and sterile copies are dropped before counting.
+
+## Discovery round 9 (2026-11-20)
+
+The first round to pause a bake. With all four on the fixed build only 6 GB was free, so the round waited from 7:47 until Robby said to pause one. `discover.sh` now stops seed 4's bake before the scans and starts it again after them, even if they fail (`PAUSE=` to skip). Seed 4 came back at 1.976M, nothing lost.
+
+Read s1 6.932M, s2 1.990M, s3 7.702M and s4 1.976M. Nothing new:
+- **Speed record:** s1's `M+IMxx` moved 1.64 cells a tick net, the fastest in any run. It's a sprinter's piece with no `C` or `D`: a husk that only moves, with its `x`s doubling the `M`s (pace above one action a tick, as in the survey's sprinter anatomy).
+- **Watch: s2's `CommMMD`** (a crawler variant) doubled, 502 → 1,030 (0.5% of s2).
+- **The rest are known kinds:**
+  - hunter-likes (`CM[6`, `C5]m`) biting and killing s3's sprinters, and a biter in s4;
+  - a steerer (`WTDM` writing arrows into sibling `CTDM`s);
+  - giants on piece rows (s3's `` `T ``, s4's `Cm[D` turner);
+  - near-bar flips.
+
+**Detector:** speed records now carry the known-kinds tag, so a husk record says so.
