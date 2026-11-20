@@ -3901,3 +3901,5 @@ Robby: "Can the actant view a piece of art it had generated?" Only partly:
 - The art surface has `look(name)`, but no seed tool called it. `look_at_stage` and `look_at_whiteboard` existed; `look_at_art` didn't.
 
 **Added:** a seed tool `look_at_art`. With a name it shows that picture, its size and the prompt it was made from; without a name it lists the art. Plus a changelog line that gives existing ludants the one-line `run` to add it themselves.
+
+Deployed with practice matches as version 26028ea9.
