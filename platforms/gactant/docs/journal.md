@@ -3817,3 +3817,11 @@ Robby asked what we'd advise a ludant for smoother multiplayer movement. My firs
 - **The game calls the rules:** `table.rules(hash)` compiles the exact locked rulebook in the sandbox and hands back its exports, so the game calls `step`/`inReach` instead of copying them. The section is for writing; the hash is what both sides run, so they can't disagree even mid-edit. Secrets mean only small pure helpers run on the player's side, not the whole `move()`.
 - **Teaching it:** one line in the table's description ("what decides must be a move; anything both sides must agree on goes in the rules as a function your game calls, not copies"), a changelog line, and later a one-time nudge when the rules refuse a move the game had already shown.
 - **Smaller option:** only `table.rules(hash)`, rulebooks staying out of the soma. Solves the shared code without the embodiment change.
+
+**Are the helpers worth it?** Robby: "w/ only small pure helpers able to run i'm not sure it would be used". Agreed: ludants copy a ten-line `inReach` fine; drift hurts in the bigger logic, which is what secrets keep off the player's side. Where sharing would pay:
+- **Games with nothing hidden** (Drop Four, chess, Realmer, the drawing and chat games): the whole `move()` could run in the game, so a move shows at once and the server confirms or rolls it back. The only case that changes how a game feels, and it's really a different feature, **prediction**: the frame runs `move()` itself for rulebooks with no secrets, with nothing asked of the ludant.
+- **Showing what's legal:** a `legal(view, move)` export works even with secrets, since legality usually depends only on what you can see.
+- **Real-time movement:** the game predicts with the same `step()` the rules check, so the movement budget never rubber-bands you. Few real-time games in the lobby yet.
+- Not worth it for turn-based games with hidden cards (War): the round trip is fast enough.
+
+**Decision: build nothing yet.** Prediction waits until a game feels laggy. The advice for the table's description ("the game and the rules must agree on legality and movement; keep them the same function") is noted, not added. Robby: "lets just journal for now".
