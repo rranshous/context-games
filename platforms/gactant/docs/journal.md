@@ -3768,3 +3768,7 @@ Robby asked whether we had enough telemetry to find where the time goes. The 17 
 **Found while testing: Sonnet 5.5 reasons by default through OpenRouter,** though we never ask it to. A small prompt with `max_tokens: 1200` spent all 1,200 tokens reasoning and wrote nothing, twice (about 10s each). Reasoning arrives in bursts with gaps of several seconds. So some of the 12s a turn is reasoning, and `tokensOut` has counted it. The new numbers will say how much; then the question is whether to set a reasoning effort (lower, or by kind of turn). Not changed yet.
 
 **Deployed (version 06322a3a).**
+
+## Trying other models: ?model= (2026-11-19)
+
+Robby: "i'd be interested to see how haiku does. can you setup a hidden query param … where i could choose between opus, sonnet and haiku. keeping sonnet as the default". `frame.html?l=<id>&model=haiku` (or `opus`, `sonnet`) thinks with that model for the rest of the tab (sessionStorage), on your key or the local relay (which accepts those three). Nothing in the interface. Telemetry already splits wakes and turns by model, so `tools/ops.mjs` compares them. A local "say hi" wake on Haiku 5.5 took 1.3s a turn (Sonnet's comparable turns: several seconds), with no reasoning tokens. Haiku is a twentieth of Sonnet's price; Opus 5.5 is double.

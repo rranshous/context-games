@@ -2,6 +2,8 @@
 // with it.
 //
 //   frame.html?l=<ludant id>
+//   frame.html?l=<ludant id>&model=haiku     think with another model in this tab (opus, sonnet,
+//                                            haiku: THINKING_MODELS), for testing; not in the interface
 //
 // There are no modes. Whoever sits down can play, ask for changes, checkpoint and restore;
 // its person shares it. The frame tells the ludant who is here and how they're related to it, and
@@ -15,7 +17,7 @@
 import { Bus } from './bus.js';
 import { canSeal, contentKey, handOver, seal, unlock, unseal, who } from './identity.js';
 import { callName, nameOf, titled } from './names.js';
-import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
+import { ART_MODELS, THINKING_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Art } from './surfaces/art.js';
 import { Table } from './surfaces/table.js';
 import { Admins } from './surfaces/admins.js';
@@ -82,6 +84,7 @@ This is early and experimental. Things in the frame may be rough or change. If s
 </context>`;
 
 const JUST_PLAY = 'gactant-just-play';   // sessionStorage: "just play" was chosen this session
+const MODEL = 'gactant-model';            // sessionStorage: the model ?model= chose for this tab
 
 class Frame {
   constructor(record, seat) {
@@ -226,7 +229,7 @@ class Frame {
     if (this.payer() === 'own') {
       // Streamed, only so it's known how long the model took to start, and to start answering
       // (after reasoning, when it reasons).
-      const request = { ...buildRequest({ model: this.config.model, messages, tools }), stream: true };
+      const request = { ...buildRequest({ model: this.thinkingModel(), messages, tools }), stream: true };
       res = await complete(request, (part) => {
         const at = Date.now() - started;
         firstMs ??= at;
@@ -237,12 +240,22 @@ class Frame {
           usage: res.usage, last: request.messages.findLast((m) => m.role !== 'system'), reply: res.choices?.[0]?.message }).catch(() => {});
       }
     } else {
-      res = await api('POST', 'infer', { who: this.recordId, messages, tools });
+      res = await api('POST', 'infer', { who: this.recordId, messages, tools, model: this.thinkingModel() });
     }
     this.reportTurn(res, Date.now() - started, firstMs, answerMs);
     this.status.addSpend(res.usage?.cost);
     this.checkIn();
     return res;
+  }
+
+  /** The model that thinks here: the install's, unless ?model= chose another for this tab. */
+  thinkingModel() {
+    let name = new URLSearchParams(location.search).get('model');
+    try {
+      if (name) sessionStorage.setItem(MODEL, name);
+      else name = sessionStorage.getItem(MODEL);
+    } catch {}
+    return THINKING_MODELS[name] ?? this.config.model;
   }
 
   /** One turn's numbers, for the install's telemetry: how long the model took (to start, to

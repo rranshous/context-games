@@ -123,14 +123,14 @@
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
 //   drafts, rulebooks, matches                   tables: games many ludants play together (tables.mjs has their API)
-//   POST infer          { who, messages, tools? } -> OpenRouter chat completion, on the install's key
+//   POST infer          { who, messages, tools?, model? } -> OpenRouter chat completion, on the install's key (model: a THINKING_MODELS or ART_MODELS one)
 //                                                   (people with their own OpenRouter key call it from the browser)
 //   POST log/<who>      { record }               -> {}             a think the browser made itself
 //   GET  log/<who>?n=20                          -> last n inference records
 
 import { nameOf, randomGiven, titled, titleSlug } from './public/js/names.js';
 import { markText } from './public/js/marks.js';
-import { ART_MODELS, buildRequest } from './public/js/openrouter.js';
+import { ART_MODELS, THINKING_MODELS, buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
 import { publicText } from './check.mjs';
 import { createOps } from './ops.mjs';
@@ -425,8 +425,9 @@ export function createCore({ store, settings }) {
   async function infer(body) {
     if (!key) throw httpError(503, 'this install has no OpenRouter key: connect your own OpenRouter account');
     const who = body.who ? safe(body.who) : 'anon';
-    // Thinking uses the install's model; painting may use one of the art models.
-    const chosen = Object.values(ART_MODELS).includes(body.model) ? body.model : model;
+    // Thinking uses the install's model, or one of the others for testing (frame.html?model=);
+    // painting may use one of the art models.
+    const chosen = [...Object.values(ART_MODELS), ...Object.values(THINKING_MODELS)].includes(body.model) ? body.model : model;
     const request = buildRequest({ messages: body.messages, tools: body.tools, modalities: body.modalities, model: chosen, max_tokens: Math.min(Number(body.max_tokens) || 32000, 32000) });
     const started = Date.now();
     // A dropped connection or a busy provider shouldn't end someone's sitting: retry those.
