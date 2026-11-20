@@ -141,15 +141,39 @@ for (const f of files) {
 
   // Who's good or bad for whom, and flips.
   const strength = (e: Report['eco'][0]) => Math.max(Math.abs(e.onA?.z ?? 0), Math.abs(e.onB?.z ?? 0));
+  // A row that does better (or worse) beside three or more different rows, all the same way (CmGD
+  // beside husks, sprinters and growers alike), is better off touching anyone than alone on its step:
+  // one line for the row, not one per partner.
+  // A row that's part of the other (CLMD and LMD or CMD, C4SDTM and C4SDT) is a piece bitten off it,
+  // and does worse beside the whole ones: damage, not a relationship. So is a sterile copy of the
+  // other (CmMD and CmM$: its D became something else), which exists only by fresh mutation.
+  const sterile = (x: string, y: string) => x.length === y.length && !x.includes('D') && y.includes('D') && [...x].filter((g, i) => g !== y[i]).length === 1;
+  const damage = (e: Report['eco'][0]) => partOf(e.a, e.b) || partOf(e.b, e.a) || sterile(e.a, e.b) || sterile(e.b, e.a);
+  const sig = (x?: { d: number; z: number }) => (!x ? 0 : x.z >= 3 && x.d >= 0.05 ? 1 : x.z <= -3 && x.d <= -0.05 ? -1 : 0);
+  const onRow = new Map<string, { sign: number; by: string; d: number }[]>();
+  for (const e of r.eco) {
+    if (e.a === e.b || damage(e)) continue;
+    for (const [row, by, x] of [[e.b, e.a, e.onB], [e.a, e.b, e.onA]] as const) {
+      const sg = sig(x);
+      if (sg) onRow.set(row, [...(onRow.get(row) ?? []), { sign: sg, by, d: x!.d }]);
+    }
+  }
+  const fan = new Map<string, number>();
+  for (const [row, fx] of onRow) for (const sg of [1, -1]) {
+    const same = fx.filter((f) => f.sign === sg);
+    if (same.length < 3) continue;
+    fan.set(row, sg);
+    const ds = same.map((f) => f.d).sort((a, b) => a - b), pm = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
+    // Mostly one kind of partner (growers, say) is that kind's doing; a mix is touching anyone.
+    const kinds = same.map((f) => kindOf(f.by)), top = [...new Set(kinds)].sort((a, b) => kinds.filter((k) => k === b).length - kinds.filter((k) => k === a).length)[0];
+    const why = top && kinds.filter((k) => k === top).length * 3 >= same.length * 2 ? `mostly ${top}s` : 'touching anyone against being alone, not one partner';
+    note(seed, 'fan', `${row}|${sg}`, where, `**${row}** does ${sg > 0 ? 'better' : 'worse'} beside ${same.length} different rows (${same.map((f) => `\`${f.by}\``).join(', ')}; ${pm(ds[0])} to ${pm(ds[ds.length - 1])}): ${why}${known(row)}`);
+  }
   for (const e of r.eco) {
     if (/neutral|same row: 0|same row: \?|too rare/.test(e.kind) || strength(e) < 3) continue;
-    // A row that's part of the other (CLMD and LMD or CMD, C4SDTM and C4SDT) is a piece bitten off it,
-    // and does worse beside the whole ones: damage, not a relationship.
-    if (partOf(e.a, e.b) || partOf(e.b, e.a)) continue;
-    // So is a sterile copy of the other (CmMD and CmM$: its D became something else), which
-    // exists only by fresh mutation.
-    const sterile = (x: string, y: string) => x.length === y.length && !x.includes('D') && y.includes('D') && [...x].filter((g, i) => g !== y[i]).length === 1;
-    if (sterile(e.a, e.b) || sterile(e.b, e.a)) continue;
+    // Its pairs are covered by the line above when the fan row's side is all there is.
+    if (e.a !== e.b && !(sig(e.onB) && fan.get(e.b) !== sig(e.onB)) && !(sig(e.onA) && fan.get(e.a) !== sig(e.onA))) continue;
+    if (damage(e)) continue;
     const pair = e.a === e.b ? e.a : `${e.a} / ${e.b}`;
     const d = (x?: { d: number; z: number }) => (x ? `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)})` : '?');
     note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, A on B ${d(e.onB)}${e.a === e.b ? '' : `, B on A ${d(e.onA)}`}${known(e.a, e.b)}`);

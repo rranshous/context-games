@@ -2731,3 +2731,20 @@ Nothing new:
   - two good-for/bad-for flips near the bar.
 
 **Detector fix.** A top-10 plan is no longer listed when it only has more or fewer of the same off-row glyphs than a plan already seen (same row, same set of tail glyphs). It still goes in the ledger.
+
+## Discovery round 8, and seeds 1, 3 and 4 on the fixed build (2026-11-19 evening)
+
+**Restarts.** Robby asked to move s1, s3 and s4 onto the build with the id fix (owners in a Float64Array). Each resumed from its newest checkpoint (6.885M, 7.658M, 1.955M).
+- **Memory.** The new processes came up 1.5–4 GB bigger each, and swap filled while the round's scans waited. Two causes:
+  - the wider owner array (8 bytes a tile, not 4);
+  - the unzipped save left over from loading, which V8 under a 12 GB cap doesn't hurry to collect.
+- **Fix.** Bakes now call `gc()` right after loading (`bake.sh` passes `--expose-gc`). That saved about half a GB each.
+- **Seed 4** sat out the round to make room and restarted after it.
+- **Total.** All four bakes now take about 22 GB, against about 16 GB on the old build.
+
+**Round 8** read s1 6.885M, s2 1.973M, s3 7.658M and s4 1.955M in 89 minutes (s2 peaked at 9.6 GB).
+- **The one candidate:** s4's grower `CmGD` did better beside seven different rows. A scratch count on the checkpoint showed that touching growers are much bigger and older than lone ones. Size makes a body touch more and survive the replay, so it's a confound (survey, under the ecology scan).
+- **Husks re-checked:** s4's husks show no such size gap, so "husks do better beside the living" stays unexplained.
+- **The rest are known kinds:** biters (`CBLM` killing sprinters in s1, `BM` killing `C4SDTM` in s4), a `C8M]` hunter-like biting its own lineage, a vandal and near-bar flips.
+
+**Detector.** When one row has the same significant effect from three or more different partners, novelty now writes one line for the row instead of one per pair. The line says "mostly growers" (or whichever kind) when two thirds of the partners are one kind, and "touching anyone against being alone" otherwise. Bitten-off pieces and sterile copies are dropped before counting.
