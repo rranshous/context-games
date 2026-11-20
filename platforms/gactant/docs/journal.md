@@ -3766,3 +3766,5 @@ Robby asked whether we had enough telemetry to find where the time goes. The 17 
 - **Spread, not just means.** ops.mjs counts turn and wake times in ranges (≤5s … over 160s); tools/ops.mjs prints them with the median and 90th percentile, and averages turns by model, by how much they wrote, by what they called and by provider, with tokens a second once started.
 
 **Found while testing: Sonnet 5.5 reasons by default through OpenRouter,** though we never ask it to. A small prompt with `max_tokens: 1200` spent all 1,200 tokens reasoning and wrote nothing, twice (about 10s each). Reasoning arrives in bursts with gaps of several seconds. So some of the 12s a turn is reasoning, and `tokensOut` has counted it. The new numbers will say how much; then the question is whether to set a reasoning effort (lower, or by kind of turn). Not changed yet.
+
+**Deployed (version 06322a3a).**
