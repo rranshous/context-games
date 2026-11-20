@@ -3789,3 +3789,5 @@ Ways to get it, cheapest first:
 The first fits best. Its description belongs in the tool's own text, and the trail and the next wake's "what you did" would carry it too.
 
 **Built (option 1).** Robby: "yea, i like option 1, lets do that". The frame adds `doing` to every tool's parameters (actant.js `withDoing`), first, and takes it out before the tool runs, so a ludant's own tools never see it (unless one already has a `doing` of its own, which is then left alone). The waiting card shows "changing the game: <doing>", and the next wake's trail carries "(for: …)". Made optional, Sonnet left it out of an edit_section entirely ("changed the game", as before). Required on write_section and edit_section, the next edit came back "doing": "v2 label to gold v3", and the card read "✓ changed the game: v2 label to gold v3". It's still optional on every other tool (the quick looks need nothing), and a call without it runs anyway.
+
+**Deployed (version c47f6da1).**
