@@ -102,10 +102,16 @@ arrives during a wake (a chat message, say) joins it at the next turn, as "Meanw
 
 Each wake is a fresh conversation. What carries over is the soma (memory above all), the
 last 7 chat messages (shown with what's happening now), and a **trail of the last wake**:
-what woke it, each step (the tool, in brief, and how it went if it failed), the last thing
+what woke it, each step (the tool, in brief, what it said the step was for, and how it went if it failed), the last thing
 it wrote to itself, and how it ended. The trail is kept on the device after every turn, so
 if the page is reloaded or closed mid-wake, the next wake is told it was cut off and how
 far it got.
+
+**Every tool call can say what it's for.** The frame adds `doing` to each tool's parameters,
+first (unless a ludant's own tool has one): asked for on `write_section` and `edit_section`,
+optional elsewhere, since models leave optional ones out. It's taken out before the tool runs. The
+waiting card shows it with the step ("changing the game: a score in the corner"), in place
+of only which tool it was.
 
 Within a wake, nothing was dropped before, so a long one grew with every turn. Now, every 8
 turns, what's older than the last 6 turns is **trimmed in place** (`public/js/trim.js`):

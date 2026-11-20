@@ -12,8 +12,14 @@ const SHOWN = 7;   // messages shown with every wake
 const STEPS_SHOWN = 4;   // steps done so far, under what it's on now
 const SLOW_MS = 45_000, STUCK_MS = 180_000;   // waits on the AI worth saying so about
 
-/** A step of a wake, in people's words: [under way, done]. */
+/** A step of a wake, in people's words: [under way, done], with what it said the step was
+ *  for, when it said. */
 function stepWords(s) {
+  const plain = toolWords(s);
+  return s.doing ? plain.map((w) => `${w}: ${s.doing}`) : plain;
+}
+
+function toolWords(s) {
   const part = { game: 'the game', hooks: 'how it reacts', tools: 'what it can do', memory: 'its notes', title: 'its title', origin: 'its origin' }[s.section] ?? (s.section ? `its ${s.section.replace(/_/g, ' ')}` : 'itself');
   const named = s.name ? ` “${s.name}”` : '';
   const words = {

@@ -397,6 +397,9 @@ export class Actant {
     let input = {};
     try { input = call.function?.arguments ? JSON.parse(call.function.arguments) : {}; }
     catch { return { text: JSON.stringify({ error: 'arguments were not valid JSON' }) }; }
+    // The frame's doing is for the person watching, not the tool, unless the tool has its own.
+    const own = (this.tools.find((t) => t.name === name)?.input_schema?.properties ?? {}).doing;
+    if (input && typeof input === 'object' && !own) delete input.doing;
     const brief = JSON.stringify(input);
     try {
       let out;
@@ -473,9 +476,21 @@ export class Actant {
     const names = new Set(innate.map((t) => t.name));
     return [...innate, ...this.tools.filter((t) => !names.has(t.name))].map((t) => ({
       type: 'function',
-      function: { name: t.name, description: t.description ?? '', parameters: t.input_schema ?? { type: 'object', properties: {} } },
+      function: { name: t.name, description: t.description ?? '', parameters: withDoing(t.input_schema ?? { type: 'object', properties: {} }, CHANGING.has(t.name)) },
     }));
   }
+}
+
+/** Every call can say, in a few words, what it's for: the person watching sees it with the
+ *  step ("changing the game: a score in the corner") instead of only which tool it was. The
+ *  frame adds it to each tool's parameters, first (unless the tool has its own doing), and
+ *  takes it out before the tool runs. Optional ones get left out, so changing the soma asks
+ *  for it; a call without it still runs. */
+const CHANGING = new Set(['write_section', 'edit_section']);
+const DOING = { type: 'string', description: 'For the person watching: in a few words, what this call is for, as they\'d say it (like "a score in the corner" or "the ball bounces off the walls"). They see it with the step while you work.' };
+function withDoing(schema, required) {
+  if (schema?.type !== 'object' || schema.properties?.doing) return schema;
+  return { ...schema, properties: { doing: DOING, ...schema.properties }, ...(required ? { required: ['doing', ...(schema.required ?? [])] } : {}) };
 }
 
 /** Where in a section an error was thrown, from its stack: the function and line. */
@@ -542,6 +557,7 @@ function stepOf(call, text = '') {
     : clip(JSON.stringify(input), 120);
   return {
     tool, what,
+    ...(typeof input.doing === 'string' && input.doing.trim() ? { doing: clip(input.doing.trim(), 80) } : {}),
     ...(typeof input.section === 'string' ? { section: input.section } : {}),
     ...(typeof input.name === 'string' ? { name: clip(input.name, 60) } : {}),
     ...(/^\{"(error|refused)"/.test(text) ? { failed: clip(text, 160) } : {}),
