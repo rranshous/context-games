@@ -3931,3 +3931,10 @@ Robby: "do we have data on where time is being spent?" Yes: the per-turn telemet
 - **The publish check is out of Workers AI's free allowance:** "4006: you have used up your daily free allocation of 10,000 neurons", 33 times since 01:29 UTC today. A publication whose check can't run stays `unchecked` and isn't shown to everyone until a later hourly check passes, so public shares made today wait for tomorrow's allowance. The vision model on up to 12 pictures is likely most of it. Options: Workers Paid, or fewer or smaller pictures per check.
 - The seed's broken tools (fixed today) showed up 7 times, in 5 ludants.
 - "the stage hasn't had a picture from the game for 9 s" stays the commonest fault (338 times since 10-29).
+
+## Note for the gactant session (2026-11-20)
+
+Everything above from "New ludants started with tools that didn't compile" on was done in the andnow session, which Robby was talking to by mistake: the seed fix, practice matches, look_at_art, the tanks and playtesting talk, and the timing read.
+- **Deployed:** the seed fix (857b5005), then practice matches and look_at_art (26028ea9).
+- **Pull before deploying again,** or a deploy from an older copy would undo them.
+- **Open:** the publish check is out of Workers AI's free allowance (see "Where the time goes, a day on"). Whether to try a lower reasoning effort is Robby's call.
