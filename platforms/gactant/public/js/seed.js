@@ -123,7 +123,7 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
   },
   {
     name: 'read_chat',
-    description: 'Read older chat messages. The last 7 already come with every wake (under the chat, with what\'s happening now), so use this only when you need more than those.',
+    description: "Read older chat messages. The last 7 already come with every wake (under the chat, with what's happening now), so use this only when you need more than those.",
     input_schema: { type: 'object', properties: { n: { type: 'number', description: 'how many (default 20)' } } },
     run: (input, me, s) => s.chat.read(input.n || 20),
   },

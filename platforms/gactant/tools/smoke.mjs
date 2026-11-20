@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { entryHash, genesisText, signedText } from '../match.mjs';
 import { recoveryProof } from '../public/js/recovery.js';
 import { markText } from '../public/js/marks.js';
+import { seedSoma } from '../public/js/seed.js';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 // --base <url>: against a server that's already running (`wrangler dev`, say, with ADMIN_TOKEN
@@ -36,6 +37,15 @@ const call = async (method, path, body, who = {}) => {
 
 try {
   for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/config`); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
+
+  // A new ludant's code sections compile, the way actant.js compiles them (a stray quote in the
+  // seed leaves every new ludant without its tools).
+  for (const [name, src] of Object.entries(seedSoma('Smoke').sections)) {
+    if (!['tools', 'hooks', 'game'].includes(name)) continue;
+    let err = '';
+    try { new Function(`return (${src}\n)`); } catch (e) { err = e.message; }
+    ok(`the seed's ${name} section compiles`, !err, err);
+  }
 
   const page = await fetch(`${base}/frame.html`);
   ok('frame page has the site policy', /script-src 'self'/.test(page.headers.get('content-security-policy') ?? ''));

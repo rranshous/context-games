@@ -3825,3 +3825,11 @@ Robby asked what we'd advise a ludant for smoother multiplayer movement. My firs
 - Not worth it for turn-based games with hidden cards (War): the round trip is fast enough.
 
 **Decision: build nothing yet.** Prediction waits until a game feels laggy. The advice for the table's description ("the game and the rules must agree on legality and movement; keep them the same function") is noted, not added. Robby: "lets just journal for now".
+
+## New ludants started with tools that didn't compile (2026-11-20)
+
+Robby seeded a ludant and its doings showed `fault tools: missing } after property list`.
+- **Cause:** the seed's `read_chat` description (75f266e, Nov 16) was `'...with what\'s happening now...'`. It sits inside the `TOOLS` template literal, so the `\'` came out as a bare `'` and ended the string. Every ludant seeded since then started with only `write_section` and `edit_section`.
+- **Fix:** the description is in double quotes now.
+- **Guard:** the smoke test (and so `deploy`) compiles the seed's tools, hooks and game sections the way `actant.js` does. Against the old seed it fails.
+- **Already seeded:** ludants made since Nov 16 still carry the broken line. They can fix it themselves from the fault, or it can be edited in their tools section.
