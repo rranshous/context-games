@@ -3903,3 +3903,31 @@ Robby: "Can the actant view a piece of art it had generated?" Only partly:
 **Added:** a seed tool `look_at_art`. With a name it shows that picture, its size and the prompt it was made from; without a name it lists the art. Plus a changelog line that gives existing ludants the one-line `run` to add it themselves.
 
 Deployed with practice matches as version 26028ea9.
+
+## Where the time goes, a day on (2026-11-20)
+
+Robby: "do we have data on where time is being spent?" Yes: the per-turn telemetry from 06322a3a. Two days of `tools/ops.mjs` give 55 wakes and 259 turns, all Anthropic, on Sonnet 5.5 and Haiku 5.5.
+- **A wake is the model:**
+  - Sonnet: 79s a wake, 74.5s of it waiting on the model, tools 4s; 6.1 turns of 12.3s.
+  - Haiku: 72s, 69s of it the model; 7.5 turns of 9.2s.
+  - Spread: median wake ≤40s, but 4 of 39 ran over 160s.
+- **Most of a turn is reasoning:**
+  - 1,140 of the mean 1,644 tokens out are reasoning (69%).
+  - Haiku waits 7.8s before its first token (reasoning first, then answering fast). Sonnet starts at 3.2s, but its answer starts at 10.2s.
+- **The slow turns are the big writes:**
+  - `write_section` turns: 43s mean (6,000 tokens of reasoning before ~7,000 characters of code).
+  - `table` turns: 21s (3,000 reasoning).
+  - `edit_section`: 14s.
+  - Turns that wrote over 16k tokens (7 of 259): 118s mean, 78s of it before the first token, 18k of it reasoning.
+  - Small turns (`read_section`, `look_at_stage`, `play`): 3–5s.
+- **People aren't kept waiting to be heard:** 0.4s for a wake to start. Mid-wake, once 10s (Sonnet), once 0.7s.
+- **The lever:** reasoning effort. We never ask for reasoning and get it by default (noted 11-19). Options:
+  - a lower effort everywhere;
+  - effort by kind of turn (low for reading, looking and playing; more for writing code);
+  - or a cap on reasoning tokens.
+  - Worth trying on a few wakes, watching whether the code gets worse.
+
+**Also seen in the same report:**
+- **The publish check is out of Workers AI's free allowance:** "4006: you have used up your daily free allocation of 10,000 neurons", 33 times since 01:29 UTC today. A publication whose check can't run stays `unchecked` and isn't shown to everyone until a later hourly check passes, so public shares made today wait for tomorrow's allowance. The vision model on up to 12 pictures is likely most of it. Options: Workers Paid, or fewer or smaller pictures per check.
+- The seed's broken tools (fixed today) showed up 7 times, in 5 ludants.
+- "the stage hasn't had a picture from the game for 9 s" stays the commonest fault (338 times since 10-29).
