@@ -3833,3 +3833,4 @@ Robby seeded a ludant and its doings showed `fault tools: missing } after proper
 - **Fix:** the description is in double quotes now.
 - **Guard:** the smoke test (and so `deploy`) compiles the seed's tools, hooks and game sections the way `actant.js` does. Against the old seed it fails.
 - **Already seeded:** ludants made since Nov 16 still carry the broken line. They can fix it themselves from the fault, or it can be edited in their tools section.
+- **Deployed** as version 857b5005. Robby is deleting the ludant that showed the fault.
