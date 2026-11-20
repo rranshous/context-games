@@ -3776,3 +3776,14 @@ Robby: "i'd be interested to see how haiku does. can you setup a hidden query pa
 **Deployed (1f795e90), then tightened.** Robby: "you made sure that i can _only_ use those values right? make sure we employ security mindfullness". The server already took only exact matches (and gactant.com has no server key to spend). But the frame looked the name up as `THINKING_MODELS[name]`, so `?model=constructor` or `__proto__` came back as a function or an object, and the request went out with a broken model. Now only its own keys count (`Object.hasOwn`), and anything else is the default. And since anyone can put `&model=opus` in a link they share, which doubles what the person opening it pays on their own key, the chat says once when the tab isn't on the install's model, and how to go back. Checked locally: `constructor` → Sonnet with no notice; `opus` → the notice, then Opus answered.
 
 **Deployed (version bfa03bba).**
+
+## Idea: say what it was trying to do, not "changed the game" (Robby, 2026-11-19)
+
+Robby: "instead of 'worked on the game' in the chat i'd like to show a short description of what the model was attempting to do". The waiting card's steps come from the tool alone (`stepWords` in chat.js: "changing the game", "rewrote how it reacts", "worked on online play"), so a long build reads as the same line over and over. What he wants is closer to "making the ball bounce off the walls".
+
+Ways to get it, cheapest first:
+- **An optional short `why` on the calls that change things** (write_section, edit_section, table, store, make_art): a few words, shown as the step instead of the generic line, generic when it's left out. The model writes it as part of the call it's already making: no extra call, and it's what it meant, not a guess.
+- **Its own words from that turn:** the text it wrote before the call, clipped. Free, but often empty, and long when it isn't.
+- **A cheap model summarising the change:** better words, but another call per step, and someone pays.
+
+The first fits best. Its description belongs in the tool's own text, and the trail and the next wake's "what you did" would carry it too.
