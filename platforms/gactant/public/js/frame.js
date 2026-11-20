@@ -40,6 +40,9 @@ const NO_THINKING = 'nobody here has connected thinking';
 const SAVE_MS = 800;
 const HEARTBEAT_MS = 5000;
 const THUMB_MS = 90000;   // how often the lobby's picture of this ludant is refreshed
+// Tools telemetry names: the frame's own and the seed's. Any other is a ludant's own ("own").
+const FRAME_TOOLS = new Set(['read_section', 'write_section', 'edit_section', 'search_sections', 'say', 'read_chat', 'look_at_stage',
+  'restart_stage', 'look_at_whiteboard', 'sketch', 'pass_whiteboard', 'play', 'make_art', 'concept_art', 'offer_choices', 'table', 'store']);
 
 // What this is, said plainly to the ludant at every wake. Ludants do better when they
 // know the goals and that it's an experiment. The frame owns this, not the soma, and it's
@@ -218,11 +221,17 @@ class Frame {
    *  sees the answer. */
   async infer({ messages, tools, ask }) {
     await this.thinkingReady(ask);
-    let res;
+    let res, firstMs = null, answerMs = null;
+    const started = Date.now();
     if (this.payer() === 'own') {
-      const request = buildRequest({ model: this.config.model, messages, tools });
-      const started = Date.now();
-      res = await complete(request);
+      // Streamed, only so it's known how long the model took to start, and to start answering
+      // (after reasoning, when it reasons).
+      const request = { ...buildRequest({ model: this.config.model, messages, tools }), stream: true };
+      res = await complete(request, (part) => {
+        const at = Date.now() - started;
+        firstMs ??= at;
+        if (part === 'answer') answerMs ??= at;
+      });
       if (this.config.logs) {
         api('POST', `log/${this.recordId}`, { at: new Date().toISOString(), ms: Date.now() - started, model: request.model, status: 200, via: 'browser',
           usage: res.usage, last: request.messages.findLast((m) => m.role !== 'system'), reply: res.choices?.[0]?.message }).catch(() => {});
@@ -230,9 +239,27 @@ class Frame {
     } else {
       res = await api('POST', 'infer', { who: this.recordId, messages, tools });
     }
+    this.reportTurn(res, Date.now() - started, firstMs, answerMs);
     this.status.addSpend(res.usage?.cost);
     this.checkIn();
     return res;
+  }
+
+  /** One turn's numbers, for the install's telemetry: how long the model took (to start, to
+   *  start answering, and in all), how much it wrote and reasoned, and what it called. Tools
+   *  the ludant made itself are "own". */
+  reportTurn(res, ms, firstMs, answerMs) {
+    const msg = res.choices?.[0]?.message ?? {}, u = res.usage ?? {};
+    const calls = msg.tool_calls ?? [];
+    const names = calls.map((c) => c.function?.name).map((n) => (FRAME_TOOLS.has(n) ? n : 'own'));
+    // A turn that writes a section is that turn's story, whatever else it called.
+    const tool = ['write_section', 'edit_section'].find((n) => names.includes(n)) ?? names[0] ?? 'none';
+    report('turn', {
+      ludant: this.recordId, model: res.model, provider: res.provider, ms, firstMs, answerMs, tool, calls: calls.length,
+      argChars: calls.reduce((n, c) => n + (c.function?.arguments?.length ?? 0), 0),
+      tokensIn: u.prompt_tokens, cachedIn: u.prompt_tokens_details?.cached_tokens, tokensOut: u.completion_tokens,
+      reasoning: u.completion_tokens_details?.reasoning_tokens ?? 0,
+    });
   }
 
   /** A picture from an image model, on whoever pays for thinking here. images: data URLs

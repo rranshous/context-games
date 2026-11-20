@@ -9,6 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SECONDS, WRITTEN } from '../ops.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const env = Object.fromEntries((existsSync(join(HERE, '.env')) ? readFileSync(join(HERE, '.env'), 'utf8') : '').split('\n')
@@ -66,6 +67,46 @@ if (wakes.length) {
     console.log(`  ${k.slice(5).padEnd(34)} ×${String(n).padEnd(4)} ${turns.toFixed(1)} turns, ${s(mean(k, 'ms', n))}, model ${s(mean(k, 'modelMs', n))}, tools ${s(mean(k, 'toolMs', n))}, slowest ${s(mean(k, 'slowestMs', n))}, ${s(mean(k, 'modelMs', n) / Math.max(turns, 1))}/turn; ${Math.round(mean(k, 'tokensIn', n))} (${Math.round(mean(k, 'cachedIn', n))}) / ${Math.round(mean(k, 'tokensOut', n))}; ${mean(k, 'writes', n).toFixed(1)} writes, ${mean(k, 'trims', n).toFixed(1)} trims`);
   }
   console.log(`  ended: ${pick('wake ended ').map(([k, v]) => `${k.slice(11)} ×${v}`).join(', ')}`);
+  for (const [k, n] of wakes) {
+    const sometimes = (f) => { const m = total[`${k} ${f} n`]; return m ? `${s(sums[`${k} ${f}`] / m)} (×${m})` : 'none yet'; };
+    console.log(`  ${k.slice(5)}: a person waited for the wake to start ${sometimes('heardMs')}; for what they did mid-wake to reach it ${sometimes('lateMs')}`);
+  }
+  spread('whole wakes', 'wakes ms in ');
+  spread('a person waiting for a wake to start', 'wakes heardMs in ');
+  spread('a person waiting mid-wake', 'wakes lateMs in ');
+}
+
+// A distribution kept as counts in ranges: the ranges, and which holds the median and the 90th percentile.
+function spread(what, prefix) {
+  const counts = SECONDS.map((_, i) => total[`${prefix}${i}`] ?? 0), n = counts.reduce((a, b) => a + b, 0);
+  if (!n) return;
+  const label = (i) => (SECONDS[i] === Infinity ? `over ${SECONDS[i - 1]}s` : `≤${SECONDS[i]}s`);
+  const at = (q) => { let run = 0; for (let i = 0; i < counts.length; i++) { run += counts[i]; if (run >= q * n) return label(i); } };
+  console.log(`  ${what} (×${n}): ${counts.map((c, i) => (c ? `${label(i)} ${c}` : '')).filter(Boolean).join(', ')}; median ${at(0.5)}, 90% ${at(0.9)}`);
+}
+
+const turns = pick('turn ').filter(([k]) => k.split(' ').length === 2);
+if (turns.length) {
+  const s = (ms) => `${(ms / 1000).toFixed(1)}s`;
+  // A group's line: count, mean seconds in all and to start, mean tokens written, and how fast
+  // it wrote once it started (tokens out over the time after the first token).
+  const line = (k, n, name) => {
+    const mean = (f) => (total[`${k} ${f} n`] ? sums[`${k} ${f}`] / total[`${k} ${f} n`] : null);
+    const ms = sums[`${k} ms`] / n, first = mean('firstMs'), answer = mean('answerMs'), out = sums[`${k} tokensOut`] / n;
+    const rate = first != null && ms > first ? ` ${Math.round(out / ((ms - first) / 1000))} tok/s` : '';
+    return `  ${name.padEnd(30)} ×${String(n).padEnd(5)} ${s(ms)}, starts ${first != null ? s(first) : '?'}, answers ${answer != null ? s(answer) : '?'}; ${Math.round(out)} out (${Math.round(sums[`${k} reasoning`] / n)} reasoning), ${Math.round(sums[`${k} argChars`] / n)} chars of arguments;${rate}`;
+  };
+  console.log('\nturns (means): seconds in all, to the first token, to the first of the answer (after reasoning); tokens out (of them reasoning); arguments; tokens a second once started');
+  for (const [k, n] of turns) console.log(line(k, n, k.slice(5)));
+  console.log('  by how much it wrote:');
+  WRITTEN.forEach((end, i) => { const k = `turns wrote ${i}`, n = total[k]; if (n) console.log(line(k, n, end === Infinity ? `  over ${WRITTEN[i - 1]} tokens` : `  up to ${end} tokens`)); });
+  console.log('  by what it called:');
+  for (const [k, n] of pick('turns tool ').filter(([k]) => k.split(' ').length === 3)) console.log(line(k, n, `  ${k.slice(11)}`));
+  console.log('  by provider:');
+  for (const [k, n] of pick('turns provider ').filter(([k]) => k.split(' ').length === 3)) console.log(line(k, n, `  ${k.slice(15)}`));
+  spread('turns, in all', 'turns ms in ');
+  spread('turns, to the first token', 'turns firstMs in ');
+  spread('turns, to the first of the answer', 'turns answerMs in ');
 }
 if (total['events dropped']) console.log(`\n${total['events dropped']} events dropped (over the day's cap)`);
 console.log(`\ntrouble (${ops.trouble.length} kinds kept), most recent first:`);

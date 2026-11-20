@@ -210,6 +210,13 @@ export class Actant {
     this.offHooks = [];
   }
 
+  /** How long the person whose doing is being heard now waited for it (null: nobody was). */
+  heard() {
+    const since = this.personWaiting;
+    this.personWaiting = null;
+    return since == null ? null : Date.now() - since;
+  }
+
   /** The frame says a person did something: the next wake is theirs. */
   personActed() { this.personSince = true; }
 
@@ -221,6 +228,7 @@ export class Actant {
     this.personSince = false;
     this.restless = human ? 0 : this.restless + 1;
     this.pending.push(event);
+    if (human) this.personWaiting ??= Date.now();   // since when a person has waited to be heard
     this.note('wake', describeEvent(event));
     if (this.thinking) return;   // it joins the think already under way
     if (this.restless > RESTLESS_LIMIT) {
@@ -245,6 +253,7 @@ export class Actant {
     this.thinking = true;
     const fresh = this.pending.splice(0);
     const woke = [...this.unheard.splice(0), ...fresh];
+    const heardMs = this.heard();
     this.life('thinking');
     // What its code threw since it was last awake comes with what woke it, so the system
     // text stays the same from wake to wake.
@@ -261,10 +270,12 @@ export class Actant {
     // A trail of this wake, sent to the frame after every turn, so the next wake hears what
     // this one did even if the page goes away in the middle of it.
     // asking: since when it has waited on the model; running: the step under way.
-    // stats: where the wake's time went, for the install's telemetry (numbers only).
+    // stats: where the wake's time went, for the install's telemetry (numbers only). heardMs:
+    // how long a person waited for this wake to start; lateMs: the longest one waited for
+    // what they did during it to reach it, between turns.
     // since: when the last step ended (or the wake began): each step took from then to its end.
     const trail = { at: Date.now(), since: Date.now(), woke: woke.map(describeEvent).slice(-5), turns: 0, steps: [], thought: '', ended: null, asking: null, running: null,
-      stats: { modelMs: 0, toolMs: 0, slowestMs: 0, tokensIn: 0, tokensOut: 0, cachedIn: 0, writes: 0, trims: 0, model: '' } };
+      stats: { modelMs: 0, toolMs: 0, slowestMs: 0, tokensIn: 0, tokensOut: 0, cachedIn: 0, writes: 0, trims: 0, model: '', heardMs, lateMs: null } };
     const turnAt = [];   // where each turn's reply sits in messages
     const keep = () => this.frame.send('trail', trail);
     keep();
@@ -331,6 +342,8 @@ export class Actant {
         }
         keep();
         const arrived = this.pending.splice(0);
+        const late = this.heard();
+        if (late != null) trail.stats.lateMs = Math.max(trail.stats.lateMs ?? 0, late);
         const thrown = this.errors.splice(0);
         if (images.length || arrived.length || thrown.length) {
           const meanwhile = arrived.length ? eventsContent(arrived, 'Meanwhile:\n') : [];

@@ -1,17 +1,20 @@
 // What a page tells the install about how it's going, so whoever runs it (and the Claude
 // helping them) can see trouble without anyone relaying it: crashes in the platform's own
 // pages, faults the frame noticed, thinking that failed, now and then how the stage
-// runs, and how long each wake took (numbers only). Never names, chat, prompts, code or keys. Read with tools/ops.mjs.
+// runs, and how long each wake and each of its turns took (numbers only). Never names,
+// chat, prompts, code or keys. Read with tools/ops.mjs.
 //
 //   report(kind, { where, message, sample, ludant, ...numbers })
 //   watchPage(where)    report the page's own uncaught errors
 //
-// A page sends at most MAX_EVENTS in all, the same trouble once, in batches.
+// A page sends at most MAX_EVENTS in all, the same trouble once, in batches. Turns (one a
+// model call) have their own MAX_TURNS, so a long build doesn't crowd out the rest.
 
 const MAX_EVENTS = 100;
+const MAX_TURNS = 400;
 const BATCH_MS = 15_000;
 
-let queue = [], sentCount = 0, timer = null;
+let queue = [], sentCount = 0, turnCount = 0, timer = null;
 const seen = new Set();
 
 /** The browser, roughly, for grouping: not its version or anything finer. */
@@ -27,11 +30,12 @@ export function browserName() {
 const mobile = () => matchMedia('(pointer: coarse)').matches;
 
 export function report(kind, fields = {}) {
-  if (sentCount + queue.length >= MAX_EVENTS) return;
+  if (kind === 'turn' ? turnCount >= MAX_TURNS : sentCount >= MAX_EVENTS) return;
   const event = { kind, ...fields };
   for (const k of ['where', 'message', 'sample']) if (event[k] != null) event[k] = String(event[k]).slice(0, k === 'sample' ? 1500 : 400);
   const key = `${kind}|${event.where}|${event.message}`;
-  if (kind !== 'perf' && kind !== 'wake') { if (seen.has(key)) return; seen.add(key); }
+  if (!['perf', 'wake', 'turn'].includes(kind)) { if (seen.has(key)) return; seen.add(key); }
+  if (kind === 'turn') turnCount++; else sentCount++;
   queue.push(event);
   timer ??= setTimeout(send, BATCH_MS);
 }
@@ -40,7 +44,7 @@ function send(beacon = false) {
   clearTimeout(timer); timer = null;
   if (!queue.length) return;
   const body = JSON.stringify({ browser: browserName(), mobile: mobile(), events: queue });
-  sentCount += queue.length; queue = [];
+  queue = [];
   if (beacon && navigator.sendBeacon) navigator.sendBeacon('/api/events', new Blob([body], { type: 'application/json' }));
   else fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
 }

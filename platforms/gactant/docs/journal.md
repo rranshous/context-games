@@ -3755,3 +3755,14 @@ Robby pointed out that messages come in pairs. The 7 chat messages are text insi
 note, not messages, so they don't pair. The pairing matters for trimming, which keeps it.
 
 **Deployed (version d3d87ef2):** the waiting card's step timers and wake trimming.
+
+## Where the time goes: per-turn telemetry (2026-11-19)
+
+Robby asked whether we had enough telemetry to find where the time goes. The 17 wakes since the wake numbers went out said: 96% of a wake is waiting on the model (72s of 75s; tools 2.6s), 5.9 turns, 12s a turn, 152k tokens in (112k cached), 7.3k out. So it's the model, but not *why*: writing a lot, or slow to start? Means also hide the long tail, and nothing measured a person waiting to be heard. Robby: "add what you've suggested and deploy".
+
+- **Streaming, for timing only.** On a person's own key the frame now asks OpenRouter to stream and puts the pieces back together into the same shape (`readStream` in openrouter.js), so nothing else changed. It notes when the first piece of reasoning and the first piece of the answer arrive. The relay (local installs) still doesn't stream. A callback that throws inside `complete()` would have been retried as a dropped connection, paying again, so the callback is guarded.
+- **A `turn` event per model call** (frame.js `reportTurn`): ms, firstMs, answerMs, tokens in/cached/out/reasoning, characters of tool arguments, what it called (frame and seed tools by name, a ludant's own as "own"), model, provider. Pages send up to 400 turns apart from the 100-event cap; the install takes 20,000 events a day (was 5,000).
+- **Waiting to be heard** (actant.js): `heardMs`, from a person's doing to the wake starting; `lateMs`, the longest a person's doing waited mid-wake for the next turn to hand it over.
+- **Spread, not just means.** ops.mjs counts turn and wake times in ranges (≤5s … over 160s); tools/ops.mjs prints them with the median and 90th percentile, and averages turns by model, by how much they wrote, by what they called and by provider, with tokens a second once started.
+
+**Found while testing: Sonnet 5.5 reasons by default through OpenRouter,** though we never ask it to. A small prompt with `max_tokens: 1200` spent all 1,200 tokens reasoning and wrote nothing, twice (about 10s each). Reasoning arrives in bursts with gaps of several seconds. So some of the 12s a turn is reasoning, and `tokensOut` has counted it. The new numbers will say how much; then the question is whether to set a reasoning effort (lower, or by kind of turn). Not changed yet.

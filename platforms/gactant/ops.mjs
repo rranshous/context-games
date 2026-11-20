@@ -14,8 +14,17 @@
 const FLUSH_MS = 60_000;
 const KEEP_HOURS = 30 * 24;
 const KEEP_TROUBLE = 400;
-const DAY_EVENTS = 5000;
+const DAY_EVENTS = 20000;
 const WAKE_NUMBERS = ['turns', 'ms', 'modelMs', 'toolMs', 'slowestMs', 'tokensIn', 'tokensOut', 'cachedIn', 'writes', 'trims'];
+// Numbers a wake has only sometimes (a person was waiting), counted apart so they average right.
+const WAKE_SOMETIMES = ['heardMs', 'lateMs'];
+const TURN_NUMBERS = ['ms', 'tokensIn', 'cachedIn', 'tokensOut', 'reasoning', 'argChars', 'calls'];
+// Distributions, as counts in ranges: the upper ends (seconds, or tokens written).
+export const SECONDS = [5, 10, 20, 40, 80, 160, Infinity];
+export const WRITTEN = [200, 1000, 4000, 16000, Infinity];
+const TOOLS = new Set(['none', 'own', 'read_section', 'write_section', 'edit_section', 'search_sections', 'say', 'read_chat', 'look_at_stage',
+  'restart_stage', 'look_at_whiteboard', 'sketch', 'pass_whiteboard', 'play', 'make_art', 'concept_art', 'offer_choices', 'table', 'store']);
+export const range = (v, ends) => { const i = ends.findIndex((e) => v <= e); return i < 0 ? ends.length - 1 : i; };
 const TEXT = 400;
 
 const hourOf = (d = new Date()) => d.toISOString().slice(0, 13).replace(/[-T]/g, '');
@@ -85,7 +94,7 @@ export function createOps({ store, log = () => {} }) {
   /** What a page noticed: { browser, mobile, events: [{ kind, where?, message?, sample?, ludant?, ...numbers }] } */
   async function events(body) {
     const browser = clip(body.browser, 20) || 'other';
-    const list = Array.isArray(body.events) ? body.events.slice(0, 20) : [];
+    const list = Array.isArray(body.events) ? body.events.slice(0, 40) : [];
     const today = hourOf().slice(0, 8);
     if (today !== day) { day = today; dayEvents = 0; }
     for (const e of list) {
@@ -106,6 +115,29 @@ export function createOps({ store, log = () => {} }) {
         count(`wake ${model}`);
         count(`wake ended ${clip(e.ended, 12).replace(/[^a-z]/g, '')}`);
         for (const f of WAKE_NUMBERS) sum(`wake ${model} ${f}`, Number(e[f]));
+        for (const f of WAKE_SOMETIMES) {
+          const v = e[f] == null ? NaN : Number(e[f]);
+          if (Number.isFinite(v)) { count(`wake ${model} ${f} n`); sum(`wake ${model} ${f}`, v); count(`wakes ${f} in ${range(v / 1000, SECONDS)}`); }
+        }
+        if (Number.isFinite(Number(e.ms))) count(`wakes ms in ${range(Number(e.ms) / 1000, SECONDS)}`);
+      } else if (kind === 'turn') {
+        // One call to the model: how long to start and in all, how much it wrote, what it called.
+        // Summed per model, per provider, per tool, and per how much it wrote; counted in ranges.
+        const model = clip(e.model, 60).replace(/[^\w./:-]/g, '') || 'unknown';
+        const provider = clip(e.provider, 30).replace(/[^\w. -]/g, '').replace(/ /g, '-') || 'unknown';
+        const tool = TOOLS.has(e.tool) ? e.tool : 'other';
+        const ms = Number(e.ms), out = Number(e.tokensOut);
+        const first = e.firstMs == null ? NaN : Number(e.firstMs), answer = e.answerMs == null ? NaN : Number(e.answerMs);
+        const groups = [`turn ${model}`, `turns provider ${provider}`, `turns tool ${tool}`, ...(Number.isFinite(out) ? [`turns wrote ${range(out, WRITTEN)}`] : [])];
+        for (const g of groups) {
+          count(g);
+          for (const f of TURN_NUMBERS) sum(`${g} ${f}`, Number(e[f]));
+          if (Number.isFinite(first)) { count(`${g} firstMs n`); sum(`${g} firstMs`, first); }
+          if (Number.isFinite(answer)) { count(`${g} answerMs n`); sum(`${g} answerMs`, answer); }
+        }
+        if (Number.isFinite(ms)) count(`turns ms in ${range(ms / 1000, SECONDS)}`);
+        if (Number.isFinite(first)) count(`turns firstMs in ${range(first / 1000, SECONDS)}`);
+        if (Number.isFinite(answer)) count(`turns answerMs in ${range(answer / 1000, SECONDS)}`);
       } else if (['crash', 'fault', 'thinking', 'server'].includes(kind)) {
         await trouble({ kind, where: e.where, message: e.message, sample: e.sample, browser, ludant: /^[a-z0-9-]{1,60}$/.test(e.ludant ?? '') ? e.ludant : null });
       }

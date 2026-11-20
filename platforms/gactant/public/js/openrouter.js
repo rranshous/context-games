@@ -98,8 +98,10 @@ export async function keyInfo() {
 }
 
 /** One completion, straight from this browser on the person's key. Retries what the relay
- *  retries: dropped connections and busy providers. */
-export async function complete(request) {
+ *  retries: dropped connections and busy providers. A request with stream: true comes back
+ *  in pieces, put together here into the same shape, and onPart('reasoning' or 'answer') is
+ *  called when the first piece of each arrives (how long the model took, for telemetry). */
+export async function complete(request, onPart) {
   for (let attempt = 0; ; attempt++) {
     let res, text;
     try {
@@ -108,6 +110,7 @@ export async function complete(request) {
         headers: { Authorization: `Bearer ${key()}`, 'Content-Type': 'application/json', 'X-Title': 'gactant', 'HTTP-Referer': location.origin },
         body: JSON.stringify(request),
       });
+      if (request.stream && res.ok && /event-stream/.test(res.headers.get('content-type') ?? '')) return await readStream(res, onPart);
       text = await res.text();
       if ((res.status === 429 || res.status >= 500) && attempt < 3) throw new Error(`status ${res.status}`);
     } catch (err) {
@@ -122,4 +125,49 @@ export async function complete(request) {
     if (!res.ok || json.error) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 400)}`);
     return json;
   }
+}
+
+/** A streamed completion, put together into the shape a whole one has (the message, its tool
+ *  calls, usage, model, provider). An error part way through throws, so complete() retries. */
+async function readStream(res, onPart) {
+  const out = { id: '', model: '', provider: '', choices: [{ index: 0, message: { role: 'assistant', content: '' }, finish_reason: null }], usage: null };
+  const msg = out.choices[0].message, calls = [];
+  const reader = res.body.getReader(), decoder = new TextDecoder();
+  let buf = '';
+  const began = new Set();
+  const part1 = (kind) => { if (!began.has(kind)) { began.add(kind); try { onPart?.(kind); } catch {} } };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      // Lines that aren't data (": OPENROUTER PROCESSING") only keep the connection alive.
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      let part;
+      try { part = JSON.parse(data); } catch { continue; }
+      if (part.error) throw new Error(`OpenRouter, part way through: ${JSON.stringify(part.error).slice(0, 300)}`);
+      out.id ||= part.id ?? ''; out.model ||= part.model ?? ''; out.provider ||= part.provider ?? '';
+      if (part.usage) out.usage = part.usage;
+      const choice = part.choices?.[0];
+      if (!choice) continue;
+      const d = choice.delta ?? {};
+      if (d.reasoning || d.reasoning_details?.length) part1('reasoning');
+      if (d.content || d.tool_calls?.length) part1('answer');
+      if (d.content) msg.content += d.content;
+      for (const t of d.tool_calls ?? []) {
+        const call = calls[t.index ?? Math.max(calls.length - 1, 0)] ??= { id: '', type: 'function', function: { name: '', arguments: '' } };
+        if (t.id) call.id = t.id;
+        if (t.function?.name) call.function.name = t.function.name;
+        if (t.function?.arguments) call.function.arguments += t.function.arguments;
+      }
+      if (choice.finish_reason) out.choices[0].finish_reason = choice.finish_reason;
+    }
+  }
+  if (calls.length) msg.tool_calls = calls.filter(Boolean);
+  return out;
 }
