@@ -3955,3 +3955,5 @@ Robby chose fewer pictures over Workers Paid. Reading the code, most of the spen
 Robby also passed on a doing line from a tanks ludant: "the cannons aren't lining up with where shots are going", the drift from "Tanks as a shared-code case" showing up in practice.
 
 **Deployed** as version b2a53062.
+
+**Workers Paid (2026-11-20).** Robby upgraded the account to the $5 plan, so checks past the free 10,000 neurons are billed instead of failing. Spend stays bounded by `MAX_CHECKS_A_DAY` (200). The backlog (Coinflip and Realmer in the lobby among them) clears on the next hourly sweep, at :17.
