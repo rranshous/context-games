@@ -1,3 +1,5 @@
+> **This is gactant as of 2026-11-21.** Development continues privately; this copy stays here as a snapshot of the work so far, and isn't updated.
+
 # gactant
 
 **Ludants: games that are also actants.**

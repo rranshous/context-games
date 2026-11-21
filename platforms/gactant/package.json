@@ -5,5 +5,5 @@
   "type": "module",
   "scripts": { "start": "node server.mjs", "smoke": "node tools/smoke.mjs", "deploy": "node tools/deploy.mjs" },
   "author": "Robby Ranshous",
-  "license": "MIT"
+  "license": "UNLICENSED"
 }
