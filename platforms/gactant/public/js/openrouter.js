@@ -33,9 +33,10 @@ export function buildRequest({ model, messages, tools, max_tokens, modalities })
     ...(modalities ? { modalities } : {}),
     // Room for a ludant to rewrite a whole game in one write_section.
     max_tokens: max_tokens || 32000,
-    // Thinking counts toward max_tokens: left alone, a big job's thinking took nearly all of
-    // it (24k of 27k) and the code it then wrote was cut off. Capped, 20k is always left.
-    ...(modalities ? {} : { reasoning: { max_tokens: 12000 } }),
+    // Thinking counts toward max_tokens: at the default effort (high), a big job's thinking
+    // took nearly all of it and the code it then wrote was cut off. Current Anthropic models
+    // take only an effort level (a token cap is quietly ignored); medium thinks less.
+    ...(modalities ? {} : { reasoning: { effort: 'medium' } }),
     usage: { include: true },
     // Prefer one provider: each keeps its own prompt cache, and bouncing between them
     // turns every other call into a cache write.
