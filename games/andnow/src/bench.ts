@@ -11,8 +11,14 @@ const [file, ticksArg] = process.argv.slice(2);
 if (!file) { console.log('usage: node dist/bench.mjs <checkpoint.andnow.gz> [ticks]'); process.exit(1); }
 const ticks = Number(ticksArg ?? 200);
 const world = loadWorld(await readSave(file));
+// (With --expose-gc: let the save's bytes go before timing, so rss is the world's own. V8 frees
+// big buffers off the main thread, a few seconds after the collection.)
+const g = (globalThis as { gc?: () => void }).gc;
+const gc = async () => { if (g) { g(); await new Promise((r) => setTimeout(r, 3000)); g(); } };
+await gc();
 const t0 = world.t;
-console.log(`bench: tick ${t0}, ${world.living().length} alive, ${ticks} ticks`);
+const mb = (b: number) => (b / 2 ** 20).toFixed(0);
+console.log(`bench: tick ${t0}, ${world.living().length} alive, ${ticks} ticks · loaded rss ${mb(process.memoryUsage().rss)} MB`);
 let start = performance.now(), lap = start;
 const cpu0 = process.cpuUsage();
 for (let k = 1; k <= ticks && !world.result.over; k++) {
@@ -22,8 +28,12 @@ for (let k = 1; k <= ticks && !world.result.over; k++) {
 const ms = (performance.now() - start) / (world.t - t0);
 // (CPU time too: on a busy machine it's steadier than the wall clock.)
 const cpu = process.cpuUsage(cpu0), cpuMs = (cpu.user + cpu.system) / 1000 / (world.t - t0);
+await gc();
+const mem = process.memoryUsage();
 // (cellsOf's sorted-cell cache is saved too, but it's only a cache: drop it so a change in
 // what gets cached doesn't change the hash.)
 (world as unknown as { sortedCells: Map<number, number[]> }).sortedCells.clear();
 const hash = createHash('sha1').update(saveWorld(world, '')).digest('hex').slice(0, 16);
 console.log(`${ms.toFixed(1)} ms/tick (${cpuMs.toFixed(1)} CPU) over ${world.t - t0} ticks · hash ${hash}`);
+// (Memory after the run, before the save: rss now and at peak, and the JS heap in use.)
+console.log(`rss ${mb(mem.rss)} MB (peak ${(process.resourceUsage().maxRSS / 1024).toFixed(0)}), heap ${mb(mem.heapUsed)} MB, arrays ${mb(mem.arrayBuffers)} MB`);

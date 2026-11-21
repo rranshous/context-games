@@ -366,7 +366,7 @@ export class ClimbView {
           if (y === sea) col = mix(col, [255, 255, 255], 0.35);
           if (o === DEBRIS) col = mix(col, [170, 160, 150], 0.4);
           else if (world.resource[c]) {
-            const r = Math.min(1, (world.ripe[c] - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
+            const r = Math.min(1, (world.ripe.get(c) - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
             const fresh: RGB = st[c] > 0 ? [150, 220, 90] : [40, 150, 70];
             col = r < 0.5 ? mix(fresh, [110, 230, 100], r * 2) : mix([110, 230, 100], [255, 210, 60], (r - 0.5) * 2);
           }

@@ -2834,3 +2834,84 @@ The list is in the session scratchpad at `m2/mysteries.md`.
   - **Dropped:** `C4SDTM`/`DmM`, `CDmM` beside `D`/`Dm`, and the s2 groups that all scored the same.
   - **Kept:** growers smothering (z −11 to −17), crowding by own kind, and s2's lookers beside husks (+0.32, z 4.7). The lookers' gain shrinks because lone lookers near husks eat corpses too.
 - **Replication** across two scans was rejected as a second test: consecutive z's correlate 0.7–0.95, so confounds replicate too. If noise persists, a 3.5 bar is the next lever.
+
+## Speed round 3 (100k bodies, 2026-11-21)
+
+Two lines of work at once, merged after: hot spots (CPU) and memory and garbage. Benched on climb7-s1 at t6942000 (98k bodies, 2000×18820 cells, a billion births), 100 ticks, `bench.mjs`, CPU ms/tick, with the bakes running. Every step gives the same end hash (`daa73a0a43769d72`). Bench now reports rss after the run, once V8 has let the save's bytes go (it frees big buffers a few seconds after a collection).
+
+**Combined (the merge), two runs each, in turn under one lock:**
+
+| checkpoint | main | merged | merged + semi64 (bake.sh) | rss main → merged + semi64 |
+|---|---|---|---|---|
+| s1 t6942000, 100 ticks (`daa73a0a43769d72`) | 1,256 / 1,272 | 794 / 787 | 722 / 727 | 2,073 → 1,416 MB |
+| s3 t7717000, 60 ticks (`0b72f6d57c619872`) | 1,343 / 1,297 | 850 / 796 | 804 / 771 | 2,342 → 1,537 MB |
+
+So −43% CPU and −32% rss on s1, about the same on s3. Hashes unchanged; golden 2,491 identical; eight fresh dishes (petri ×3, island ×2, climb ×3, one with forced steps up and down), run straight and with a save and load halfway, hash every 1,000 ticks, all the same as main's build.
+
+### Hot spots
+
+A profile showed 1.1M instructions a tick, nearly all `CMDm`-style loops: 288k shifts (71% succeed), 257k collects (99.4% find nothing), 285k divides (fail on the size check).
+
+| step | CPU ms/tick |
+|---|---|
+| start | 1,204 / 1,203 |
+| upkeep: step by row, a body's burn sum kept while its codes are, no narrow reads in a climb | ~6% off (A/B pairs) |
+| shift checks the leading edge only, moves owners on the two edges, refills its cells in place | |
+| collect: food counts per 8×8 block say "nothing near" without the board | 877 / 958 |
+| advance's answer and collect's column extent kept per shape | |
+| shed: articulation points from one DFS | |
+| a busy byte per cell for shift's check and scan's sweep | 765 / 789 |
+| step tests M, D, m, C first; shed keeps one map | 749 / 749 |
+| the climb's regrowth on the busy bytes | 743 / 747 |
+| a dead-cell bit, for collect's neighbour test and dead-cell scans | 729 (one run) |
+
+(Two rounds, run in turn under one lock; the steps without a number were only timed alone, in noisier runs.)
+
+A bigger world, climb7-s4 at t1979000 (198k bodies), 50 ticks: 2,653 → 1,702 CPU ms/tick, same hash. Its save is past 2 GB, more than one `hash.update` takes, so this was hashed a chunk at a time from `saveChunks`.
+
+- **Caches, not state.** The per-world ones (step by row, food blocks, busy bytes) sit under a symbol, so saves skip them, and are rebuilt when the grids are new arrays (a step joining) or the terrain changes. The per-shape ones (edges, advance's next cell, column extent) live on `Cells`, kept while `sorted` is the same array: a shift moves it in place, any other change makes a new one.
+- **Exactness.** The burn sum is exact while the burn factors are dyadic (they are: 1, ½), so 2^|n| × the sum is the same bits as the per-cell sum. Other factors fall back to the per-cell loop. Shed's tried cells still end at the end of the set in the order tried, as when each was taken out and put back.
+
+### Memory and garbage
+
+| step | CPU ms/tick | rss MB |
+|---|---|---|
+| start | 1346 | 2180 |
+| the dead (`deadAs`) in pages | 1357 | 1637 |
+| shift rewrites its cell list in place; sorted lists without an iterator; divide tries without x/y arrays; unreached and shed mark in scratch | 1105 | 1237 |
+| `ripe`, `flesh`, `narrow` in pages | 1113 | 1050 |
+| upkeep walks the living list unfiltered | 1127 | 1038 |
+| + `--max-semi-space-size=64` (now in bake.sh) | 997 | 1133 |
+
+(Two runs each, other work on the machine.)
+
+- **`Paged`** (`src/sim/paged.ts`) is a typed array in pages, where a page whose entries are all one value is just that number. It reads and writes like the array (`get`/`set`, values rounded as the array would store them) and saves as the array: same table entry, same bytes. So checkpoints load and save unchanged.
+  - `deadAs` was 944 MB of bytes, one per body ever born. 85% of its pages are one lineage's dead, so it's ~150 MB now, and it grows far slower than births.
+  - `ripe` (Float32, 150 MB), `flesh` and `narrow` matter only at plants and dead cells, and a climb never computes `narrow`, so upkeep skips its reads (`isZero`). Together they were 220 MB; now a few tens.
+  - Viewers and `diet.ts` read `ripe` and `flesh` with `get()`.
+- **Garbage was 183 MB a tick.** Found with V8's sampling heap profiler, counting collected objects too (`HeapProfiler.startSampling` with `includeObjectsCollectedBy*`). The sources:
+  - `Cells.clear()` drops the array's store, so every shift regrew its body's list: 67 MB.
+  - Divide tries mapped x/y arrays and spread them into `Math.max`: 43 MB. 290k tries a tick, 1.5k succeed.
+  - `Array.from(Int32Array.from(..).sort())` for sorted lists walked an iterator: 21 MB.
+  - unreached/shed allocated a Set, a Map and copies per try. Shed also took each candidate off the board and back, re-sorting each time.
+  - Now about 40 MB a tick. Of that, opDivide still accounts for 15 MB; not pinned down.
+- **The living list.** Filtering 98k bodies is a large-object allocation straight into old space. It happened ~2.6 times a tick: upkeep's copy, plus a divide try after any death. Upkeep now walks the list as it stands, with the same bodies in the same order. A divide try filters only when the cap could be near, and dishes have none.
+- **GC flags.** Even at 40 MB a tick, a tick's survivors get promoted and then die. That brought a 100–250 ms mark-compact every few ticks. A 64 MB semi-space lets them die young, for 12% less CPU and ~100 MB more rss. 128 MB is no faster and costs 230 MB. `--heap-growing-percent=100` adds a little on top of semi64 (2 runs, within noise). `--initial-old-space-size=2048` costs 500 MB.
+
+### The merge
+
+- **Shed** takes both: the BFS marks by place in the sorted cells (memory's scratch, no Map), and keeps each cell's queue place there for the articulation-point DFS (hot). A body that isn't one connected piece from its IP falls back to trying each candidate with unreached's skip and moving it to the set's end.
+- **Shift** is the hot version (owners change on the two edges only, busy bytes kept); it already rewrote the cell list in place.
+- **Narrow:** the hot side's "any narrow cell" scan read the grid as an array; with `narrow` paged it's `isZero()`.
+- The caches see every write: `ripe` and `flesh` aren't in the food blocks or busy bytes (those are of `owner`, `resource`, terrain), and resource writes go through `setResource`.
+- **rss:** the merge's heap is 295 MB to the memory side's ~176 at s1, most likely the per-shape caches (typed arrays on each body's `Cells`). That's the CPU side's price, ~120 MB.
+
+**Where it stands** (s1): 1,256 → 722 CPU ms/tick, rss 2,073 → 1,416 MB.
+- The grids are most of the memory now: `owner` 301 MB (Float64), then `code`, `resource`, `terrain`, `step` and the busy bytes at 37 MB each.
+- What's left of the CPU is each body's first touch (the body, its `Cells`, its arrays) and the destination cells of a shift: cache misses on a 37M-cell board, with bodies in id order, not place.
+- Peak rss is still ~3.9 GB while loading, because the whole unzipped save is held.
+
+Not done:
+- `owner` as Int32 slots (dense living-body numbers, with a slot → id table) would halve it and pack more of the board into cache. Every `owner[i]` reader, viewers included, would need to change, and saves would convert back to Float64 ids.
+- Struct-of-arrays bodies: each turn reads a whole body, so SoA would spread one body across more cache lines. A packed record per body in body order is the version worth trying.
+- A streaming load would cut the load peak.

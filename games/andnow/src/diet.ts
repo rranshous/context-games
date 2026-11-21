@@ -34,7 +34,7 @@ for (const dir of args) {
     }
     const dead = (w as unknown as { cellSets: Map<number, Set<number>> }).cellSets.get(DEBRIS) ?? new Set<number>();
     let rich = 0;
-    if (w.flesh) for (const c of dead) if (w.flesh[c]) rich++;
+    if (w.flesh) for (const c of dead) if (w.flesh.get(c)) rich++;
     const n = w.living().length, eaters = meat + both;
     console.log(`${pad(m.t, 8)} ${pad(n, 6)} ${pad(plants, 7)} ${pad(meat, 6)} ${pad(both, 6)} ${pad(none, 5)}  ${pad(n ? (100 * eaters / n).toFixed(1) : '-', 6)} ${pad(eaters ? (mCells / eaters).toFixed(1) : '-', 8)} ${pad(mMax, 8)}  ${pad(dead.size, 10)} ${pad(w.flesh ? rich : '-', 6)}`);
   }
