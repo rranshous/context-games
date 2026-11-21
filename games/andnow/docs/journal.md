@@ -2794,3 +2794,38 @@ Robby asked for a proper chase of "husks do better beside the living". Three sub
 - **Open: feeding also cuts cold deaths** (core-frozen deaths fall 15–30% when fed), and why isn't worked out.
 
 **Fix for the misreading.** `ecology.ts`'s table now heads its columns "B's score beside an A" and "A's score beside a B". Novelty's lines name the body that gains: "`C4SDTM` beside `DmM` +0.35".
+
+## Speed round 3: memory and garbage (98k bodies, 2026-11-21)
+
+Benched on climb7-s1 at t6942000 (98k bodies, 2000×18820 cells, a billion births), 100 ticks, `bench.mjs`. CPU ms/tick, two runs each with other work on the machine. Every step gives the same end hash (`daa73a0a43769d72`). Golden 2,491 identical. Fresh petri, island and climb dishes match the old build, run straight and with a save and load halfway (one climb with forced steps up and down). Bench now reports rss after the run, once V8 has let the save's bytes go (it frees big buffers a few seconds after a collection).
+
+| step | CPU ms/tick | rss MB |
+|---|---|---|
+| start | 1346 | 2180 |
+| the dead (`deadAs`) in pages | 1357 | 1637 |
+| shift rewrites its cell list in place; sorted lists without an iterator; divide tries without x/y arrays; unreached and shed mark in scratch | 1105 | 1237 |
+| `ripe`, `flesh`, `narrow` in pages | 1113 | 1050 |
+| upkeep walks the living list unfiltered | 1127 | 1038 |
+| + `--max-semi-space-size=64` (now in bake.sh) | 997 | 1133 |
+
+- **`Paged`** (`src/sim/paged.ts`) is a typed array in pages, where a page whose entries are all one value is just that number. It reads and writes like the array (`get`/`set`, values rounded as the array would store them) and saves as the array: same table entry, same bytes. So checkpoints load and save unchanged.
+  - `deadAs` was 944 MB of bytes, one per body ever born. 85% of its pages are one lineage's dead, so it's ~150 MB now, and it grows far slower than births.
+  - `ripe` (Float32, 150 MB), `flesh` and `narrow` matter only at plants and dead cells, and a climb never computes `narrow`, so upkeep skips its reads. Together they were 220 MB; now a few tens.
+  - Viewers and `diet.ts` read `ripe` and `flesh` with `get()`.
+- **Garbage was 183 MB a tick.** Found with V8's sampling heap profiler, counting collected objects too (`HeapProfiler.startSampling` with `includeObjectsCollectedBy*`). The sources:
+  - `Cells.clear()` drops the array's store, so every shift regrew its body's list: 67 MB.
+  - Divide tries mapped x/y arrays and spread them into `Math.max`: 43 MB. 290k tries a tick, 1.5k succeed.
+  - `Array.from(Int32Array.from(..).sort())` for sorted lists walked an iterator: 21 MB.
+  - unreached/shed allocated a Set, a Map and copies per try. Shed also took each candidate off the board and back, re-sorting each time. It now skips the candidate and moves it to the end of the set, which is what the old round trip left behind.
+  - Now about 40 MB a tick. Of that, opDivide still accounts for 15 MB; not pinned down.
+- **The living list.** Filtering 98k bodies is a large-object allocation straight into old space. It happened ~2.6 times a tick: upkeep's copy, plus a divide try after any death. Upkeep now walks the list as it stands, with the same bodies in the same order. A divide try filters only when the cap could be near, and dishes have none.
+- **GC flags.** Even at 40 MB a tick, a tick's survivors get promoted and then die. That brought a 100–250 ms mark-compact every few ticks. A 64 MB semi-space lets them die young, for 12% less CPU and ~100 MB more rss. 128 MB is no faster and costs 230 MB. `--heap-growing-percent=100` adds a little on top of semi64 (2 runs, within noise). `--initial-old-space-size=2048` costs 500 MB.
+- **Where it stands:** 1346 → 997 ms/tick with the flag, and rss 2180 → 1133 MB.
+  - The grids are most of the memory now: `owner` 301 MB (Float64), then `code`, `resource`, `terrain` and `step` at 37 MB each.
+  - The CPU is still opCollect and opShift reading the board around each body: cache misses on a 37M-cell board, with bodies in id order, not place.
+  - Peak rss is still ~3.9 GB while loading, because the whole unzipped save is held.
+
+Not done:
+- `owner` as Int32 slots (dense living-body numbers, with a slot → id table) would halve it and pack more of the board into cache. Every `owner[i]` reader, viewers included, would need to change, and saves would convert back to Float64 ids.
+- Struct-of-arrays bodies: each turn reads a whole body, so SoA would spread one body across more cache lines. A packed record per body in body order is the version worth trying.
+- A streaming load would cut the load peak.
