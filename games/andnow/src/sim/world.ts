@@ -94,6 +94,14 @@ class Scratch {
   foodOwner: Float64Array | undefined = undefined;
   foodRes: Uint8Array | undefined = undefined;
   foodW = 0;
+  // What's on each cell, a byte (1 a body or dead cell, 2 a resource, 4 not floor; 0 free), so
+  // the hot loops read one byte, not the owner, resource and terrain grids. Kept by setOwner,
+  // setResource and shifts while the grids are these.
+  busy: Uint8Array | null = null;
+  busyOwner: Float64Array | undefined = undefined;
+  busyRes: Uint8Array | undefined = undefined;
+  busyTer: Uint8Array | undefined = undefined;
+  busyVer = -1;
 }
 
 /** What `cellSets` holds: a body's Cells, or the dead cells' Set. */
@@ -644,6 +652,8 @@ export class World {
     const o = this.owner[i];
     if (o === v) return;
     if ((o === DEBRIS || v === DEBRIS) && this.resource[i] === 0) this.fed(i, v === DEBRIS ? 1 : -1);
+    const busy = this.keptBusy();
+    if (busy) busy[i] = (busy[i] & 6) | (v !== NONE ? 1 : 0);
     if (o !== NONE) { this.cellSets.get(o)!.delete(i); if (o === DEBRIS) { this.flesh[i] = 0; this.sortedCells.delete(DEBRIS); } }
     this.owner[i] = v;
     if (v !== NONE) {
@@ -1050,6 +1060,23 @@ export class World {
     return f.food;
   }
 
+  /** What's on each cell (see Scratch.busy), made afresh for new grids or changed terrain. */
+  private busyGrid(): Uint8Array {
+    const f = this.scratch, owner = this.owner, resource = this.resource, terrain = this.board.terrain;
+    if (!f.busy || f.busyOwner !== owner || f.busyRes !== resource || f.busyTer !== terrain || f.busyVer !== this.terrainVersion) {
+      const n = owner.length, busy = new Uint8Array(n);
+      for (let i = 0; i < n; i++) busy[i] = (owner[i] !== NONE ? 1 : 0) | (resource[i] !== 0 ? 2 : 0) | (terrain[i] !== FLOOR ? 4 : 0);
+      f.busy = busy; f.busyOwner = owner; f.busyRes = resource; f.busyTer = terrain; f.busyVer = this.terrainVersion;
+    }
+    return f.busy;
+  }
+
+  /** The busy grid, if it's of these grids (to keep it up to date; else it's made afresh when next needed). */
+  private keptBusy(): Uint8Array | null {
+    const f = this[SCRATCH];
+    return f?.busy && f.busyOwner === this.owner && f.busyRes === this.resource ? f.busy : null;
+  }
+
   /** Cell i gained (+1) or lost (−1) food: its block's count follows, if counted for these grids. */
   private fed(i: number, by: number) {
     const f = this[SCRATCH];
@@ -1063,6 +1090,8 @@ export class World {
     const was = this.resource[i];
     if (was === k) return;
     if ((was === 0) !== (k === 0) && this.owner[i] !== DEBRIS) this.fed(i, k ? 1 : -1);
+    const busy = this.keptBusy();
+    if (busy) busy[i] = (busy[i] & 5) | (k !== 0 ? 2 : 0);
     this.resource[i] = k;
   }
 
@@ -1639,7 +1668,9 @@ export class World {
     // One sweep of the window collects the matches, keyed (distance, board index), and they're
     // tried nearest first: the same order as searching ring by ring, at a fraction of the cost.
     // (classify, inlined: this is the hottest loop in a climb. The window is inside the board.)
-    const terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
+    // (The busy bytes first: a match needs a body or dead cell (1) or a resource (2) on floor (not 4).)
+    const owner = this.owner, resource = this.resource, me = wr.id, busy = this.busyGrid();
+    const need = type === T_ENEMY || type === T_DEBRIS ? 1 : type === T_SIZE || type === T_SPEED || type === T_RESOURCE ? 2 : 3;
     const keys = SCAN_KEYS;
     let n = 0;
     for (let y = y0; y <= y1; y++) {
@@ -1647,9 +1678,9 @@ export class World {
       if (ady > maxD) continue;
       const row = y * W;
       for (let x = x0; x <= x1; x++) {
-        const i = row + x, o = owner[i], res = resource[i];
-        if (o === NONE && res === 0) continue;
-        if (terrain[i] !== FLOOR) continue;
+        const i = row + x, b = busy[i];
+        if (!(b & need) || b & 4) continue;
+        const o = owner[i], res = resource[i];
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
@@ -1685,9 +1716,15 @@ export class World {
     const mine = this.mineOf(wr), set = this.cells(wr), w = this.w;
     // (Only the leading edge can be blocked: the rest moves into the body's own cells.)
     const lead = set && mine.length ? this.edge(set, mine, d, wr.id) : undefined;
-    if (lead) for (let j = 0; j < lead.length; j++) {
+    if (lead && CONFIG.island) for (let j = 0; j < lead.length; j++) {
       const c = mine[lead[j]];
       if (!this.passable(wr, (c % w) + DX[d], ((c / w) | 0) + DY[d])) return false;
+    } else if (lead) { // (passable is isFree off the island: a free cell's busy byte is 0)
+      const busy = this.busyGrid(), h = this.h;
+      for (let j = 0; j < lead.length; j++) {
+        const c = mine[lead[j]], x = (c % w) + DX[d], y = ((c / w) | 0) + DY[d];
+        if (x < 0 || y < 0 || x >= w || y >= h || busy[y * w + x]) return false;
+      }
     }
     // Island survival: a sea creature eats the dead cells it swims into.
     if (CONFIG.island && wr.realm === 1) {
@@ -1712,9 +1749,10 @@ export class World {
     else if (n) {
       const trail = this.edge(set, mine, (d + 2) % 4, id), items = set.items;
       for (let k = 0; k < n; k++) codes[k] = code[mine[k]];
-      for (let j = 0; j < trail.length; j++) { const c = mine[trail[j]]; owner[c] = NONE; code[c] = 0; }
+      const busy = this.keptBusy();
+      for (let j = 0; j < trail.length; j++) { const c = mine[trail[j]]; owner[c] = NONE; code[c] = 0; if (busy) busy[c] &= 6; }
       for (let k = 0; k < n; k++) { const c = (mine[k] += delta); code[c] = codes[k]; items[k] = c; }
-      for (let j = 0; j < lead!.length; j++) owner[mine[lead![j]]] = id;
+      for (let j = 0; j < lead!.length; j++) { const c = mine[lead![j]]; owner[c] = id; if (busy) busy[c] |= 1; }
       set.sorted = mine;
     }
     wr.ipX += DX[d];
