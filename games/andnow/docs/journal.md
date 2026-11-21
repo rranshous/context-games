@@ -2776,3 +2776,21 @@ Read s1 6.938M, s2 1.992M, s3 7.708M and s4 1.978M in 46 minutes. The pause work
   - Every seed's top rows are flat across the last three checkpoints.
 
 No new detector: nothing slipped past this round.
+
+## The husk puzzle, explained (2026-11-20 night)
+
+Robby asked for a proper chase of "husks do better beside the living". Three subagents worked on it: one read the rules, one dug through the data, one ran an experiment. Seed 4's bake was paused for about three hours to make room. The scratch work is in the session scratchpad's `husk/` folder.
+
+- **We had it backwards.**
+  - The ecology table's "A on B" column is the effect on B. The husk row is often the A, so every husk row's + was on the living partner.
+  - A husk's own score can't move: nearly all of them die within the replay, and none has children.
+  - Also, `C` is COLLECT, not copy.
+- **Rules.** Cold and pressure are checked per body against its own cells, and nothing passes energy between bodies. So a neighbour can't warm, shield or feed a husk.
+- **s2: the lookers eat their dying kin.**
+  - Lookers touching a husk `L` gain +0.40, all of it in births. The husk is always a relative of the same lineage, and it dies, nearly always within 50 ticks.
+  - Lookers that ate its corpse gain +0.74; those that didn't, −0.34. The gain survives matching on step, size, fat, age and local food.
+  - In the experiment, making the husks vanish at t0 wipes out the gain (births −0.17, z −8). Turning them into dead cells at t0 raises it (+0.24). So it's the corpse as food.
+- **s1 is a confound.** Vanishing s1's husks changes almost nothing, because its neighbours eat only an eighth as much corpse as s2's. The +0.11 births comes from fast-paced strains sitting in husk-dense patches, and matched on those it's 0. Tonight's `DmM`/`C4SDTM` row is a false hit: the grazers can't eat dead cells.
+- **Open: feeding also cuts cold deaths** (core-frozen deaths fall 15–30% when fed), and why isn't worked out.
+
+**Fix for the misreading.** `ecology.ts`'s table now heads its columns "B's score beside an A" and "A's score beside a B". Novelty's lines name the body that gains: "`C4SDTM` beside `DmM` +0.35".

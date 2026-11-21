@@ -175,8 +175,9 @@ for (const f of files) {
     if (e.a !== e.b && !(sig(e.onB) && fan.get(e.b) !== sig(e.onB)) && !(sig(e.onA) && fan.get(e.a) !== sig(e.onA))) continue;
     if (damage(e)) continue;
     const pair = e.a === e.b ? e.a : `${e.a} / ${e.b}`;
+    // Each side names who gains: "X beside Y +0.40" is X's own score (A on B once got read backwards).
     const d = (x?: { d: number; z: number }) => (x ? `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)})` : '?');
-    note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, A on B ${d(e.onB)}${e.a === e.b ? '' : `, B on A ${d(e.onA)}`}${known(e.a, e.b)}`);
+    note(seed, 'eco', `${pair}|${e.kind}`, where, `**${pair}**: ${e.kind}, \`${e.b}\` beside \`${e.a}\` ${d(e.onB)}${e.a === e.b ? '' : `, \`${e.a}\` beside \`${e.b}\` ${d(e.onA)}`}${known(e.a, e.b)}`);
     const was = ledger.eco[`${seed}|${pair}`];
     if (was && was !== e.kind) at(seed).notes.push(`**${pair}** flipped: was ${was}, now ${e.kind}`);
     ledger.eco[`${seed}|${pair}`] = e.kind;

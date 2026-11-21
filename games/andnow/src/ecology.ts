@@ -397,7 +397,7 @@ for (let i = 0; i < keys.length; i++) for (let j = i; j < keys.length; j++) {
 const fmt = (x?: ReturnType<typeof effect>) => (!x ? 'too few' : `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)}, n ${x.n})`);
 const tally: Tally = new Map(); for (const e of eco) bump(tally, e.kind.replace(/:.*/, ''));
 say(`${eco.length} pairs measured: ${[...tally].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}.`);
-say('| A | B | kind | A on B | B on A |');
+say("| A | B | kind | B's score beside an A | A's score beside a B |");
 say('|---|---|---|---|---|');
 const strength = (e: (typeof eco)[0]) => Math.max(Math.abs(e.onA?.z ?? 0), Math.abs(e.onB?.z ?? 0));
 for (const e of eco.filter((x) => !/neutral|same row: 0|same row: \?/.test(x.kind) && strength(x) >= 3).sort((x, y) => strength(y) - strength(x)).slice(0, 30)) {
