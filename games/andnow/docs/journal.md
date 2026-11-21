@@ -2794,3 +2794,29 @@ Robby asked for a proper chase of "husks do better beside the living". Three sub
 - **Open: feeding also cuts cold deaths** (core-frozen deaths fall 15–30% when fed), and why isn't worked out.
 
 **Fix for the misreading.** `ecology.ts`'s table now heads its columns "B's score beside an A" and "A's score beside a B". Novelty's lines name the body that gains: "`C4SDTM` beside `DmM` +0.35".
+
+## Speed round 3 (100k bodies, 2026-11-21)
+
+Benched on climb7-s1 at t6942000 (98k bodies, 2000×18820 cells), 100 ticks, CPU ms/tick, with the bakes running. Every step gives the same end hash (`daa73a0a43769d72`). A profile showed 1.1M instructions a tick, nearly all `CMDm`-style loops: 288k shifts (71% succeed), 257k collects (99.4% find nothing), 285k divides (fail on the size check).
+
+| step | CPU ms/tick |
+|---|---|
+| start | 1,204 / 1,203 |
+| upkeep: step by row, a body's burn sum kept while its codes are, no narrow reads in a climb | ~6% off (A/B pairs) |
+| shift checks the leading edge only, moves owners on the two edges, refills its cells in place | |
+| collect: food counts per 8×8 block say "nothing near" without the board | 877 / 958 |
+| advance's answer and collect's column extent kept per shape | |
+| shed: articulation points from one DFS | |
+| a busy byte per cell for shift's check and scan's sweep | 765 / 789 |
+| step tests M, D, m, C first; shed keeps one map | 749 / 749 |
+| the climb's regrowth on the busy bytes | 743 / 747 |
+| a dead-cell bit, for collect's neighbour test and dead-cell scans | 729 (one run) |
+
+(Two rounds, run in turn under one lock; the steps without a number were only timed alone, in noisier runs.)
+
+A bigger world, climb7-s4 at t1979000 (198k bodies), 50 ticks: 2,653 → 1,702 CPU ms/tick, same hash. Its save is past 2 GB, more than one `hash.update` takes, so this was hashed a chunk at a time from `saveChunks`.
+
+- **Caches, not state.** The per-world ones (step by row, food blocks, busy bytes) sit under a symbol, so saves skip them, and are rebuilt when the grids are new arrays (a step joining) or the terrain changes. The per-shape ones (edges, advance's next cell, column extent) live on `Cells`, kept while `sorted` is the same array: a shift moves it in place, any other change makes a new one.
+- **Exactness.** The burn sum is exact while the burn factors are dyadic (they are: 1, ½), so 2^|n| × the sum is the same bits as the per-cell sum. Other factors fall back to the per-cell loop. Shed's tried cells still end at the end of the set in the order tried, as when each was taken out and put back.
+- **Checks:** the bench hash; fresh climb (two), island and petri dishes with a save and load halfway, hash every 1,000 ticks against the old code; the golden replay (2,491 matches identical).
+- **What's left** is still each body's first touch (the body, its `Cells`, its arrays) and the destination cells of a shift. That's the data-layout work.
