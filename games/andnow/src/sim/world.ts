@@ -78,6 +78,15 @@ const OP_ACTS = Uint8Array.from(GLYPHS, (g) => +'MFXGCBWDA'.includes(g));
 let SHIFT_CODES = new Uint8Array(1024); // (opShift's scratch: the moving body's codes)
 const SCAN_KEYS = new Float64Array(64 * 64); // (ringScan's scratch: its window is at most 61×61)
 let SORT_SCRATCH = new Int32Array(1024);
+let SHED_SEEN = new Uint8Array(1024); // (shed's scratch)
+let REACH_SEEN = new Uint8Array(1024), REACH_QUEUE = new Int32Array(1024); // (unreached's scratch)
+const NO_CELLS: number[] = []; // (unreached's answer for a whole body: shared, never written)
+/** Where c is in a sorted array (binary search), or -1. */
+function placeIn(a: number[], c: number): number {
+  let lo = 0, hi = a.length - 1;
+  while (lo <= hi) { const m = (lo + hi) >> 1, v = a[m]; if (v === c) return m; if (v < c) lo = m + 1; else hi = m - 1; }
+  return -1;
+}
 /**
  * Cell indices in board order, as a new array (one allocation: Array.from of a sorted Int32Array
  * went through an iterator and was a tenth of all a tick allocated). Small bodies by insertion,
@@ -689,12 +698,47 @@ export class World {
     return -1;
   }
 
-  /** 4-connected check of a warrior's cells from its IP. Returns unreached cells. */
-  private unreached(wr: Warrior): number[] {
+  /**
+   * 4-connected check of a warrior's cells from its IP (`skip`: as if that cell weren't mine).
+   * Returns unreached cells, in board order. Marks go in scratch by each cell's place in the
+   * sorted cells (a binary search), not a Set: no allocation unless something is cut off.
+   */
+  private unreached(wr: Warrior, skip = -1): number[] {
+    const mine = this.mineOf(wr), n = mine.length, id = wr.id, w = this.w, owner = this.owner;
+    const start = this.idx(wr.ipX, wr.ipY);
+    if (owner[start] !== id || start === skip) return skip < 0 ? mine : mine.filter((c) => c !== skip);
+    if (REACH_SEEN.length < n) { REACH_SEEN = new Uint8Array(2 * n); REACH_QUEUE = new Int32Array(2 * n); }
+    const seen = REACH_SEEN, queue = REACH_QUEUE;
+    seen.fill(0, 0, n);
+    let q = 0, got = 1;
+    const s0 = placeIn(mine, start);
+    if (s0 < 0) return this.unreachedBySet(wr, skip); // (the grid and the cell set disagree: never, but be exact)
+    seen[s0] = 1; queue[q++] = start;
+    while (q) {
+      const c = queue[--q];
+      const x = c % w, y = (c / w) | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (this.ownerAt(nx, ny) !== id) continue;
+        const ni = ny * w + nx;
+        if (ni === skip) continue;
+        const k = placeIn(mine, ni);
+        if (k < 0) return this.unreachedBySet(wr, skip);
+        if (!seen[k]) { seen[k] = 1; got++; queue[q++] = ni; }
+      }
+    }
+    if (got === n - (skip >= 0 && placeIn(mine, skip) >= 0 ? 1 : 0)) return NO_CELLS;
+    const out: number[] = [];
+    for (let k = 0; k < n; k++) if (!seen[k] && mine[k] !== skip) out.push(mine[k]);
+    return out;
+  }
+
+  /** unreached as it was, by a Set (a fallback that never runs while the cell sets match the grid). */
+  private unreachedBySet(wr: Warrior, skip: number): number[] {
     const mine = this.mineOf(wr);
     const seen = new Set<number>();
     const start = this.idx(wr.ipX, wr.ipY);
-    if (this.owner[start] !== wr.id) return mine;
+    if (this.owner[start] !== wr.id || start === skip) return mine.filter((c) => c !== skip);
     const queue = [start];
     seen.add(start);
     while (queue.length) {
@@ -704,10 +748,10 @@ export class World {
         const nx = x + DX[d], ny = y + DY[d];
         if (this.ownerAt(nx, ny) !== wr.id) continue;
         const n = this.idx(nx, ny);
-        if (!seen.has(n)) { seen.add(n); queue.push(n); }
+        if (n !== skip && !seen.has(n)) { seen.add(n); queue.push(n); }
       }
     }
-    return mine.filter((c) => !seen.has(c));
+    return mine.filter((c) => !seen.has(c) && c !== skip);
   }
 
   /** A cell of a body turns to a dead cell, or (island, climb) maybe dissolves. True if it's left as a dead cell. */
@@ -1146,35 +1190,36 @@ export class World {
    * which can never disconnect the rest.
    */
   private shed(wr: Warrior) {
-    const start = this.idx(wr.ipX, wr.ipY);
-    const dist = new Map<number, number>([[start, 0]]);
+    // (The BFS marks by place in the sorted cells, and a candidate is tried with unreached's
+    // skip rather than by taking it off the board and back: no Map, no copies, no re-sort per try.)
+    const start = this.idx(wr.ipX, wr.ipY), mine = this.mineOf(wr), n = mine.length;
+    if (SHED_SEEN.length < n) SHED_SEEN = new Uint8Array(2 * n);
+    const seen = SHED_SEEN;
+    seen.fill(0, 0, n);
     const queue = [start];
+    const s0 = placeIn(mine, start);
+    if (s0 >= 0) seen[s0] = 1;
     for (let q = 0; q < queue.length; q++) {
       const c = queue[q];
       const x = c % this.w, y = (c / this.w) | 0;
       for (let d = 0; d < 4; d++) {
         const nx = x + DX[d], ny = y + DY[d];
         if (this.ownerAt(nx, ny) !== wr.id) continue;
-        const ni = this.idx(nx, ny);
-        if (!dist.has(ni)) { dist.set(ni, dist.get(c)! + 1); queue.push(ni); }
+        const ni = this.idx(nx, ny), k = placeIn(mine, ni);
+        if (k >= 0) { if (seen[k]) continue; seen[k] = 1; } else if (queue.includes(ni)) continue; // (k < 0: the grid and the set disagree, never)
+        queue.push(ni);
       }
     }
-    const byFar = queue.slice(1).reverse(); // BFS order reversed = farthest first
-    if (!byFar.length) return;
-    const w = this.w, id = wr.id;
-    const tier = (c: number) => {
-      const g = this.code[c];
-      if (g === FAT) return 0;
-      if (g === K || g === INSUL) return 2;
-      if (g === DOUBLE || g === FLIP) for (const nb of [c - 1, c + 1, c - w, c + w]) if (this.owner[nb] === id && (this.code[nb] === K || this.code[nb] === INSUL)) return 2;
-      return 1;
-    };
-    let drop = byFar[0];
-    pick: for (let t = 0; t < 3; t++) for (const c of byFar) {
-      if (tier(c) !== t) continue;
-      this.setOwner(c, NONE);
-      const ok = this.unreached(wr).length === 0;
-      this.setOwner(c, wr.id);
+    // (queue[1..] reversed is farthest first)
+    if (queue.length < 2) return;
+    const id = wr.id, cells = this.cells(wr)!;
+    let drop = queue[queue.length - 1];
+    pick: for (let t = 0; t < 3; t++) for (let j = queue.length - 1; j >= 1; j--) {
+      const c = queue[j];
+      if (this.shedTier(c, id) !== t) continue;
+      const ok = this.unreached(wr, c).length === 0;
+      // (What taking it off the board and back did: the cell goes last in the set's order.)
+      cells.delete(c); cells.add(c);
       if (ok) { drop = c; break pick; }
     }
     // Shed cells vanish rather than becoming debris: otherwise grow → shed → collect
@@ -1184,6 +1229,18 @@ export class World {
     this.code[drop] = 0;
     wr.cellCount--;
     this.log('shed', `${wr.name} shed ${lost === '.' ? 'fat' : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
+  }
+
+  /** Shedding order: fat (0), plain cells (1), protection (2: K, I, and an x or ~ beside one). */
+  private shedTier(c: number, id: number) {
+    const g = this.code[c], w = this.w;
+    if (g === FAT) return 0;
+    if (g === K || g === INSUL) return 2;
+    if (g === DOUBLE || g === FLIP) for (let k = 0; k < 4; k++) {
+      const nb = k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - w : c + w;
+      if (this.owner[nb] === id && (this.code[nb] === K || this.code[nb] === INSUL)) return 2;
+    }
+    return 1;
   }
 
   /** True when every living warrior is of one lineage (only possible once someone divides). */
