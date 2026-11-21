@@ -187,8 +187,20 @@ wrap('opShift', (orig) => (wr, d) => {
 });
 
 // ---------- the replay ----------
-interface Life { step: number; moved: number; net: [number, number]; still: number; births: number; c0: number; food0: number; touch0: Set<number> }
+// (pace, husk cells within 10 of the IP, and the 64×64 tile it's in: for "who's good for whom".)
+interface Life { step: number; moved: number; net: [number, number]; still: number; births: number; c0: number; food0: number; touch0: Set<number>; pace: number; husks: number; tile: number }
 const life = new Map<number, Life>();
+const isHusk = new Set<number>(); // code row without C
+for (const b of start) if (!nameOf(plan(b)).split('+')[0].includes('C')) isHusk.add(b.id);
+const husksNear = (b: Warrior) => {
+  let n = 0;
+  for (let y = Math.max(0, b.ipY - 10); y <= Math.min(w.h - 1, b.ipY + 10); y++) for (let x = Math.max(0, b.ipX - 10); x <= Math.min(W - 1, b.ipX + 10); x++) {
+    const o = w.owner[y * W + x];
+    if (o >= 0 && isHusk.has(o)) n++;
+  }
+  return n;
+};
+const TILE = 64;
 const touching = (b: Warrior) => {
   const s = new Set<number>();
   for (const c of w.mineOf(b)) for (const d of [1, -1, W, -W]) {
@@ -200,7 +212,12 @@ const touching = (b: Warrior) => {
   }
   return s;
 };
-for (const b of start) life.set(b.id, { step: stepOf(b.ipY), moved: 0, net: [0, 0], still: 0, births: 0, c0: b.cellCount, food0: b.stats.collected, touch0: touching(b) });
+for (const b of start) {
+  life.set(b.id, {
+    step: stepOf(b.ipY), moved: 0, net: [0, 0], still: 0, births: 0, c0: b.cellCount, food0: b.stats.collected, touch0: touching(b),
+    pace: w.traitsOf(b).pace, husks: husksNear(b), tile: Math.floor(b.ipY / TILE) * Math.ceil(W / TILE) + Math.floor(b.ipX / TILE),
+  });
+}
 log('contacts at t0 done');
 
 const pairs = new Map<string, { a: number; b: number; samples: number; together: number }>(); // touching pairs (ids)
@@ -344,45 +361,121 @@ const spCount: Tally = new Map(); for (const b of start) bump(spCount, sp(b));
 const spRanked = [...spCount].sort((a, b) => b[1] - a[1]);
 const spRank = new Map(spRanked.map(([k], i) => [k, i]));
 say(); say("## Who's good for whom");
-say('For each pair of the commonest code rows A, B: how B bodies touching an A at t0 did (survived the replay, plus children), against B bodies touching nobody on the same step. z is the mean difference over its standard error.');
+say('For each pair of the commonest code rows A, B: how B bodies touching an A at t0 did (survived the replay, plus children), against B bodies touching nobody on the same step, of about the same size and pace, with about as many husk cells near. z is the mean difference over a standard error that treats each 64×64 tile as one sample, read as a t with (tiles − 1) degrees of freedom.');
+// Why the matching and the tiles: a calibration on s1 and s2 (2026-11-21) found the plain z gave 3–5× too many
+// |z| ≥ 3 where there was nothing to find (fake partners drawn from lone bodies), and false hits from confounds.
+//   - Confounds: big bodies touch more and live longer (growers); fast-paced strains sit in husk-dense
+//     patches (s1's husk "commensalism"). Lone bodies are matched on step, size, pace and husks near
+//     (row-wise quartiles and terciles), falling back to coarser strata when fewer than 20 lone bodies fit.
+//     (Husks near is the costly one: in s2 lone lookers near husks eat their corpses too, so it takes
+//     about a fifth off the lookers' gain from touching one. What's left is the gain from the contact.)
+//   - Dependence: touching bodies come in clumps of kin that share fates, and one body counts under
+//     several partners. The tile-clustered standard error covers both; few tiles mean few degrees of freedom.
+//   - Ceilings: a small group that all scored the same has no spread of its own; it gets the lone bodies'.
 interface Out { f: number; step: number }
 const outcome = (b: Warrior): Out => ({ f: (b.alive ? 1 : 0) + life.get(b.id)!.births, step: life.get(b.id)!.step });
-const alone = new Map<string, { n: number; sum: number; sq: number }>(); // plan|step → fitness stats
-const aloneAll = new Map<string, { n: number; sum: number; sq: number }>();
-const add = (m: typeof alone, k: string, f: number) => { const e = m.get(k) ?? { n: 0, sum: 0, sq: 0 }; e.n++; e.sum += f; e.sq += f * f; m.set(k, e); };
-for (const b of start) {
-  const key = sp(b);
-  if ((spRank.get(key) ?? Infinity) >= TOP || life.get(b.id)!.touch0.size) continue;
-  const o = outcome(b);
-  add(alone, `${key}|${o.step}`, o.f); add(aloneAll, key, o.f);
-}
-const base = (key: string, step: number) => {
-  const e = alone.get(`${key}|${step}`), a = aloneAll.get(key);
-  const use = e && e.n >= 20 ? e : a && a.n >= 20 ? a : undefined;
-  if (!use) return undefined;
-  const mean = use.sum / use.n;
-  return { mean, se2: Math.max(0, use.sq / use.n - mean * mean) / use.n }; // (and the square of its standard error)
+const inTop = (key: string) => (spRank.get(key) ?? Infinity) < TOP;
+// Within-row bins: size in quartiles, pace in terciles; husks near: none, a few, 20+ cells.
+const cuts = (val: (L: Life, b: Warrior) => number, nb: number) => {
+  const xs = new Map<string, number[]>();
+  for (const b of start) { const k = sp(b); if (inTop(k)) { let a = xs.get(k); if (!a) xs.set(k, a = []); a.push(val(life.get(b.id)!, b)); } }
+  const c = new Map<string, number[]>();
+  for (const [k, a] of xs) { a.sort((x, y) => x - y); c.set(k, Array.from({ length: nb - 1 }, (_, i) => a[Math.floor(((i + 1) * a.length) / nb)])); }
+  return (b: Warrior) => { const cs = c.get(sp(b))!, x = val(life.get(b.id)!, b); let i = 0; while (i < cs.length && x > cs[i]) i++; return i; };
 };
-const exposed = new Map<string, { n: number; d: number; dd: number; se2: number }>(); // A\tB → effect of A on B: each B's difference from its baseline
+const szBin = cuts((L) => L.c0, 4), paceBin = cuts((L) => L.pace, 3);
+const strata = (b: Warrior) => {
+  const L = life.get(b.id)!, s = L.step, z = szBin(b), p = paceBin(b), h = L.husks === 0 ? 0 : L.husks < 20 ? 1 : 2;
+  return [`${s}|${z}|${p}|${h}`, `${s}|${z}|${p}`, `${s}|${z}`, `${s}`, 'all'];
+};
+// Lone bodies by row and stratum, with per-tile sums for the clustered standard error of each stratum's mean.
+interface Pool { n: number; sum: number; sq: number; tiles: Map<number, [number, number]> }
+const alone = new Map<string, Pool>(); // row|level|stratum
+for (const b of start) {
+  const key = sp(b), L = life.get(b.id)!;
+  if (!inTop(key) || L.touch0.size) continue;
+  const f = outcome(b).f;
+  strata(b).forEach((st, lv) => {
+    const k = `${key}|${lv}|${st}`;
+    let e = alone.get(k); if (!e) alone.set(k, e = { n: 0, sum: 0, sq: 0, tiles: new Map() });
+    e.n++; e.sum += f; e.sq += f * f;
+    const t = e.tiles.get(L.tile) ?? [0, 0]; t[0] += f; t[1]++; e.tiles.set(L.tile, t);
+  });
+}
+interface Base { mean: number; se2: number; pv: number } // (pv: one lone body's variance)
+const baseOf = new Map<string, Base>();
+const base = (b: Warrior) => {
+  const key = sp(b), ss = strata(b);
+  for (let lv = 0; lv < ss.length; lv++) {
+    const k = `${key}|${lv}|${ss[lv]}`, e = alone.get(k);
+    if (!e || e.n < 20) continue;
+    let r = baseOf.get(k);
+    if (!r) {
+      const mean = e.sum / e.n, G = e.tiles.size;
+      let v = 0; for (const [s, n] of e.tiles.values()) v += (s - n * mean) ** 2;
+      const pv = Math.max(0, e.sq / e.n - mean * mean);
+      r = { mean, pv, se2: G > 1 ? (v / (e.n * e.n)) * (G / (G - 1)) : pv / e.n }; // (se2: the square of its standard error)
+      baseOf.set(k, r);
+    }
+    return r;
+  }
+  return undefined;
+};
+const exposed = new Map<string, { d: number; tile: number; bs: Base }[]>(); // A\tB → each B's difference from its baseline
 for (const b of start) {
   const kb = sp(b);
-  if ((spRank.get(kb) ?? Infinity) >= TOP) continue;
-  const o = outcome(b), bs = base(kb, o.step);
+  if (!inTop(kb)) continue;
+  const bs = base(b);
   if (!bs) continue;
   const partners = new Set<string>();
-  for (const id of life.get(b.id)!.touch0) { const ka = sp(body(id)); if ((spRank.get(ka) ?? Infinity) < TOP) partners.add(ka); }
-  for (const ka of partners) {
-    const k = pairKey(ka, kb), e = exposed.get(k) ?? { n: 0, d: 0, dd: 0, se2: 0 }, d = o.f - bs.mean;
-    e.n++; e.d += d; e.dd += d * d; e.se2 += bs.se2;
-    exposed.set(k, e);
-  }
+  for (const id of life.get(b.id)!.touch0) { const ka = sp(body(id)); if (inTop(ka)) partners.add(ka); }
+  const d = outcome(b).f - bs.mean, tile = life.get(b.id)!.tile;
+  for (const ka of partners) { const k = pairKey(ka, kb); let e = exposed.get(k); if (!e) exposed.set(k, e = []); e.push({ d, tile, bs }); }
 }
+// Student's t, two-sided, as the |z| with the same p (so the bar stays a z bar).
+const lgamma = (x: number) => { const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]; let y = x, t = x + 5.5; t -= (x + 0.5) * Math.log(t); let s = 1.000000000190015; for (const v of c) s += v / ++y; return -t + Math.log((2.5066282746310005 * s) / x); };
+const betacf = (a: number, b: number, x: number) => {
+  const tiny = (v: number) => (Math.abs(v) < 1e-300 ? 1e-300 : v);
+  let c = 1, d = 1 / tiny(1 - ((a + b) * x) / (a + 1)), h = d;
+  for (let m = 1; m <= 200; m++) {
+    let aa = (m * (b - m) * x) / ((a - 1 + 2 * m) * (a + 2 * m)); d = 1 / tiny(1 + aa * d); c = tiny(1 + aa / c); h *= d * c;
+    aa = (-(a + m) * (a + b + m) * x) / ((a + 2 * m) * (a + 1 + 2 * m)); d = 1 / tiny(1 + aa * d); c = tiny(1 + aa / c); const del = d * c; h *= del;
+    if (Math.abs(del - 1) < 3e-12) break;
+  }
+  return h;
+};
+const ibeta = (a: number, b: number, x: number) => {
+  if (x <= 0) return 0; if (x >= 1) return 1;
+  const bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+  return x < (a + 1) / (a + b + 2) ? (bt * betacf(a, b, x)) / a : 1 - (bt * betacf(b, a, 1 - x)) / b;
+};
+const zOfP = (p: number) => { // |z| whose two-sided p is p (Acklam's inverse normal)
+  const q = Math.min(Math.max(p / 2, 1e-300), 0.5);
+  const A = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.38357751867269e2, -3.066479806614716e1, 2.506628277459239];
+  const B = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
+  const C = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const D = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
+  if (q < 0.02425) { const r = Math.sqrt(-2 * Math.log(q)); return -(((((C[0] * r + C[1]) * r + C[2]) * r + C[3]) * r + C[4]) * r + C[5]) / ((((D[0] * r + D[1]) * r + D[2]) * r + D[3]) * r + 1); }
+  const r = q - 0.5, s = r * r;
+  return -((((((A[0] * s + A[1]) * s + A[2]) * s + A[3]) * s + A[4]) * s + A[5]) * r) / (((((B[0] * s + B[1]) * s + B[2]) * s + B[3]) * s + B[4]) * s + 1);
+};
+const zOfT = (t: number, df: number) => Math.sign(t) * Math.min(Math.abs(t), zOfP(ibeta(df / 2, 0.5, df / (df + t * t))));
 const effect = (a: string, b: string) => {
-  const e = exposed.get(pairKey(a, b));
-  if (!e || e.n < 20) return undefined;
-  // Welch: the exposed bodies' spread, plus the baselines' own uncertainty (averaged over the steps they're on).
-  const mean = e.d / e.n, v = Math.max(0, e.dd / e.n - mean * mean) / e.n + e.se2 / e.n;
-  return { n: e.n, d: mean, z: v > 1e-9 ? mean / Math.sqrt(v) : 0 };
+  const xs = exposed.get(pairKey(a, b));
+  if (!xs || xs.length < 20) return undefined;
+  const n = xs.length; let s = 0; for (const x of xs) s += x.d;
+  const mean = s / n;
+  // The exposed bodies' spread, summed tile by tile, plus each baseline's own uncertainty, weighted by its share.
+  const byTile = new Map<number, number>(), byBase = new Map<Base, number>();
+  let floor = 0;
+  for (const x of xs) { byTile.set(x.tile, (byTile.get(x.tile) ?? 0) + x.d - mean); byBase.set(x.bs, (byBase.get(x.bs) ?? 0) + 1); floor += x.bs.pv; }
+  const G = byTile.size;
+  let ve = 0; for (const r of byTile.values()) ve += r * r;
+  let vb = 0; for (const [bs, c] of byBase) vb += (c / n) ** 2 * bs.se2;
+  // Never less spread than lone bodies have: when every exposed body scores the same (all survive, none
+  // divides) the sample spread is 0, and 32 growers out of 32 surviving against 93% lone looked like z 6.
+  const v = Math.max(G > 1 ? (ve / (n * n)) * (G / (G - 1)) : 0, floor / (n * n)) + vb;
+  return { n, tiles: G, d: mean, z: G > 1 && v > 1e-9 ? zOfT(mean / Math.sqrt(v), G - 1) : 0 };
 };
 const sign = (x?: { d: number; z: number }) => (!x ? '?' : x.z >= 3 && x.d >= 0.05 ? '+' : x.z <= -3 && x.d <= -0.05 ? '−' : '0');
 const KIND: Record<string, string> = { '++': 'mutualism', '+−': 'exploitation', '−+': 'exploitation', '−−': 'competition', '+0': 'commensalism', '0+': 'commensalism', '−0': 'amensalism', '0−': 'amensalism', '00': 'neutral' };
@@ -394,7 +487,7 @@ for (let i = 0; i < keys.length; i++) for (let j = i; j < keys.length; j++) {
   const s = sign(onA) + sign(onB);
   eco.push({ a, b, kind: a === b ? `same row: ${sign(onB)}` : KIND[s] ?? `${s} (one side too rare)`, onB, onA });
 }
-const fmt = (x?: ReturnType<typeof effect>) => (!x ? 'too few' : `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)}, n ${x.n})`);
+const fmt = (x?: ReturnType<typeof effect>) => (!x ? 'too few' : `${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)} (z ${x.z.toFixed(1)}, n ${x.n} in ${x.tiles} tiles)`);
 const tally: Tally = new Map(); for (const e of eco) bump(tally, e.kind.replace(/:.*/, ''));
 say(`${eco.length} pairs measured: ${[...tally].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}.`);
 say("| A | B | kind | B's score beside an A | A's score beside a B |");

@@ -2818,3 +2818,19 @@ Robby: "keep trying to figure out mysteries!" Subagents took one mystery each. A
 The list is in the session scratchpad at `m2/mysteries.md`.
 
 **Measure.** "Survived + births" counts a child that dies like a survivor, and 65–88% of children die within the window. The lineage's living mass at the end, compared within a step, would be a better ecology fitness. Not adopted yet.
+
+**The ecology z, calibrated** (subagent, the same night).
+- **How loose the old z was.** Fake partners drawn from whole tiles of lone bodies, so the true effect is 0, crossed |z| ≥ 3 in 0.7–1.4% of tests, against the 0.27% chance should give. Groups of n 20–49 were worst, at 1–2%.
+- **Why:**
+  - confounds (size, pace, husk-dense patches);
+  - clumps of kin that share their fate;
+  - groups that all scored the same, so their spread was 0 (32 of 32 growers surviving read as z 6).
+- **The fix,** in `ecology.ts`:
+  - lone bodies are matched on step × size quartile × pace tercile × husks within 10 cells, falling back to coarser groups when fewer than 20 fit;
+  - the standard error is clustered by 64×64 tile and read as a t with tiles − 1 degrees of freedom;
+  - a group's spread is never allowed below the lone bodies' spread.
+- **Result:**
+  - The false rate is 0–0.55%, and significant pairs fall 48 → 27 over five checkpoints.
+  - **Dropped:** `C4SDTM`/`DmM`, `CDmM` beside `D`/`Dm`, and the s2 groups that all scored the same.
+  - **Kept:** growers smothering (z −11 to −17), crowding by own kind, and s2's lookers beside husks (+0.32, z 4.7). The lookers' gain shrinks because lone lookers near husks eat corpses too.
+- **Replication** across two scans was rejected as a second test: consecutive z's correlate 0.7–0.95, so confounds replicate too. If noise persists, a 3.5 bar is the next lever.
