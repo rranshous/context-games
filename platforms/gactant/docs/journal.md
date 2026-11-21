@@ -4055,3 +4055,5 @@ Robby: localhost only, "period"; a storage quota per person, yes; looks need a l
 **Beacon:** Robby keeps it.
 
 **Seeds, a cleaner way:** nothing outside matches depends on the generator: standings, rulebooks, drafts and ludants are untouched by it. Swapping it outright costs only the replay check (`tools/check-match.mjs`) for matches that ran before the swap. Open matches keep playing; only their future draws change. So the server gets one strong generator that takes any state, new matches get a 256-bit seed and a `v4` genesis, and only the offline checker keeps mulberry32, for v2/v3 logs. Proposed to Robby.
+
+**Reading the rulebooks:** Robby: go ahead, and he isn't worried about in-progress matches. Nothing lists rulebooks (each is public by its hash, but the hashes aren't listed), so I added `POST admin/rulebooks` and `tools/rulebooks.mjs`, which prints them all as JSON. It needs a deploy before the live 41 can be read. Locally the 5 test rulebooks only take `seed` in `init` and never use it.

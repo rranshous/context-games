@@ -57,6 +57,7 @@
 //                                        -> { n, head, view, result, budget }   409 if n or prev aren't the latest;
 //                                           422 { refused } if the rules said no; 429 past a budget
 //   GET  tables/budget                   -> yours today: what's used and what's allowed
+//   POST admin/rulebooks { token }       -> [{ id, name, by, at, source }]   every rulebook (tools/rulebooks.mjs)
 //   POST admin/sweep { token, objects? } -> { archived, kept }   archive what's due, and any match the index
 //                                           doesn't know (objects: Durable Object ids, from the account's list)
 //
@@ -386,6 +387,11 @@ export function createTables({ store, people, httpError, owns, settings }) {
     if (a === 'admin' && b === 'sweep' && method === 'POST') {
       if (!settings.isAdmin?.(body.token)) throw httpError(403, 'not allowed');
       return sweep(body.objects);
+    }
+    // Every rulebook, source and all (each is public by its hash; this is the only list of them).
+    if (a === 'admin' && b === 'rulebooks' && method === 'POST') {
+      if (!settings.isAdmin?.(body.token)) throw httpError(403, 'not allowed');
+      return (await store.list('rulebooks')).map(({ id, name, by, at, source }) => ({ id, name, by, at, source }));
     }
 
     if (a === 'matches') {
