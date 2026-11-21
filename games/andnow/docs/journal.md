@@ -2763,3 +2763,16 @@ Read s1 6.932M, s2 1.990M, s3 7.702M and s4 1.976M. Nothing new:
   - near-bar flips.
 
 **Detector:** speed records now carry the known-kinds tag, so a husk record says so.
+
+## Discovery round 10 (2026-11-20 evening)
+
+Read s1 6.938M, s2 1.992M, s3 7.708M and s4 1.978M in 46 minutes. The pause worked unattended: seed 4's bake stopped for the scans and came back after them. Nothing new:
+- **Sibling one-offs:** a husk `ADm|` biting `CDmM` (all one lineage), a `C[DM` biting `CTDM`, and a vandal `CWDM` blanking three sibling `CLD`s.
+- **Husk commensalism again:** s1's `DmM` does better beside the sprinter `C4SDTM` (z 3.0, at the bar). It's the same unexplained pattern as before.
+- **Near-bar churn:** an `CfmmMMD`/`Cf:mMMD` amensalism and a flip in `CLD`/`CLGM`.
+- **Watch items:**
+  - s1's husks hold: `D` is about 1,700 and `Dm` about 2,150.
+  - s2's `CommMMD` fell back, 1,030 → 905.
+  - Every seed's top rows are flat across the last three checkpoints.
+
+No new detector: nothing slipped past this round.
