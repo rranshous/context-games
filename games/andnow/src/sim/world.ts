@@ -1282,7 +1282,7 @@ export class World {
    */
   private shed(wr: Warrior) {
     const start = this.idx(wr.ipX, wr.ipY);
-    const dist = new Map<number, number>([[start, 0]]);
+    const place = new Map<number, number>([[start, 0]]); // (each reached cell's place in the queue)
     const queue = [start];
     for (let q = 0; q < queue.length; q++) {
       const c = queue[q];
@@ -1291,7 +1291,7 @@ export class World {
         const nx = x + DX[d], ny = y + DY[d];
         if (this.ownerAt(nx, ny) !== wr.id) continue;
         const ni = this.idx(nx, ny);
-        if (!dist.has(ni)) { dist.set(ni, dist.get(c)! + 1); queue.push(ni); }
+        if (!place.has(ni)) { place.set(ni, queue.length); queue.push(ni); }
       }
     }
     const byFar = queue.slice(1).reverse(); // BFS order reversed = farthest first
@@ -1310,8 +1310,7 @@ export class World {
       // (Connected: a cell can go without cutting the body iff it's no articulation point, so
       // one DFS answers for every candidate. Trying each took a search, and a re-sort, apiece.
       // Each tried cell went out of the set and back in at its end: the same order is made here.)
-      const place = new Map<number, number>(), tried: number[] = [];
-      for (let k = 0; k < queue.length; k++) place.set(queue[k], k);
+      const tried: number[] = [];
       const cut = this.cutCells(wr, queue, place);
       pick: for (let t = 0; t < 3; t++) for (const c of byFar) {
         if (tier(c) !== t) continue;
