@@ -3961,3 +3961,11 @@ Robby also passed on a doing line from a tanks ludant: "the cannons aren't linin
 ## Haiku isn't worth it (2026-11-20)
 
 Robby, after building with Haiku 5.5 through `?model=haiku`: "i don't think the tradeoff is worth it. it just doesn't get it right enough. it takes a lot more back and forth." A cheaper, slightly quicker turn (9.2s against Sonnet's 12.3s) is lost to the extra rounds it takes to get a change right. Sonnet stays the default; the switch stays for trying models. It's what other projects here found too: Haiku is fine for cheap per-frame calls, not for a body changing itself. If a turn needs to be faster, reasoning effort on Sonnet is the lever to try, not a smaller model.
+
+## The check sees every picture, shrunk (2026-11-20)
+
+After the 00:17 sweep, Coinflip and Realmer were still unchecked, and always would be: Coinflip has two pictures too big to send (416 KB and 480 KB, over the 400,000-character data URL limit), Realmer has 12 pieces of art plus its thumb, one past the 12 the check looked at. Both "can't see it whole", so they wait for a person. Robby: "i'd rather change the process so they'll scan. lets increase the picture count. is it possible to reduce the size of the images before they are sent?"
+- **Shrunk first:** the Worker has an Images binding (`IMAGES`); `check.mjs` turns each picture into a JPEG at most 768 px on a side before the vision model sees it. A check doesn't need full size, and the model is sent less. Images bills unique transformations: 5,000 a month free, then $0.50 per 1,000; only pictures not already passed are shrunk.
+- **All of them:** up to 61 (the thumb and a ludant's 60), six at a time.
+- Without the binding (or if a picture won't shrink), it's sent as it was, and one still too big counts as unseen, as before.
+- Tested with fakes: a 600 KB picture goes out at about 1 KB, 21 pictures all looked at, a repeat costs nothing, a bad one is caught, 62 pictures is partly.

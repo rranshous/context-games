@@ -219,7 +219,7 @@ export class World extends DurableObject {
         // An object, so Cloudflare's Workers Logs index its fields (trouble, where, browser…).
         opsLog: (record) => console.warn(record),
         // Workers AI looks at each publication before it goes public (check.mjs).
-        check: makeCheck(env.AI),
+        check: makeCheck(env.AI, env.IMAGES),
       },
     });
   }
