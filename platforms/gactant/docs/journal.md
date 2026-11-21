@@ -3977,3 +3977,5 @@ After the 00:17 sweep, Coinflip and Realmer were still unchecked, and always wou
 **Deployed** as version 0469ce9a. Realmer restored by hand (Robby: "fix realmer plz"), which also closed its report; every lobby game is trusted again.
 
 **Recheck.** Robby would rather the scan clear Realmer than a person. Added `node tools/moderate.mjs recheck <publication>` (`admin/moderate` action `recheck`): forgets its look and any vouching, and runs the publish check on it at once; a flag opens again if it fails.
+
+**Deployed** as version 5b851789, and `recheck` on Realmer came back clean: the scan clears it on its own now.
