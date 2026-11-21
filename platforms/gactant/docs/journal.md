@@ -3994,3 +3994,7 @@ Robby asked Lenek for "a clone of the game worms": four and a half minutes, then
 - From Node on lilg, long OpenRouter streams kept dying with ECONNRESET; the browser's didn't. Worth remembering when testing from here; not seen in the app.
 
 **Deployed** as version 28704fb4.
+
+## Save without sharing (2026-11-21)
+
+Robby: "save instead of share? or in addition to? sometimes i want to make a save point in the changes but i don't nec want to share". In addition to, and it's there now: **history → keep this version** takes a checkpoint with an optional label, private, and followers get nothing. Share stays the way to send a version to them. One is also taken whenever someone sits down; the newest 50 are kept (plus the first). The question means the save isn't findable: it's behind "history", away from share. Ideas, nothing built: put "keep this version" in the share panel too ("keep it, just for you" next to "send an update"), or a top button named for saving. Undecided.
