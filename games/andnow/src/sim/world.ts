@@ -42,6 +42,8 @@ const CELLS = Symbol('cells');
 const K = CODE['K'];
 const INSUL = CODE['I'], FLIP = CODE['~'], DOUBLE = CODE['x'], MASK = CODE['n'], FAT = CODE['.'], MOVE = CODE['M'], BITE = CODE['B'], COLLECT = CODE['C'];
 
+/** A body's slot when it has no cells: matches no cell. */
+const NO_SLOT = -3;
 /** The Climb: what a body's chemistry adds up to (see World.traitsOf). */
 /**
  * A body's cells: a Set<number> in all that matters (insertion order, a delete keeps the rest
@@ -75,6 +77,8 @@ export class Cells {
   next: Int32Array | null = null;
   dx0 = NaN;
   dx1 = NaN;
+  /** The body's slot in `owner` (see Slots) while it has cells, NO_SLOT without. Not saved: set on load (slotOwners). */
+  slot = NO_SLOT;
   constructor(public items: number[] = []) {}
   get size() { return this.items.length; }
   add(i: number) { this.items.push(i); this.sorted = null; this.fresh = false; return this; }
@@ -104,19 +108,20 @@ class Scratch {
 }
 /**
  * `owner`'s slots: each body with cells on the board has a slot, a small dense number, and
- * `owner` holds that (an Int32, half a Float64 id). Under a symbol (not saved: a save writes
- * owner as ids, see ownerBytes); made afresh on load. A slot is freed when its last cell
- * goes, and reused: nothing walks the slots, so which body gets which can't change a run.
+ * `owner` holds that (an Int32, half a Float64 id). A body's slot is on its Cells (id → slot
+ * is cellSets' lookup, or the body's link: no Map of its own, as ids past 2^30 hash slowly).
+ * Under a symbol (not saved: a save writes owner as ids, see ownerBytes); made afresh on load.
+ * A slot is freed when its last cell goes, and reused: nothing walks the slots, so which body
+ * gets which can't change a run.
  */
 const SLOTS = Symbol('slots');
 class Slots {
   ids: number[] = [];   // slot → body id
   count: number[] = []; // slot → its cells on the board
-  of = new Map<number, number>(); // body id → slot
   free: number[] = [];
+  /** A new slot for body id (no cells yet). */
+  take(id: number) { const s = this.free.length ? this.free.pop()! : this.ids.length; this.ids[s] = id; this.count[s] = 0; return s; }
 }
-/** slotOf's answer for a body with no cells: matches no cell. */
-const NO_SLOT = -3;
 
 /** What `cellSets` holds: a body's Cells, or the dead cells' Set. */
 type CellSet = Cells | Set<number>;
@@ -505,7 +510,7 @@ export class World {
       for (const s of b.spawns) s.y += D;
       for (const r of b.starts) shift(r);
       for (const wr of new Set(this.allWarriors())) { wr.ipY += D; wr.oy += D; shift(wr.home); }
-      for (const [id, set] of this.cellSets) { const out = newCells(id); for (const i of set) out.add(i + dI); this.cellSets.set(id, out); }
+      for (const [id, set] of this.cellSets) { const out = newCells(id); for (const i of set) out.add(i + dI); if (out instanceof Cells) out.slot = (set as Cells).slot; this.cellSets.set(id, out); }
       for (const wr of this.livingList) wr[CELLS] = undefined;
       this.sortedCells.clear();
       b.seaLevel! += D;
@@ -670,25 +675,20 @@ export class World {
   private [SLOTS]?: Slots;
   private get slots(): Slots { return (this[SLOTS] ??= new Slots()); }
   /** A body's slot, NO_SLOT with no cells. */
-  private slotOf(id: number) { return this.slots.of.get(id) ?? NO_SLOT; }
-  /** One more cell for body `id`: its slot (a new one if it had no cells). */
-  private takeSlot(id: number) {
-    const S = this.slots;
-    let s = S.of.get(id);
-    if (s === undefined) { s = S.free.length ? S.free.pop()! : S.ids.length; S.ids[s] = id; S.count[s] = 0; S.of.set(id, s); }
-    S.count[s]++;
-    return s;
-  }
-  /** After a load: `owner` comes as ids (as saved); make it slots. */
+  private slotOf(wr: Warrior) { return this.cells(wr)?.slot ?? NO_SLOT; }
+  /** After a load (once cellSets are Cells): `owner` comes as ids (as saved); make it slots. */
   slotOwners() {
     const ids = this.owner as unknown as ArrayLike<number>, n = ids.length, out = new Int32Array(n);
-    this[SLOTS] = new Slots();
+    const S = (this[SLOTS] = new Slots()), of = new Map<number, number>();
     let last = NaN, ls = 0; // (a body's cells come in runs)
     for (let i = 0; i < n; i++) {
       const v = ids[i];
       if (v < 0) { out[i] = v; continue; }
-      if (v === last) { this.slots.count[ls]++; out[i] = ls; continue; }
-      out[i] = ls = this.takeSlot(v); last = v;
+      if (v !== last) {
+        last = v; ls = of.get(v) ?? -1;
+        if (ls < 0) { of.set(v, (ls = S.take(v))); const set = this.cellSets.get(v); if (set instanceof Cells) set.slot = ls; }
+      }
+      S.count[ls]++; out[i] = ls;
     }
     this.owner = out;
   }
@@ -738,15 +738,21 @@ export class World {
     if ((o === DEBRIS || v === DEBRIS) && this.resource[i] === 0) this.fed(i, v === DEBRIS ? 1 : -1);
     const busy = this.keptBusy();
     if (busy) busy[i] = (busy[i] & 6) | (v !== NONE ? 1 : 0) | (v === DEBRIS ? 8 : 0);
-    if (o !== NONE) { this.cellSets.get(o)!.delete(i); if (o === DEBRIS) { this.flesh.set(i, 0); this.sortedCells.delete(DEBRIS); } }
-    if (s >= 0 && --S.count[s] === 0) { S.of.delete(o); S.free.push(s); }
-    this.owner[i] = v >= 0 ? this.takeSlot(v) : v;
+    if (o !== NONE) {
+      const set = this.cellSets.get(o)!;
+      set.delete(i);
+      if (o === DEBRIS) { this.flesh.set(i, 0); this.sortedCells.delete(DEBRIS); }
+      else if (--S.count[s] === 0) { (set as Cells).slot = NO_SLOT; S.free.push(s); }
+    }
+    let to = v;
     if (v !== NONE) {
       let set = this.cellSets.get(v);
       if (!set) { set = newCells(v); this.cellSets.set(v, set); }
       set.add(i);
       if (v === DEBRIS) this.sortedCells.delete(DEBRIS);
+      else { const c = set as Cells; if (c.slot < 0) c.slot = S.take(v); S.count[to = c.slot]++; }
     }
+    this.owner[i] = to;
   }
 
   /** cellsOf for a body in hand (by its link, no lookup by id). */
@@ -804,7 +810,7 @@ export class World {
    * sorted cells (a binary search), not a Set: no allocation unless something is cut off.
    */
   private unreached(wr: Warrior, skip = -1): number[] {
-    const mine = this.mineOf(wr), n = mine.length, me = this.slotOf(wr.id), w = this.w, owner = this.owner;
+    const mine = this.mineOf(wr), n = mine.length, me = this.slotOf(wr), w = this.w, owner = this.owner;
     const start = this.idx(wr.ipX, wr.ipY);
     if (owner[start] !== me || start === skip) return skip < 0 ? mine : mine.filter((c) => c !== skip);
     if (REACH_SEEN.length < n) { REACH_SEEN = new Uint8Array(2 * n); REACH_QUEUE = new Int32Array(2 * n); }
@@ -1302,7 +1308,7 @@ export class World {
    * x doubles a cell's trait, n makes a cell weigh nothing. Pace = (1 + move) / (1 + mass / 11).
    */
   traitsOf(wr: Warrior): Traits {
-    const w = this.w, id = wr.id, me = this.slotOf(id);
+    const w = this.w, id = wr.id, me = this.slotOf(wr);
     let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0, fat = 0;
     const cells = (this.cellSets.get(id) as Cells | undefined)?.items;
     if (cells) for (let j = 0; j < cells.length; j++) {
@@ -1401,7 +1407,7 @@ export class World {
   private shed(wr: Warrior) {
     // (The BFS marks each cell by its place in the sorted cells (a binary search), and keeps
     // its place in the queue there: no Map.)
-    const start = this.idx(wr.ipX, wr.ipY), mine = this.mineOf(wr), n = mine.length, me = this.slotOf(wr.id);
+    const start = this.idx(wr.ipX, wr.ipY), mine = this.mineOf(wr), n = mine.length, me = this.slotOf(wr);
     if (SHED_AT.length < n) SHED_AT = new Int32Array(2 * n);
     const at = SHED_AT; // (by place in mine: its place in the queue, -1 not reached)
     at.fill(-1, 0, n);
@@ -1802,7 +1808,7 @@ export class World {
     // tried nearest first: the same order as searching ring by ring, at a fraction of the cost.
     // (classify, inlined: this is the hottest loop in a climb. The window is inside the board.)
     // (The busy bytes first: a match needs a body or dead cell (1), a dead cell (8) or a resource (2), on floor (not 4).)
-    const owner = this.owner, resource = this.resource, me = this.slotOf(wr.id), ids = this.slots.ids, busy = this.busyGrid();
+    const owner = this.owner, resource = this.resource, me = this.slotOf(wr), ids = this.slots.ids, busy = this.busyGrid();
     const need = type === T_DEBRIS ? 8 : type === T_ENEMY ? 1 : type === T_SIZE || type === T_SPEED || type === T_RESOURCE ? 2 : 3;
     const keys = SCAN_KEYS;
     let n = 0;
@@ -1848,7 +1854,7 @@ export class World {
     d = ((d % 4) + 4) % 4;
     const mine = this.mineOf(wr), set = this.cells(wr), w = this.w;
     // (Only the leading edge can be blocked: the rest moves into the body's own cells.)
-    const me = this.slotOf(wr.id);
+    const me = this.slotOf(wr);
     const lead = set && mine.length ? this.edge(set, mine, d, me) : undefined;
     if (lead && CONFIG.island) for (let j = 0; j < lead.length; j++) {
       const c = mine[lead[j]];
@@ -1928,7 +1934,7 @@ export class World {
    */
   private opOoze(wr: Warrior, d: number): boolean {
     d = ((d % 4) + 4) % 4;
-    const id = wr.id, w = this.w, me = this.slotOf(id);
+    const id = wr.id, w = this.w, me = this.slotOf(wr);
     const mine = this.cellsOf(id);
     if (mine.length < 2) return this.opShift(wr, d);
     const along = (c: number) => (c % w) * DX[d] + ((c / w) | 0) * DY[d];

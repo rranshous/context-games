@@ -144,12 +144,14 @@ export function loadWorld(bytes: Uint8Array, share = false): World {
   // Plain objects are the ones JSON.parse made, patched in place: adding properties one by
   // one under computed keys leaves V8 slow dictionary objects, and ticks ran 3× slower.
   const rootId = (header.root as { $r: number }).$r;
-  const objs: unknown[] = table.map((e) => {
+  // (owner's ids are only read, into slots (see World.slotOwners): a view, not a copy of 8 bytes a cell.)
+  const ownerId = ((table[rootId].$o as Record<string, Enc>).owner as { $r: number } | undefined)?.$r;
+  const objs: unknown[] = table.map((e, i) => {
     if ('$o' in e) return e.$o;
     if ('$ta' in e) {
       const C = TYPED[e.$ta as TypedName];
       const at = bytes.byteOffset + start + (e.off as number);
-      if (share && at % C.BYTES_PER_ELEMENT === 0) return new C(bytes.buffer as ArrayBuffer, at, e.len as number);
+      if ((share || i === ownerId) && at % C.BYTES_PER_ELEMENT === 0) return new C(bytes.buffer as ArrayBuffer, at, e.len as number);
       return new C(bytes.buffer.slice(at, at + (e.len as number) * C.BYTES_PER_ELEMENT) as ArrayBuffer);
     }
     if ('$a' in e) return [];
@@ -194,7 +196,6 @@ export function loadWorld(bytes: Uint8Array, share = false): World {
     for (let i = 0; i < o.length; i++) { const v = was[i]; o[i] = v < DEBRIS ? v + 2 ** 32 : v; }
     (world as unknown as { owner: Float64Array }).owner = o;
   }
-  world.slotOwners(); // (ids in the save, slots in memory)
   // Runs on rules before ids by zone (RULES < 3) kept bodies in one array by id: enough to
   // look at them (src/diet.ts compares runs across rules), never to carry them on.
   const old = world as unknown as { warriors?: unknown[] };
@@ -206,6 +207,7 @@ export function loadWorld(bytes: Uint8Array, share = false): World {
   for (const [id, set] of w.cellSets) if (id !== DEBRIS) w.cellSets.set(id, new Cells([...set]));
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warrior(id)?.alive)) w.cellSets.delete(id);
   w.sortedCells.clear(); // (a cache: bodies keep theirs on their Cells now)
+  world.slotOwners(); // (ids in the save, slots in memory: after the Cells, which hold each body's slot)
   return world;
 }
 
