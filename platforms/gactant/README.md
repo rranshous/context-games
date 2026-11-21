@@ -213,7 +213,9 @@ refuses any request whose `Origin` isn't the site itself.
 ## What it costs, out in the open
 
 A ludant thinks with an AI model (the install's: Sonnet 5.5 on gactant.com) whenever its own
-body decides to. For testing, `frame.html?l=<id>&model=haiku` (or `opus`, `sonnet`) thinks with
+body decides to. A reply is at most 32,000 tokens, of which its thinking at most 12,000, so a
+big write always has room; a call cut off at the limit doesn't run, shows as a fault, and the
+ludant is told to build in smaller steps. For testing, `frame.html?l=<id>&model=haiku` (or `opus`, `sonnet`) thinks with
 another for the rest of that browser tab; it's not in the interface. Only those three names
 count, and since a link can carry it, the chat says once when the tab isn't on the install's
 model (it changes what the person pays). Today that's when its

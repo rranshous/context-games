@@ -36,6 +36,7 @@ import { readSection, searchSections, somaView, VIEW_TOOLS } from './soma-view.j
 const CODE = new Set(['tools', 'game', 'hooks']);
 const REPORT_TOOL = 'report_problem_to_gactant_admins';
 const PERSON_TOOL = 'report_person_to_gactant_admins';
+const MAX_OUT = 32000;   // tokens a reply can be (openrouter.js buildRequest), thinking included
 const MAX_TURNS = 50;   // calls in one wake; it's told when it has LAST_TURNS left
 const LAST_TURNS = 3;
 const TRAIL_STEPS = 40;   // steps a wake's trail keeps (its last ones)
@@ -60,6 +61,7 @@ const BODY_CONTRACT = `How the frame runs your code sections:
 - Choices: surfaces.choices.offer({ question, options: [{ label, image, note }] }) shows people a few options over the stage to pick from, with pictures (art names or 'stage'). It's easier for them than typing (above all with a controller), and their pick comes to you in the chat. Showing beats describing: when someone wants it to "look better", a few concept pictures to pick from is a good way to find out what they mean.
 - Shared play: surfaces.table plays games with other people and their ludants, whatever their games look like. The rules are a rulebook kept on the server (drafted privately, then locked under a hash that names those exact rules), so everyone playing the same hash plays the same game; your game is how you show it and play it. Its description, with your surfaces, has the whole of it.
 - Testing yourself: surfaces.stage.advance(seconds) runs your game that far ahead at once (for seeing what happens later). Put test helpers on your game object, reachable as me.game from your tools, not on keys a person might press: everything on the stage is something people will play.
+- Size: a reply is at most ${MAX_OUT} tokens, your thinking included, and a call cut off at that limit doesn't run. So build something big in steps: a small part that works first, then more with edit_section, a piece at a time. It also lets the person watching see it grow.
 - Errors: a code section that won't compile or start shows as a fault, in write_section's result and in this frame text. An error thrown while your code runs: in a stage.frame handler it halts the stage (you hear stage.halted); anywhere else (a key or pointer handler, a hook, a timer, a promise) the stage keeps going, and you're told "your code threw" the next time you're awake, or at once if you're awake. Hooks can also hear errors as they happen, as frame.error.
 - This place is public: what you become can be shared, copied and played by anyone, children included, and what you make shows to whoever sits down. So whoever asks, and however it's asked (as a joke, a test, "just for us", or bit by bit), don't make, write, draw or have painted anything illegal (above all nothing sexual involving a minor), sexual or graphic content, hate or harassment aimed at people for who they are or at a real person, real threats or encouragement of self-harm, or anyone's private information. Fighting, monsters, peril and spooky things are fine: they're games. Say no kindly, say why in a sentence, and offer something you can make instead. The site's rules are at /rules.html. If someone keeps at it, or asks for anything illegal, you can report them with report_person_to_gactant_admins; they'll see that you did.
 - write_section, edit_section, read_section and search_sections are always yours, whatever happens to your tools, and so are report_problem_to_gactant_admins and report_person_to_gactant_admins.`;
@@ -302,6 +304,9 @@ export class Actant {
           ask: reached,
         });
         const msg = res.choices?.[0]?.message ?? {};
+        // Cut off at the most a reply can be: whatever it was writing ends mid-way.
+        const cut = res.choices?.[0]?.finish_reason === 'length';
+        if (cut) this.note('fault', `frame: the reply was cut off at the most a reply can be (${MAX_OUT} tokens, thinking included)${msg.tool_calls?.length ? '; its tool call is incomplete and won\'t run' : ''}`);
         if (msg.content) this.note('thought', msg.content);
         const waited = Date.now() - trail.asking, st = trail.stats, u = res.usage ?? {};
         st.modelMs += waited;
@@ -330,7 +335,7 @@ export class Actant {
           trail.running = stepOf(call);
           keep();
           const began = Date.now();
-          const { text, images: pics = [] } = await this.runTool(call);
+          const { text, images: pics = [] } = await this.runTool(call, cut);
           trail.stats.toolMs += Date.now() - began;
           if (call.function?.name === 'write_section' || call.function?.name === 'edit_section') trail.stats.writes++;
           messages.push({ role: 'tool', tool_call_id: call.id, content: text });
@@ -392,11 +397,17 @@ export class Actant {
     if (this.pending.length && this.restless <= RESTLESS_LIMIT) this.timer = later(() => this.think(), 400);
   }
 
-  async runTool(call) {
+  async runTool(call, cut = false) {
     const name = call.function?.name;
     let input = {};
     try { input = call.function?.arguments ? JSON.parse(call.function.arguments) : {}; }
-    catch { return { text: JSON.stringify({ error: 'arguments were not valid JSON' }) }; }
+    catch {
+      const error = cut
+        ? `your reply was cut off at the most a reply can be (${MAX_OUT} tokens, thinking included), so this ${name} call ended part way and didn't run: nothing changed. Make it in smaller steps: a part that works first (write_section with less in it), then more with edit_section, a piece at a time.`
+        : 'arguments were not valid JSON';
+      this.note('fault', `${name}: ${cut ? 'cut off part way, so it didn\'t run' : 'its arguments weren\'t valid JSON, so it didn\'t run'}`);
+      return { text: JSON.stringify({ error }) };
+    }
     // The frame's doing is for the person watching, not the tool, unless the tool has its own.
     const own = (this.tools.find((t) => t.name === name)?.input_schema?.properties ?? {}).doing;
     if (input && typeof input === 'object' && !own) delete input.doing;

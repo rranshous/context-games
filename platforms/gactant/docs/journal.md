@@ -3979,3 +3979,12 @@ After the 00:17 sweep, Coinflip and Realmer were still unchecked, and always wou
 **Recheck.** Robby would rather the scan clear Realmer than a person. Added `node tools/moderate.mjs recheck <publication>` (`admin/moderate` action `recheck`): forgets its look and any vouching, and runs the publish check on it at once; a flag opens again if it fails.
 
 **Deployed** as version 5b851789, and `recheck` on Realmer came back clean: the scan clears it on its own now.
+
+## Big builds cut off: thinking ate the reply (2026-11-21)
+
+Robby asked Lenek for "a clone of the game worms": four and a half minutes, then it "failed to rewrite itself", twice, and nothing showed in Doings. Telemetry: the 17 turns that wrote over 16k tokens averaged 27,482 tokens out, 23,705 of them reasoning, against max_tokens 32,000. On a big job the model thought until there was no room left, and the write_section's arguments were cut off mid-JSON. runTool answered "arguments were not valid JSON", which neither said why nor reached Doings.
+- **Thinking capped at 12,000 tokens** (`reasoning: { max_tokens }` in buildRequest, not on art calls), so at least 20,000 are left to write with. Checked OpenRouter takes it (a 1,500 cap: 455 reasoning). Robby asked for limits that make ludants take smaller moves; this is the limit at the place it broke.
+- **A cut-off reply is said:** finish_reason 'length' notes a fault in Doings; a cut-off call answers the ludant with what happened (nothing changed) and to build in steps.
+- **Frame text:** a Size line: the limit, and build big things in steps (a small part that works, then edit_section).
+- changes.js line; README.
+- My own test on the side (claude (testing), Robby's 7-day $10 key): "catch falling stars" built and played in about 2.5 min for $0.14, fine; a small game never came near the limit.
