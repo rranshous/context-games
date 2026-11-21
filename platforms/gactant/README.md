@@ -509,7 +509,7 @@ A publication reported by two different signed-in people as illegal, or by three
 - **The lobby's front rows show only trusted publications, to everyone.** Trusted means a person approved it, or it passed the publish check (on an install that has one) and nobody has reported it. That holds from the moment it's published; a report takes it off the front until a person looks. **New** is the latest snapshot of each ludant, newest first, your own included, so the page you'd point someone to is the one they see. **Popular** is the most played of the rest, leaving out, for someone back, what they already have. Every publication that isn't hidden is still listed below, in families. An hourly job checks publications that haven't been checked yet (made before the check, or when it couldn't run), ten at a time: only the version each line shows, and it stops at the first check that can't run.
 - **One address can send 10 versions a day** (sharing, and updates).
 
-`node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `approve <publication>` (vouch for it, so it can be featured), `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.
+`node tools/moderate.mjs` lists open reports, saving their pictures to look at. `hide <publication>`, `restore <publication>`, `approve <publication>` (vouch for it, so it can be featured), `recheck <publication>` (forget its look and any vouching, and run the publish check on it now), `remove <ludant>` (its link then says it was taken down) and `dismiss <flag>` act on them. The open count shows in `tools/ops.mjs`.
 
 ### What's going on: logs and trouble
 

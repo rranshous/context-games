@@ -3975,3 +3975,5 @@ After the 00:17 sweep, Coinflip and Realmer were still unchecked, and always wou
 **First real sweep (01:17):** Coinflip passed (shrinking works on the real binding). Realmer was hidden, with a report: "a picture: too blurry to assess". A false positive: it has tiny sprites (241–695 bytes), and the vision model refused what it couldn't make out. The prompt now says tiny sprites, pixel art, abstract and blurry pictures are fine, and to say not ok only when a picture clearly shows something on the list.
 
 **Deployed** as version 0469ce9a. Realmer restored by hand (Robby: "fix realmer plz"), which also closed its report; every lobby game is trusted again.
+
+**Recheck.** Robby would rather the scan clear Realmer than a person. Added `node tools/moderate.mjs recheck <publication>` (`admin/moderate` action `recheck`): forgets its look and any vouching, and runs the publish check on it at once; a flag opens again if it fails.

@@ -111,7 +111,7 @@
 //                                                   a publication flagged by enough people is hidden until looked at;
 //                                                   matches: the ids of matches the game was in (kept with who played, and how far)
 //   POST admin/flags { token, all? }             -> open reports (or the latest 200)        tools/moderate.mjs
-//   POST admin/moderate { token, action: hide|restore|approve|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
+//   POST admin/moderate { token, action: hide|restore|approve|recheck|remove|dismiss, published?, ludant?, flag?, note? } -> { done }
 //   POST admin/owners { token }                  -> [{ id, name, owned, owner, ownedAt, by, from, updated, people }]
 //   POST admin/own { token, ludant, person }     -> { id, owner }   gives a ludant no person owns to a person (tools/own.mjs)
 //   POST admin/people { token }                  -> [{ id, name, created, devices }]
@@ -825,6 +825,15 @@ export function createCore({ store, settings }) {
       const pub = await read('published', published);
       if (action === 'hide') { pub.hidden = { by: 'moderator', at: now(), note: String(note ?? '').slice(0, 200) }; delete pub.cleared; done.push(`hid ${pub.name}`); }
       if (action === 'restore' || action === 'approve') { delete pub.hidden; pub.cleared = now(); done.push(`${action === 'approve' ? 'approved' : 'restored'} ${pub.name}: it can be featured, and reports won't hide it again by themselves`); }
+      // Let the publish check decide again, now, as if it had never been looked at or vouched for.
+      if (action === 'recheck') {
+        delete pub.hidden; delete pub.cleared; pub.checked = 'unchecked';
+        await store.put('published', published, pub);
+        const look = await recheck(pub);
+        const after = await read('published', published);
+        done.push(`checked ${pub.name} again: ${after.checked}${look?.failed ? " (the check couldn't run)" : ''}`);
+        return { done };
+      }
       await store.put('published', published, pub);
     }
     if (ludant && action === 'remove') {

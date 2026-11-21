@@ -4,6 +4,7 @@
 //   node tools/moderate.mjs [site] all                      the latest 200, open or not
 //   node tools/moderate.mjs [site] hide <publication> [note]   take a publication out of the lobby
 //   node tools/moderate.mjs [site] restore <publication>    put it back (reports alone won't hide it again)
+//   node tools/moderate.mjs [site] recheck <publication>    forget its look and vouching; the publish check decides again, now
 //   node tools/moderate.mjs [site] approve <publication>    vouch for it: it can be featured to newcomers
 //   node tools/moderate.mjs [site] remove <ludant>          take a ludant down: its link says so
 //   node tools/moderate.mjs [site] dismiss <flag>           close a report, nothing done
@@ -74,7 +75,7 @@ Now, by law (18 U.S.C. § 2258A), as soon as you can:
 } else if (action === 'preserved') {
   for (const r of await call('preserved', {})) console.log(`${r.id}  ${r.at.slice(0, 16)}  ${r.file}  ludants ${r.ludants.map((l) => l.id).join(', ') || '-'}  publications ${r.publications.map((p) => p.id).join(', ') || '-'}`);
 } else {
-  const key = { hide: 'published', restore: 'published', approve: 'published', remove: 'ludant', dismiss: 'flag' }[action];
+  const key = { hide: 'published', restore: 'published', approve: 'published', recheck: 'published', remove: 'ludant', dismiss: 'flag' }[action];
   if (!key || !target) { console.error('see the top of tools/moderate.mjs for how to use it'); process.exit(1); }
   console.log((await call('moderate', { action, [key]: target, note: rest.join(' ') })).done.join('\n') || 'nothing to do');
 }
