@@ -14,8 +14,9 @@
 // the world's own memory). The header goes last because only then is the table's length
 // known. (Version 1 had the table inside a header at the front, version 2 a line at a time
 // after it; both still load.)
+import { Paged } from './paged';
 import { makeRng } from './rng';
-import { Cells, CONFIG, DEBRIS, World } from './world';
+import { Cells, CONFIG, DEBRIS, RIPE_BITS, World } from './world';
 
 type Enc = unknown;
 const TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array } as const;
@@ -32,7 +33,7 @@ const MAGIC = new TextEncoder().encode('andnow save 3\n');
 export function* saveChunks(world: World, query: string): Generator<Uint8Array> {
   const ids = new Map<object, number>();
   const queue: (object | null)[] = [];
-  const blobs: Typed[] = [];
+  const blobs: (Typed | Paged)[] = [];
   let offset = 0;
   const ref = (v: unknown): Enc => {
     if (v === undefined) return { $u: 1 };
@@ -45,6 +46,13 @@ export function* saveChunks(world: World, query: string): Generator<Uint8Array> 
     return { $r: id };
   };
   const entry = (o: object): Enc => {
+    if (o instanceof Paged) { // (saved as the plain array it stands for)
+      offset = Math.ceil(offset / 8) * 8;
+      const e = { $ta: o.kind, off: offset, len: o.length };
+      blobs.push(o);
+      offset += o.byteLength;
+      return e;
+    }
     if (ArrayBuffer.isView(o)) {
       const name = o.constructor.name as TypedName;
       if (!(name in TYPED)) throw new Error(`can't save a ${name}`);
@@ -80,7 +88,8 @@ export function* saveChunks(world: World, query: string): Generator<Uint8Array> 
   yield pad(blobAt);
   for (const a of blobs) {
     yield pad(blobAt + Math.ceil((at - blobAt) / 8) * 8);
-    yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    if (a instanceof Paged) yield* a.bytes();
+    else yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
     at += a.byteLength;
   }
   const header: SaveHeader = { version: 3, query, t: world.t, config, root, tableBytes, rng: world.rng.state };
@@ -165,6 +174,11 @@ export function loadWorld(bytes: Uint8Array, share = false): World {
     b.climbBase = CONFIG.climbBase; b.foodSpacing = CONFIG.plateFood;
   }
   world.yShift ??= 0;
+  // (Saved as plain arrays, held in pages: see Paged.)
+  const g = world as unknown as Record<'ripe' | 'narrow' | 'flesh', Paged | Float32Array | Uint8Array>;
+  if (!(g.ripe instanceof Paged)) g.ripe = Paged.from(g.ripe, RIPE_BITS);
+  if (g.narrow && !(g.narrow instanceof Paged)) g.narrow = Paged.from(g.narrow);
+  if (g.flesh && !(g.flesh instanceof Paged)) g.flesh = Paged.from(g.flesh);
   // Owners were Int32 until ids passed 2^31 and wrapped (s2 crashed on one at 1.897M): unwrap.
   const was = world.owner as ArrayLike<number>;
   if (!(was instanceof Float64Array)) {
