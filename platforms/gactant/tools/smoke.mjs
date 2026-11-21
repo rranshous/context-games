@@ -21,6 +21,8 @@ const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 // and ARCHIVE_OVER_MS=0, and GACTANT_ADMIN_TOKEN here to match), instead of a fresh Node one.
 const given = process.argv.includes('--base') ? process.argv[process.argv.indexOf('--base') + 1] : null;
 const PORT = 7799, base = given ?? `http://127.0.0.1:${PORT}`, TOKEN = given ? process.env.GACTANT_ADMIN_TOKEN : `smoke-${Date.now()}`;
+// It wipes, takes down and imports with the admin token: never against the live site.
+if (given && /(^|\.)gactant\.com$|\.workers\.dev$/.test(new URL(given).hostname)) { console.error(`refusing --base ${given}: the smoke test changes data, so never the live site`); process.exit(1); }
 const data = given ? null : mkdtempSync(join(tmpdir(), 'gactant-smoke-'));
 const server = given ? null : spawn(process.execPath, ['server.mjs', '--port', String(PORT), '--data', data], {
   cwd: HERE, env: { ...process.env, GACTANT_ADMIN_TOKEN: TOKEN, GACTANT_PUBLIC: '1', GACTANT_ARCHIVE_OVER_MS: '0' }, stdio: ['ignore', 'ignore', 'pipe'],

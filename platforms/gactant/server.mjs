@@ -124,7 +124,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 function serveStatic(path, res, host = '') {
   if (path === '/') path = '/index.html';
   const f = normalize(join(PUBLIC, path));
-  if (!f.startsWith(PUBLIC) || !existsSync(f)) { res.writeHead(404); res.end('not found'); return; }
+  if (!f.startsWith(PUBLIC) || !existsSync(f) || !statSync(f).isFile()) { res.writeHead(404); res.end('not found'); return; }
   res.writeHead(200, {
     'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache',
     // The sandbox's origin is opaque, so its module scripts load cross-origin. These are
