@@ -18,7 +18,7 @@ const fstr = (h: number, s: string) => { for (let i = 0; i < s.length; i++) h = 
 /** Fingerprint of everything observable in the world. */
 export function stateHash(w: World, h: number): number {
   h = fnv(h, w.t);
-  for (let i = 0; i < w.owner.length; i++) { h = fnv(h, w.owner[i]); h = fnv(h, w.code[i]); h = fnv(h, w.resource[i]); }
+  for (let i = 0; i < w.owner.length; i++) { h = fnv(h, w.ownerOf(i)); h = fnv(h, w.code[i]); h = fnv(h, w.resource[i]); }
   for (const x of w.allWarriors()) {
     for (const v of [x.alive ? 1 : 0, x.ipX, x.ipY, x.ox, x.oy, x.dir, x.cellCount, x.executed, x.lastOk ? 1 : 0, x.diedAt ?? -1,
       x.stats.collected, x.stats.bombHits, x.stats.poisonWrites, x.stats.kills, x.leftHomeAt ?? -1,

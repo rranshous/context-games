@@ -190,7 +190,7 @@ export class ClimbView {
     let id: number | null = null;
     for (let d = 0; d <= 1 && id === null; d++) for (let dy = -d; dy <= d && id === null; dy++) for (let dx = -d; dx <= d; dx++) {
       if (x + dx < 0 || y + dy < 0 || x + dx >= world.w || y + dy >= world.h) continue;
-      const o = world.owner[world.idx(x + dx, y + dy)];
+      const o = world.ownerOf(world.idx(x + dx, y + dy));
       if (o >= 0 && world.warrior(o)?.alive) { id = o; break; }
     }
     this.selected = id === this.selected ? null : id;
@@ -209,7 +209,7 @@ export class ClimbView {
     const ctx = this.canvas.getContext('2d')!, X = (x: number) => Math.round((x - this.cam.x) * z), Y = (y: number) => Math.round((y - this.cam.y) * z);
     const shade = new Path2D(), edge = new Path2D();
     shade.rect(0, 0, this.canvas.width, this.canvas.height);
-    const mine = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < world.h && world.owner[y * W + x] === id;
+    const mine = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < world.h && world.ownerOf(y * W + x) === id;
     for (const c of cells) {
       const x = c % W, y = (c / W) | 0, x0 = X(x), y0 = Y(y), x1 = X(x + 1), y1 = Y(y + 1);
       shade.rect(x0, y0, x1 - x0, y1 - y0);
@@ -351,7 +351,7 @@ export class ClimbView {
       for (let i = 0; i < vw; i++) {
         const x = x0 + i;
         if (x >= world.w) break;
-        const c = y * world.w + x, o = world.owner[c];
+        const c = y * world.w + x, o = world.ownerOf(c);
         let col: RGB;
         if (b.terrain[c] !== 0) {
           const n = ((Math.imul(x * 73856093 ^ y * 19349663, 2654435761) >>> 0) % 100) / 100;
@@ -396,7 +396,7 @@ export class ClimbView {
     ctx.textBaseline = 'middle';
     for (let j = 0; j < vh && y0 + j < world.h; j++) {
       for (let i = 0; i < vw && x0 + i < world.w; i++) {
-        const c = (y0 + j) * world.w + x0 + i, o = world.owner[c];
+        const c = (y0 + j) * world.w + x0 + i, o = world.ownerOf(c);
         if (o < 0) continue;
         const k = mix(colors.get(o) ?? [230, 230, 230], [0, 0, 0], 0.7);
         ctx.fillStyle = `rgb(${k[0] | 0},${k[1] | 0},${k[2] | 0})`;
