@@ -3969,3 +3969,5 @@ After the 00:17 sweep, Coinflip and Realmer were still unchecked, and always wou
 - **All of them:** up to 61 (the thumb and a ludant's 60), six at a time.
 - Without the binding (or if a picture won't shrink), it's sent as it was, and one still too big counts as unseen, as before.
 - Tested with fakes: a 600 KB picture goes out at about 1 KB, 21 pictures all looked at, a repeat costs nothing, a bad one is caught, 62 pictures is partly.
+
+**Deployed** as version e52a414b.
