@@ -242,7 +242,8 @@ your name once per browser, and the ludant is told who's here and who has sat wi
 before.
 
 Anyone sitting with a ludant can:
-- **checkpoint** it. One is taken automatically whenever someone sits down, so anything
+- **checkpoint** it: 💾 on the top bar saves this version in one click (or **history → keep
+  this version**, with a label). Nobody following gets it; that's what sharing is for. One is taken automatically whenever someone sits down, so anything
   done "just for tonight" can be undone.
 - **restore** any checkpoint from **history**. The present is kept first, and memory is
   kept through it ("the body goes back; the memory stays").

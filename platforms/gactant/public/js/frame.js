@@ -481,10 +481,11 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 
   async takeCheckpoint(label, by = this.seat) {
     await this.settled('the checkpoint');
-    const { n } = await api('POST', `ludants/${this.recordId}/checkpoints`, { label, by, token: this.token });
+    const { n, already } = await api('POST', `ludants/${this.recordId}/checkpoints`, { label, by, token: this.token });
+    this.status.setLife(this.status.life);
+    if (already) return { n, already };
     this.inspector.note('changed', `${by} took checkpoint ${n}${label ? ` "${label}"` : ''}`);
     if (by === this.seat) this.made.add('kept', by, `kept this version as #${n}${label ? ` ("${label}")` : ''}`);
-    this.status.setLife(this.status.life);
     return { n };
   }
 
@@ -983,7 +984,18 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
           el('button', { class: 'wb-btn danger', onclick: () => { history.classList.remove('on'); this.askAbandon(); } }, 'abandon this ludant…')),
       );
     };
+    // A save point in one click: a checkpoint, just for you (followers get nothing until you share).
+    const saveBtn = el('button', { class: 'top-btn', title: 'save this version: a checkpoint in history, just for you (sharing is separate)', 'aria-label': 'save', onclick: async () => {
+      saveBtn.disabled = true;
+      try {
+        const { n, already } = await this.takeCheckpoint('');
+        saveBtn.textContent = '✓';
+        this.toast('saved', already ? `nothing's changed since #${n}, so it's already kept` : `this version is kept as #${n}: history has it`);
+      } catch (err) { this.toast('save', `couldn't save: ${err.message}`); }
+      setTimeout(() => { saveBtn.textContent = '💾'; saveBtn.disabled = false; }, 1500);
+    } }, '💾');
     root.append(
+      saveBtn,
       el('button', { class: 'top-btn more', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
       this.shareBtn = el('button', { class: 'top-btn share-btn', onclick: () => this.askShare() }, 'share'),
       el('a', { class: 'top-btn', href: '/', title: 'more games, and your own' }, 'home'),

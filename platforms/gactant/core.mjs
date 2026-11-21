@@ -74,7 +74,7 @@
 //   POST ludants/<id>/release { token }          -> {}
 //   POST ludants/<id>/arrive { who }             -> { firstVisit, visits, checkpoint, people }
 //   GET  ludants/<id>/checkpoints                -> [{ n, label, by, at }]
-//   POST ludants/<id>/checkpoints { label, by }  -> { n }           no-op if nothing changed
+//   POST ludants/<id>/checkpoints { label, by }  -> { n, already }  no-op if nothing changed
 //   POST ludants/<id>/restore { n, by }          -> { restored }     checkpoints the present first
 //   POST ludants/<id>/abandon { token, by }      -> { abandoned }    let it go: it, its checkpoints, art and
 //                                                   chat are no longer kept; what it was published as stays.
@@ -1349,9 +1349,10 @@ export function createCore({ store, settings }) {
       if (c === 'checkpoints' && method === 'GET') return ludant.checkpoints;
       if (c === 'checkpoints' && method === 'POST') {
         await requireHold(ludant, body, from);
+        const before = ludant.checkpoints.at(-1)?.n;
         const n = await checkpoint(ludant, String(body.label ?? '').slice(0, 120), short(body.by));
         await store.put('ludants', b, ludant);
-        return { n };
+        return { n, already: n === before };
       }
       if (c === 'restore' && method === 'POST') {
         await requireHold(ludant, body, from);
