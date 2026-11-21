@@ -61,12 +61,19 @@ export class Cells {
   /** The Climb: Σ burn factor of its codes (upkeep's, before the step's 2^|n|), NaN unknown. Valid while fresh (freshTraits resets it). */
   burnSum = NaN;
   /**
-   * opShift's: per direction, the places in `sorted` whose next cell that way isn't the body's
-   * (the edge that leads, or, the other way, trails). The same shape has the same edges, so they're
-   * kept while `sorted` is the same array (a shift moves it in place).
+   * What follows from the body's shape alone, so it holds wherever the body is: kept while
+   * `sorted` is the same array (a shift moves it in place), made as needed (see shape).
+   * - edges: per direction, the places in `sorted` whose next cell that way isn't the body's
+   *   (the edge that leads, or, the other way, trails);
+   * - next: advance's answer, the place in `sorted` the IP goes to from place k heading dir
+   *   (at 4k + dir; −1 none, −2 not known yet);
+   * - dx0, dx1: the leftmost and rightmost column, from the first cell's (NaN not known yet).
    */
-  edgesOf: number[] | null = null;
+  shapeOf: number[] | null = null;
   edges: (Int32Array | undefined)[] = [undefined, undefined, undefined, undefined];
+  next: Int32Array | null = null;
+  dx0 = NaN;
+  dx1 = NaN;
   constructor(public items: number[] = []) {}
   get size() { return this.items.length; }
   add(i: number) { this.items.push(i); this.sorted = null; this.fresh = false; return this; }
@@ -1060,10 +1067,15 @@ export class World {
   }
 
   /** Any food in the blocks touching a body's cells or their neighbours (`mine`, sorted, not empty)? */
-  private foodNear(mine: number[]): boolean {
-    const food = this.foodBlocks(), bw = this.scratch.foodW, W = this.w;
-    let x0 = W, x1 = -1;
-    for (let k = 0; k < mine.length; k++) { const x = mine[k] % W; if (x < x0) x0 = x; if (x > x1) x1 = x; }
+  private foodNear(set: Cells, mine: number[]): boolean {
+    const food = this.foodBlocks(), bw = this.scratch.foodW, W = this.w, x = mine[0] % W;
+    this.shape(set, mine);
+    if (set.dx0 !== set.dx0) {
+      let x0 = W, x1 = -1;
+      for (let k = 0; k < mine.length; k++) { const x = mine[k] % W; if (x < x0) x0 = x; if (x > x1) x1 = x; }
+      set.dx0 = x0 - x; set.dx1 = x1 - x;
+    }
+    const x0 = x + set.dx0, x1 = x + set.dx1;
     const bx0 = Math.max(0, x0 - 1) >> 3, bx1 = Math.min(W - 1, x1 + 1) >> 3;
     const by0 = Math.max(0, ((mine[0] / W) | 0) - 1) >> 3, by1 = Math.min(this.h - 1, ((mine[mine.length - 1] / W) | 0) + 1) >> 3;
     for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) if (food[by * bw + bx]) return true;
@@ -1352,27 +1364,52 @@ export class World {
    * (From the body's own cells: walking the board would cross its whole width to find them.)
    */
   private advance(wr: Warrior) {
-    const cells = this.mineOf(wr); // (the array: quicker to walk than the set, and any order will do)
+    const cells = this.mineOf(wr), set = this.cells(wr), dir = wr.dir;
+    // (The answer follows from the shape and the IP's place in it: kept on the shape, found by
+    // the IP's place in the sorted cells.)
+    if (set && cells.length && (dir & 3) === dir) {
+      const ip = wr.ipY * this.w + wr.ipX;
+      let lo = 0, hi = cells.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1, v = cells[mid];
+        if (v < ip) lo = mid + 1;
+        else if (v > ip) hi = mid - 1;
+        else {
+          this.shape(set, cells);
+          const next = (set.next ??= new Int32Array(4 * cells.length).fill(-2)), at = 4 * mid + dir;
+          let r = next[at];
+          if (r === -2) r = next[at] = this.nextCell(wr, cells);
+          if (r >= 0) this.setIp(wr, cells[r]);
+          return;
+        }
+      }
+    }
+    const best = this.nextCell(wr, cells);
+    if (best >= 0) this.setIp(wr, cells[best]);
+  }
+
+  /** advance's search: the place in `cells` of the IP's next cell, or −1. */
+  private nextCell(wr: Warrior, cells: number[]): number {
     const w = this.w, dir = wr.dir;
     let best = -1, bestD = Infinity;
     if (dir === 0 || dir === 2) {
       const row0 = wr.ipY * w, pos = wr.ipX, fwd = dir === 0;
-      for (const c of cells) {
-        const p = c - row0;
+      for (let k = 0; k < cells.length; k++) {
+        const p = cells[k] - row0;
         if (p < 0 || p >= w || p === pos) continue;
         const d = fwd ? (p > pos ? p - pos : p - pos + w) : (p < pos ? pos - p : pos - p + w);
-        if (d < bestD) { bestD = d; best = c; }
+        if (d < bestD) { bestD = d; best = k; }
       }
     } else {
       const h = this.h, x = wr.ipX, pos = wr.ipY, fwd = dir === 1;
-      for (const c of cells) {
-        const p = (c - x) / w;
+      for (let k = 0; k < cells.length; k++) {
+        const p = (cells[k] - x) / w;
         if (p !== (p | 0) || p === pos) continue; // (not in the IP's column, or the IP's own cell)
         const d = fwd ? (p > pos ? p - pos : p - pos + h) : (p < pos ? pos - p : pos - p + h);
-        if (d < bestD) { bestD = d; best = c; }
+        if (d < bestD) { bestD = d; best = k; }
       }
     }
-    if (best >= 0) this.setIp(wr, best);
+    return best;
   }
 
   private setIp(wr: Warrior, i: number) {
@@ -1638,9 +1675,15 @@ export class World {
     return true;
   }
 
+  /** A body's shape caches (see Cells.shapeOf), dropped if `mine` (its sorted cells) is a new array. */
+  private shape(set: Cells, mine: number[]) {
+    if (set.shapeOf === mine) return;
+    set.shapeOf = mine; set.edges.fill(undefined); set.next = null; set.dx0 = set.dx1 = NaN;
+  }
+
   /** A body's edge facing d (see Cells.edges): `mine` is its sorted cells, as on the board now. */
   private edge(set: Cells, mine: number[], d: number, id: number): Int32Array {
-    if (set.edgesOf !== mine) { set.edgesOf = mine; set.edges.fill(undefined); }
+    this.shape(set, mine);
     let e = set.edges[d];
     if (!e) {
       const w = this.w, h = this.h, owner = this.owner, out: number[] = [];
@@ -1766,8 +1809,8 @@ export class World {
   }
 
   private opCollect(wr: Warrior): boolean {
-    const mine = this.mineOf(wr);
-    if (!mine.length || !this.foodNear(mine)) return false; // (nearly always: no food in the blocks round me)
+    const mine = this.mineOf(wr), set = this.cells(wr);
+    if (!set || !mine.length || !this.foodNear(set, mine)) return false; // (nearly always: no food in the blocks round me)
     let got = false;
     const W = this.w, H = this.h, owner = this.owner, resource = this.resource;
     const meatShare = this.dietShare(wr, 'meat'), plantShare = this.dietShare(wr, 'plants');
