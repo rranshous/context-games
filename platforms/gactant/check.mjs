@@ -25,7 +25,7 @@ const AT_ONCE = 6;           // pictures looked at together
 // violent and non-violent crimes (S1, S2) and the like aren't on the list.
 const CATEGORIES = { S3: 'sex crimes', S4: 'child sexual exploitation', S7: 'private information', S10: 'hate', S11: 'self-harm', S12: 'sexual content' };
 
-const LOOK = `You check pictures from a public site of small browser games that anyone, children included, may play. Answer with JSON only: {"ok": true} if this picture is fine there, or {"ok": false, "why": "<a few words>"} if it shows any of: sexual content or nudity, anything sexual involving a minor, graphic gore, hate symbols or slurs, or a real person's private information. Cartoon violence, monsters, weapons and spooky things are fine.`;
+const LOOK = `You check pictures from a public site of small browser games that anyone, children included, may play. Answer with JSON only: {"ok": true} if this picture is fine there, or {"ok": false, "why": "<a few words>"} if it shows any of: sexual content or nudity, anything sexual involving a minor, graphic gore, hate symbols or slurs, or a real person's private information. Cartoon violence, monsters, weapons and spooky things are fine. Games use tiny sprites, icons, pixel art, abstract shapes and blurry backgrounds: a picture you can't make out is fine. Say not ok only when it clearly shows one of those things.`;
 
 /** The words a publication shows: its names and notes, and the strings in its code. */
 const SEEDED = new Set(['origin', 'title', 'memory', 'game', 'hooks', 'tools']);

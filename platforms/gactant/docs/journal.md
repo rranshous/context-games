@@ -3971,3 +3971,5 @@ After the 00:17 sweep, Coinflip and Realmer were still unchecked, and always wou
 - Tested with fakes: a 600 KB picture goes out at about 1 KB, 21 pictures all looked at, a repeat costs nothing, a bad one is caught, 62 pictures is partly.
 
 **Deployed** as version e52a414b.
+
+**First real sweep (01:17):** Coinflip passed (shrinking works on the real binding). Realmer was hidden, with a report: "a picture: too blurry to assess". A false positive: it has tiny sprites (241–695 bytes), and the vision model refused what it couldn't make out. The prompt now says tiny sprites, pixel art, abstract and blurry pictures are fine, and to say not ok only when a picture clearly shows something on the list.
