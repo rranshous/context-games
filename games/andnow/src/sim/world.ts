@@ -81,6 +81,12 @@ class Scratch {
   rows: Int8Array | null = null;             // the climb's step by row, or null if some row isn't all one step
   narrowOf: Uint8Array | undefined = undefined;
   narrowAny = true;                          // any narrow cell at all (a climb has none)
+  // Food (a resource or a dead cell) per 8×8 block, so COLLECT can see there's none near
+  // without reading the board. Kept by setOwner and setResource while the grids are these.
+  food: Uint8Array | null = null;
+  foodOwner: Float64Array | undefined = undefined;
+  foodRes: Uint8Array | undefined = undefined;
+  foodW = 0;
 }
 
 /** What `cellSets` holds: a body's Cells, or the dead cells' Set. */
@@ -359,7 +365,7 @@ export class World {
         const gap = this.t - this.tileLast[k];
         for (const sk of this.spawnsInTile[k]) {
           const s = this.board.spawns[sk], i = this.idx(s.x, s.y);
-          if (this.resource[i] === 0 && this.owner[i] === NONE && gap >= this.regrowAt(s.y)) { this.resource[i] = s.kind; this.ripe[i] = 1; this.spawnTimers[sk] = 0; }
+          if (this.resource[i] === 0 && this.owner[i] === NONE && gap >= this.regrowAt(s.y)) { this.setResource(i, s.kind); this.ripe[i] = 1; this.spawnTimers[sk] = 0; }
           if (this.resource[i] === 1 && CONFIG.foodRipen > 0) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + gap / CONFIG.foodRipen);
         }
       }
@@ -450,7 +456,7 @@ export class World {
       b.spawns.push(s);
       this.spawnTimers.push(0);
       const i = s.y * w + s.x;
-      this.resource[i] = s.kind; this.ripe[i] = 1;
+      this.setResource(i, s.kind); this.ripe[i] = 1;
     }
     // Steps: index by step − stepLo.
     if (dir > 0) { b.stepTop = b.stepTop!.map((t) => t + H); b.stepTop.push(0); b.stepH!.push(H); b.stepHi = n; }
@@ -525,7 +531,7 @@ export class World {
       const i = this.idx(x, y);
       this.setOwner(i, id);
       this.code[i] = c.code;
-      this.resource[i] = 0;
+      this.setResource(i, 0);
       wr.cellCount++;
     }
     this.enroll(wr);
@@ -630,6 +636,7 @@ export class World {
   private setOwner(i: number, v: number) {
     const o = this.owner[i];
     if (o === v) return;
+    if ((o === DEBRIS || v === DEBRIS) && this.resource[i] === 0) this.fed(i, v === DEBRIS ? 1 : -1);
     if (o !== NONE) { this.cellSets.get(o)!.delete(i); if (o === DEBRIS) { this.flesh[i] = 0; this.sortedCells.delete(DEBRIS); } }
     this.owner[i] = v;
     if (v !== NONE) {
@@ -856,7 +863,7 @@ export class World {
     for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
     if (touched) { this.spawnTimers[k] = 0; return; }
     if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
-      this.resource[i] = s.kind;
+      this.setResource(i, s.kind);
       this.ripe[i] = 1;
       this.spawnTimers[k] = 0;
     }
@@ -1020,6 +1027,47 @@ export class World {
       f.rowsOf = st; f.rows = ok ? rows : null;
     }
     return f.rows;
+  }
+
+  /** The food count per 8×8 block (see Scratch.food), counted afresh for new grids. */
+  private foodBlocks(): Uint8Array {
+    const f = this.scratch, owner = this.owner, resource = this.resource;
+    if (!f.food || f.foodOwner !== owner || f.foodRes !== resource) {
+      const w = this.w, h = this.h, bw = (w + 7) >> 3, food = new Uint8Array(bw * ((h + 7) >> 3));
+      for (let y = 0; y < h; y++) {
+        const row = y * w, b = (y >> 3) * bw;
+        for (let x = 0; x < w; x++) if (resource[row + x] !== 0 || owner[row + x] === DEBRIS) food[b + (x >> 3)]++;
+      }
+      f.food = food; f.foodOwner = owner; f.foodRes = resource; f.foodW = bw;
+    }
+    return f.food;
+  }
+
+  /** Cell i gained (+1) or lost (−1) food: its block's count follows, if counted for these grids. */
+  private fed(i: number, by: number) {
+    const f = this[SCRATCH];
+    if (!f?.food || f.foodOwner !== this.owner || f.foodRes !== this.resource) return;
+    const y = (i / this.w) | 0;
+    f.food[(y >> 3) * f.foodW + ((i - y * this.w) >> 3)] += by;
+  }
+
+  /** The way `resource` changes (keeps the food blocks). */
+  private setResource(i: number, k: number) {
+    const was = this.resource[i];
+    if (was === k) return;
+    if ((was === 0) !== (k === 0) && this.owner[i] !== DEBRIS) this.fed(i, k ? 1 : -1);
+    this.resource[i] = k;
+  }
+
+  /** Any food in the blocks touching a body's cells or their neighbours (`mine`, sorted, not empty)? */
+  private foodNear(mine: number[]): boolean {
+    const food = this.foodBlocks(), bw = this.scratch.foodW, W = this.w;
+    let x0 = W, x1 = -1;
+    for (let k = 0; k < mine.length; k++) { const x = mine[k] % W; if (x < x0) x0 = x; if (x > x1) x1 = x; }
+    const bx0 = Math.max(0, x0 - 1) >> 3, bx1 = Math.min(W - 1, x1 + 1) >> 3;
+    const by0 = Math.max(0, ((mine[0] / W) | 0) - 1) >> 3, by1 = Math.min(this.h - 1, ((mine[mine.length - 1] / W) | 0) + 1) >> 3;
+    for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) if (food[by * bw + bx]) return true;
+    return false;
   }
 
   /** Whether any cell is a narrow passage (never in a climb: it skips them), checked again when the grid grows. */
@@ -1718,10 +1766,12 @@ export class World {
   }
 
   private opCollect(wr: Warrior): boolean {
+    const mine = this.mineOf(wr);
+    if (!mine.length || !this.foodNear(mine)) return false; // (nearly always: no food in the blocks round me)
     let got = false;
     const W = this.w, H = this.h, owner = this.owner, resource = this.resource;
     const meatShare = this.dietShare(wr, 'meat'), plantShare = this.dietShare(wr, 'plants');
-    for (const c of this.mineOf(wr)) {
+    for (const c of mine) {
       const x = c % W, y = (c / W) | 0;
       for (let d = 0; d < 4; d++) {
         const nx = x + DX[d], ny = y + DY[d];
@@ -1748,7 +1798,7 @@ export class World {
           got = true;
           continue;
         } else continue;
-        this.resource[i] = 0;
+        this.setResource(i, 0);
         wr.stats.collected++;
         got = true;
       }
