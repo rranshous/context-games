@@ -39,8 +39,10 @@
 // An entry's hash, which the next entry's prev names: sha256(that text \n signature, or 'unsigned' \n time).
 // The time isn't in the signed text (the device doesn't know the server's clock); hashed, it's
 // fixed by the next action's signature, which names this hash as its prev.
-// The first prev is the genesis: sha256(gactant/match/v3 \n id \n rulebook \n seed \n salt \n JSON(options) \n started).
-// (Matches from before time, v2, have no started or times: their genesis and hashes leave them out.)
+// The first prev is the genesis: sha256(gactant/match/v4 \n id \n rulebook \n seed \n salt \n JSON(options) \n started).
+// v4: the seed is 78 random digits (256 bits) and random() is rules.mjs's SHA-256 generator.
+// Older matches (v3; v2, from before time, has no started or times) had a 32-bit number for a
+// seed and another generator: tools/check-match.mjs replays those with it.
 // The seed decides everything the rules deal (hands, decks), so it stays hidden until the
 // match is over; the salt (128 random bits) keeps the genesis from giving it away to anyone
 // who tries every seed. Both are shown once it's over, and the whole chain can be checked.
@@ -64,7 +66,11 @@ const size = (v) => (v === undefined ? 0 : JSON.stringify(v).length);
 export const signedText = ({ match, n, prev, person, device, kind, data }) => ['gactant/act/v2', match, n, prev, person, device, kind, JSON.stringify(data ?? null)].join('\n');
 export const genesisText = ({ id, rulebook, seed, salt, options, started }) => (started == null
   ? ['gactant/match/v2', id, rulebook, seed, salt, JSON.stringify(options ?? {})]
-  : ['gactant/match/v3', id, rulebook, seed, salt, JSON.stringify(options ?? {}), started]).join('\n');
+  : [typeof seed === 'string' ? 'gactant/match/v4' : 'gactant/match/v3', id, rulebook, seed, salt, JSON.stringify(options ?? {}), started]).join('\n');
+/** A match's seed: 78 random digits (256 bits). Digits, so rules that read it as a number still can. */
+export const newSeed = () => BigInt(`0x${Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('')}`).toString().padStart(78, '0');
+/** A practice run's seed unless it's given one: the same every time, shaped like a match's. */
+export const PRACTICE_SEED = '1'.padStart(78, '0');
 /** An action's hash: its signed text, its signature, and the time it arrived. */
 export const entryHash = (text, signature, time) => sha(`${text}\n${signature ?? 'unsigned'}${time == null ? '' : `\n${time}`}`);
 
@@ -220,14 +226,14 @@ export function createMatch({ store, rules }) {
  *  rules sees what each call did and what it cost, against the limits a real match has. */
 export const PRACTICE_START = Date.UTC(2026, 0, 1);   // a practice run's clock starts here, so runs repeat exactly
 
-export function practice(rules, { source, seed = 1, options = {}, steps = [] }) {
+export function practice(rules, { source, seed = PRACTICE_SEED, options = {}, steps = [] }) {
   const warn = [];
   const note = (what, used, max) => { if (used > max / 2) warn.push(`${what}: ${used} of the ${max} allowed`); };
   const run = (fn, args) => { try { return { ok: true, ...rules.call(source, fn, args) }; } catch (err) { return { ok: false, ...said(err) }; } };
   // Its clock stands still unless a step moves it on: wait (milliseconds) before that step.
   let now = PRACTICE_START;
   const time = () => ({ now, started: PRACTICE_START });
-  const init = run('init', [Number(seed) || 1, options, time()]);
+  const init = run('init', [String(seed ?? PRACTICE_SEED).slice(0, 100), options, time()]);
   if (!init.ok) return { ok: false, init, steps: [], limits: limits() };
   note('init steps', init.steps, MAX_STEPS);
   note('state size after init', size(init.value), MAX_STATE);

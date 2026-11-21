@@ -4057,3 +4057,25 @@ Robby: localhost only, "period"; a storage quota per person, yes; looks need a l
 **Seeds, a cleaner way:** nothing outside matches depends on the generator: standings, rulebooks, drafts and ludants are untouched by it. Swapping it outright costs only the replay check (`tools/check-match.mjs`) for matches that ran before the swap. Open matches keep playing; only their future draws change. So the server gets one strong generator that takes any state, new matches get a 256-bit seed and a `v4` genesis, and only the offline checker keeps mulberry32, for v2/v3 logs. Proposed to Robby.
 
 **Reading the rulebooks:** Robby: go ahead, and he isn't worried about in-progress matches. Nothing lists rulebooks (each is public by its hash, but the hashes aren't listed), so I added `POST admin/rulebooks` and `tools/rulebooks.mjs`, which prints them all as JSON. It needs a deploy before the live 41 can be read. Locally the 5 test rulebooks only take `seed` in `init` and never use it.
+
+### New seeds (2026-11-21)
+
+Deployed the quota, looks and admin/rulebooks first (eb6f7f6c), then read all 41 live rulebooks:
+- **11 use `random(seed)` or ignore the seed:** Cannon Clash ×5, Crab Clash, coinflip, shared-canvas, and so on. They're protected by the change.
+- **9 hash `String(seed)` into their own generator:** realm ×5, dodge-trial ×3, war ×2, rps. They still run, still guessable (their own 32-bit generators).
+- **7 compute `Math.floor(seed * 1e9) % N`:** light-garden ×4, star-pair-relay ×3. A hex seed would make NaN, so the seed is **78 decimal digits** instead (256 bits, as a string), which these read as a number fine.
+
+**Built:**
+- `random()` is SHA-256 run by the host (a QuickJS host function, so no steps). The state is 64 hex characters; anything else is hashed into one. x is 53 bits of H(state, x) and next is H(state, next). The input is capped at 200 characters of JSON, so a rulebook can't make the host hash megabytes for free.
+- The genesis is v4 for a string seed. Practice runs use a fixed 78-digit seed.
+- mulberry32 lives only in `tools/check-match.mjs`, put back on the rulebook's first line for numeric-seed (pre-v4) matches.
+
+**Checked:**
+- An old live Cannon Clash match (m-f6bc39cd286d) checks out with the old generator put back and fails without it.
+- A new v4 match replays in the smoke test.
+- All 41 rulebooks init and join with a new seed.
+- A live Cannon Clash log replays on a new seed with no breakage.
+- The SHA-256 matches Node's.
+- Smoke: all good.
+
+Open matches carry on with the new generator from their numeric state (Robby isn't worried about them). Docs: README, the table tool's description and changes.js.

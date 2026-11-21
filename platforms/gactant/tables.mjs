@@ -65,7 +65,7 @@
 // hand, belongs in the state, made from the seed, and shown only through view.
 
 import { MAX_STEPS } from './rules.mjs';
-import { limits as matchLimits, signedText } from './match.mjs';
+import { limits as matchLimits, newSeed, signedText } from './match.mjs';
 
 const MAX_SOURCE = 60_000;          // characters in a rulebook
 const MAX_ACTION = 4_000;           // characters of JSON in one action, and in a match's options
@@ -406,7 +406,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
         // Counted before it's made (and given back if it isn't), so matches opened side by
         // side can't all pass the day's check first.
         add('matches', from.person); add('matches', 'world');
-        const id = `m-${hex(6)}`, seed = crypto.getRandomValues(new Uint32Array(1))[0], salt = hex(16);
+        const id = `m-${hex(6)}`, seed = newSeed(), salt = hex(16);
         let made;
         try { made = await fromMatch(host.op(id, 'create', { id, rulebook: rb.id, name: rb.name, source: rb.source, seed, salt, options })); }
         catch (err) { add('matches', from.person, -1); add('matches', 'world', -1); throw err; }

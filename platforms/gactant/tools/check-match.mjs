@@ -33,7 +33,11 @@ if (prev !== m.genesis) fail('the genesis doesn\'t match the match\'s id, rulebo
 const rules = await createRules(await WebAssembly.compile(readFileSync(join(HERE, 'vendor/quickjs/quickjs.wasm'))));
 // Each call gets the time it had: the match's start, and each action's own (none before v3).
 const at = (now) => (m.started == null ? undefined : { now, started: m.started });
-let state = over ? rules.call(rb.source, 'init', [m.seed, m.options, at(m.started)]).value : null;
+// Matches before v4 had a 32-bit seed and this generator: put back, on the rulebook's own first
+// line (so its lines keep their numbers), for replaying them as they were played.
+const MULBERRY32 = 'globalThis.random = (n) => { let t = (Number(n) + 0x6D2B79F5) >>> 0; let r = Math.imul(t ^ (t >>> 15), t | 1); r ^= r + Math.imul(r ^ (r >>> 7), r | 61); return [((r ^ (r >>> 14)) >>> 0) / 4294967296, t]; };';
+const source = typeof m.seed === 'number' ? MULBERRY32 + rb.source : rb.source;
+let state = over ? rules.call(source, 'init', [m.seed, m.options, at(m.started)]).value : null;
 let clock = m.started ?? 0;
 let unsigned = 0;
 for (const e of log) {
@@ -53,16 +57,16 @@ for (const e of log) {
     let ended = false;   // a move that ends the match refuses the rest
     e.data.forEach((one, i) => {
       let applied = 0;
-      if (!ended) try { const v = rules.call(rb.source, 'move', [state, e.player, one, at(e.time)]).value; if (JSON.stringify(v).length <= 200_000) { state = v; applied = 1; ended = (rules.call(rb.source, 'result', [state, at(e.time)]).value ?? null) !== null; } } catch {}
+      if (!ended) try { const v = rules.call(source, 'move', [state, e.player, one, at(e.time)]).value; if (JSON.stringify(v).length <= 200_000) { state = v; applied = 1; ended = (rules.call(source, 'result', [state, at(e.time)]).value ?? null) !== null; } } catch {}
       if (applied !== (e.outcomes?.[i] ?? 1)) fail(`action ${e.n}, move ${i + 1} of ${e.data.length}: on replay it was ${applied ? 'applied' : 'refused'}, but the match says the opposite`);
     });
-  } else if (over) try { state = rules.call(rb.source, e.kind, [state, e.player, e.data, at(e.time)]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
+  } else if (over) try { state = rules.call(source, e.kind, [state, e.player, e.data, at(e.time)]).value; } catch (err) { fail(`action ${e.n}: the rules refuse it on replay (${err.message})`); }
   console.log(`  ${String(e.n).padStart(3)} ${e.player.name}${e.through ? ` (through ${e.through.name})` : ''} ${e.kind} ${JSON.stringify(e.data)}`);
   prev = e.hash;
 }
 if (prev !== m.head) fail('the chain doesn\'t end at the match\'s head');
 if (over) {
-  const result = rules.call(rb.source, 'result', [state, at(clock)]).value ?? null;
+  const result = rules.call(source, 'result', [state, at(clock)]).value ?? null;
   if (JSON.stringify(result) !== JSON.stringify(m.result ?? null)) fail(`replayed, the result is ${JSON.stringify(result)}, not ${JSON.stringify(m.result)}`);
   console.log(`result: ${JSON.stringify(result)}`);
 }

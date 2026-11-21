@@ -16,7 +16,7 @@
 // eval), and each call gets a fresh context: the rulebook keeps nothing between calls but
 // the state it returns, so the same calls always give the same answers. It has no clock,
 // no network, and no randomness but its seed: random(n) -> [a number in [0, 1), the next n]
-// is there for keeping a generator in the state.
+// is there for keeping a generator in the state (see random below).
 //
 // Work is counted in steps: QuickJS stops to ask whether to go on about every 5,000 simple
 // operations, and each ask is a step (a call costs at least 1). Steps, not the clock, are
@@ -36,25 +36,74 @@ const MAX_MESSAGE = 2_000;    // characters of an error the rules throw
 const MAX_MEMORY = 16 * 1024 * 1024;
 const MAX_STACK = 512 * 1024;
 const MAX_DEPTH = 200;      // nesting of what comes out (deeper can bring QuickJS down)
+const MAX_RANDOM_STATE = 200; // characters of JSON in what random is given
 // Where the clock moves while code runs (Node), a call's time at most. The interpreter only
 // asks between operations, so one built-in on big data (indexOf over megabytes) can still
 // run seconds past it; hosted, that holds up only its own match's object.
 const MAX_WALL_MS = 3000;
 
-// What every rulebook starts with: no clock, no Math.random, and a seeded generator. Its
-// way in and out (JSON) is kept where the rulebook can't replace it.
+// What every rulebook starts with: no clock, no Math.random, and random (worked out by the
+// host: __random, taken away once random has it). Its way in and out (JSON) is kept where
+// the rulebook can't replace it.
 const PRELUDE = `"use strict";
 Object.defineProperty(globalThis, '__json', { value: Object.freeze({ parse: JSON.parse.bind(JSON), stringify: JSON.stringify.bind(JSON) }) });
 Math.random = () => { throw new Error('rules have no randomness but their seed: keep random(n) in the state'); };
 globalThis.Date = undefined;
-globalThis.random = (n) => {
-  let t = (Number(n) + 0x6D2B79F5) >>> 0;
-  let r = Math.imul(t ^ (t >>> 15), t | 1);
-  r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
-  return [((r ^ (r >>> 14)) >>> 0) / 4294967296, t];
-};
+globalThis.random = ((host) => (n) => {
+  const s = __json.stringify(n === undefined ? null : n);
+  if (s.length > ${MAX_RANDOM_STATE}) throw new Error('random(n): n is the seed, or the next state random last gave back');
+  return __json.parse(host(s));
+})(globalThis.__random);
+delete globalThis.__random;
 `;
 const PRELUDE_LINES = PRELUDE.split('\n').length - 1;
+
+// The generator: random(n) -> [x in [0, 1), next]. Its state is 256 bits (64 hex characters);
+// anything else it's given (a seed: 78 random digits in a match) is hashed into one. x is the
+// first 53 bits of SHA-256(state, x) and next is SHA-256(state, next), so nothing anyone sees
+// of what's dealt tells them the state, or what comes next. Worked out here rather than in
+// QuickJS, so it costs a rulebook no steps.
+export function random(text) {
+  const hex = /^"[0-9a-f]{64}"$/.test(text) ? text.slice(1, -1) : toHex(sha256(`gactant/random\n${text}`));
+  const out = sha256(`${hex}\nx`);
+  return JSON.stringify([(out[0] * 2 ** 21 + (out[1] >>> 11)) / 2 ** 53, toHex(sha256(`${hex}\nnext`))]);
+}
+const toHex = (words) => Array.from(words, (w) => (w >>> 0).toString(16).padStart(8, '0')).join('');
+const K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+/** SHA-256 of a string's UTF-8, as eight 32-bit words (synchronous: a Worker's crypto isn't). */
+function sha256(str) {
+  const bytes = new TextEncoder().encode(str);
+  const padded = new Uint8Array(((bytes.length + 9 + 63) >> 6) << 6);
+  padded.set(bytes);
+  padded[bytes.length] = 0x80;
+  const bits = bytes.length * 8;
+  const view = new DataView(padded.buffer);
+  view.setUint32(padded.length - 8, Math.floor(bits / 2 ** 32));
+  view.setUint32(padded.length - 4, bits >>> 0);
+  const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+  const w = new Uint32Array(64);
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < padded.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3), s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+    }
+    let [a, b, c, d, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const t1 = hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i];
+      const t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
+      hh = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += hh;
+  }
+  return h;
+}
 
 export class RuleError extends Error {
   constructor(message, { kind, line, column, steps }) { super(message); Object.assign(this, { kind, line, column, steps }); }
@@ -109,6 +158,9 @@ export async function createRules(wasmModule) {
       const inp = vm.newString(JSON.stringify(input));
       vm.setProp(vm.global, '__input', inp);
       inp.dispose();
+      const rnd = vm.newFunction('__random', (t) => vm.newString(random(vm.getString(t))));
+      vm.setProp(vm.global, '__random', rnd);
+      rnd.dispose();
       const out = vm.evalCode(`${PRELUDE}${source}\n;${tail}`, 'rulebook.js');
       steps = Math.max(1, steps);
       if (out.error) {
