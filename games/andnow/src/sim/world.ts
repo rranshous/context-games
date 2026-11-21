@@ -1276,7 +1276,26 @@ export class World {
       return 1;
     };
     let drop = byFar[0];
-    pick: for (let t = 0; t < 3; t++) for (const c of byFar) {
+    const set = this.cells(wr);
+    if (set && queue.length === set.size && this.owner[start] === wr.id) {
+      // (Connected: a cell can go without cutting the body iff it's no articulation point, so
+      // one DFS answers for every candidate. Trying each took a search, and a re-sort, apiece.
+      // Each tried cell went out of the set and back in at its end: the same order is made here.)
+      const place = new Map<number, number>(), tried: number[] = [];
+      for (let k = 0; k < queue.length; k++) place.set(queue[k], k);
+      const cut = this.cutCells(wr, queue, place);
+      pick: for (let t = 0; t < 3; t++) for (const c of byFar) {
+        if (tier(c) !== t) continue;
+        tried.push(c);
+        if (!cut[place.get(c)!]) { drop = c; break pick; }
+      }
+      const out = new Set(tried), items = set.items;
+      let n = 0;
+      for (let k = 0; k < items.length; k++) if (!out.has(items[k])) items[n++] = items[k];
+      for (const c of tried) items[n++] = c;
+      items.length = n;
+      set.sorted = null; set.fresh = false;
+    } else pick: for (let t = 0; t < 3; t++) for (const c of byFar) {
       if (tier(c) !== t) continue;
       this.setOwner(c, NONE);
       const ok = this.unreached(wr).length === 0;
@@ -1290,6 +1309,36 @@ export class World {
     this.code[drop] = 0;
     wr.cellCount--;
     this.log('shed', `${wr.name} shed ${lost === '.' ? 'fat' : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
+  }
+
+  /**
+   * A body's articulation points: cut[k] is 1 if losing `cells[k]` would cut some of the rest
+   * off from cells[0] (cells: its connected cells, the IP's first; place: each one's k).
+   * Tarjan's low points, one DFS without recursion.
+   */
+  private cutCells(wr: Warrior, cells: number[], place: Map<number, number>): Uint8Array {
+    const n = cells.length, w = this.w, id = wr.id;
+    const disc = new Int32Array(n).fill(-1), low = new Int32Array(n), parent = new Int32Array(n), next = new Uint8Array(n), cut = new Uint8Array(n);
+    const stack = [0];
+    disc[0] = 0; parent[0] = -1;
+    let time = 1;
+    while (stack.length) {
+      const v = stack[stack.length - 1];
+      if (next[v] < 4) {
+        const d = next[v]++, c = cells[v], nx = (c % w) + DX[d], ny = ((c / w) | 0) + DY[d];
+        if (this.ownerAt(nx, ny) !== id) continue;
+        const u = place.get(ny * w + nx)!;
+        if (disc[u] < 0) { disc[u] = low[u] = time++; parent[u] = v; stack.push(u); }
+        else if (u !== parent[v] && disc[u] < low[v]) low[v] = disc[u];
+        continue;
+      }
+      stack.pop();
+      const p = parent[v];
+      if (p < 0) continue;
+      if (low[v] < low[p]) low[p] = low[v];
+      if (p !== 0 && low[v] >= disc[p]) cut[p] = 1;
+    }
+    return cut;
   }
 
   /** True when every living warrior is of one lineage (only possible once someone divides). */
