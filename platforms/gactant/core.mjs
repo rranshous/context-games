@@ -180,6 +180,8 @@ const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => 
 const newId = (name) => `${slug(name)}-${hex(8)}`;
 const short = (s) => (s == null || s === '' ? null : String(s).slice(0, 40));   // a person's name as given
 const MAX_TITLE = 80;
+const EVENTS_A_DAY = 2000;      // telemetry posts per address (each up to 40 events)
+const MAX_VISITORS = 200;       // people a ludant remembers sitting with it
 /** The admin token, compared in constant time (an empty one never matches). */
 export const isAdmin = (settings, token) => {
   const want = String(settings.adminToken || ''), got = String(token ?? '');
@@ -196,13 +198,18 @@ const unb64u = (s) => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(
 
 /** A document as a slim list has it: what worker.mjs's SLIM keeps, for the local store. */
 export function slimmed(kind, d) {
-  if (kind === 'ludants') { const { surfaces, assets, mail, ...rest } = d; return { ...rest, soma: { ...d.soma, sections: { title: d.soma?.sections?.title ?? null } } }; }
+  if (kind === 'ludants') { const { surfaces, assets, mail, ...rest } = d; return { ...rest, soma: { given: d.soma?.given ?? null, sections: { title: d.soma?.sections?.title ?? null } } }; }
   if (kind === 'published') { const { soma, assets, ...rest } = d; return rest; }
-  if (kind === 'flags') { const { image, ...rest } = d; return rest; }
+  if (kind === 'flags') { const { image, chat, ...rest } = d; return rest; }
   if (kind === 'reports') { const { report, ...rest } = d; return rest; }
+  if (kind === 'issues') { const { soma, ...rest } = d; return rest; }
+  if (kind === 'lines') { const { versions, spinoffs, ...rest } = d; return rest; }
+  if (kind === 'drafts') { const { source, lastTry, ...rest } = d; return rest; }
+  if (kind === 'match-index') { const { onlooker, result, ...rest } = d; return { ...rest, result: result == null ? null : true }; }
   return d;
 }
 export const LETTERS = 'letters_from_gactant_admins';
+const isObject = (x) => typeof x === 'object' && x !== null && !Array.isArray(x);
 const withoutLetters = (soma) => { const s = structuredClone(soma); if (s?.sections) delete s.sections[LETTERS]; return s; };
 /** Same body, ignoring title and memory: a new name or remembering being published
  *  doesn't make a different ludant. Something else has to change. */
@@ -238,7 +245,7 @@ export function createCore({ store, settings }) {
   // A removed device's live connections to matches close at once: every match its person is
   // in that isn't archived is told (hosted, the Match objects hold the sockets).
   const removed = async (person, device) => {
-    for (const m of await store.list('match-index')) if (!m.archived && m.members?.[person] !== undefined) await settings.dropDevice?.(m.id, person, device);
+    for (const m of await store.list('match-index', { slim: true })) if (!m.archived && m.members?.[person] !== undefined) await settings.dropDevice?.(m.id, person, device);
   };
   const people = createPeople({ store, settings: { ...settings, removed }, httpError, limit: (...a) => limit(...a) });
   // Games many ludants play together (tables.mjs); each match apart, in settings.matches.
@@ -417,7 +424,7 @@ export function createCore({ store, settings }) {
   const summary = (x) => ({
     id: x.id, name: nameOf(x.soma), given: x.soma?.given, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
     lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}), spent: +(x.stats?.spent ?? 0).toFixed(4),
-    following: Boolean(x.follows), shared: Boolean(x.line),
+    following: Boolean(x.follows), shared: Boolean(x.line), line: x.line ?? null,
   });
 
   // ---------- inference on the install's key ----------
@@ -569,7 +576,7 @@ export function createCore({ store, settings }) {
     const id = newId(pub.given);
     const ludant = {
       id, soma: structuredClone(pub.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
-      lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ludant: pub.ludant, ...(lineId ? { line: lineId } : {}) }, takenBy: short(body.by) },
+      lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ...(lineId ? { line: lineId } : {}) }, takenBy: short(body.by) },
       ...(lineId ? { follows: { line: lineId, version: pub.id } } : {}),
     };
     await checkpoint(ludant, `as received: ${pub.name}`, short(body.by));
@@ -739,12 +746,13 @@ export function createCore({ store, settings }) {
   async function flag(body, from) {
     const today = now().slice(0, 10);
     if (today !== flagDay) { flagDay = today; flagsToday = 0; }
-    if (++flagsToday > MAX_FLAGS_A_DAY) throw httpError(429, 'too many reports today; please try again tomorrow');
-    limit('flag', from.person ?? from.ip, FLAGS_EACH_A_DAY, `that's ${FLAGS_EACH_A_DAY} reports from you today; more tomorrow`)();
+    if (flagsToday >= MAX_FLAGS_A_DAY) throw httpError(429, 'too many reports today; please try again tomorrow');
     const reason = FLAG_REASONS.includes(body.reason) ? body.reason : 'other';
     const ludant = body.ludant ? safe(body.ludant) : null;
     const published = body.published ? safe(body.published) : null;
     if (!ludant && !published) throw httpError(400, 'a report says what it is about');
+    limit('flag', from.person ?? from.ip, FLAGS_EACH_A_DAY, `that's ${FLAGS_EACH_A_DAY} reports from you today; more tomorrow`)();
+    flagsToday++;
     const image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
     const id = `f-${hex(4)}`;
     // The matches the game was in, as the server knows them (who was playing, and how far it
@@ -840,9 +848,11 @@ export function createCore({ store, settings }) {
       const l = await store.get('ludants', safe(ludant));
       if (l && !l.abandoned) { await letGo(l, { by: 'gactant', takenDown: true }); done.push(`took down ${ludant}`); }
     }
-    for (const f of await store.list('flags')) {
-      const ours = flagId ? f.id === flagId : (published && f.published === published) || (ludant && f.ludant === ludant);
-      if (ours && f.status === 'open') { f.status = ['restore', 'approve', 'dismiss'].includes(action) ? 'dismissed' : 'acted'; f.closed = now(); await store.put('flags', f.id, f); done.push(`closed ${f.id}`); }
+    for (const slim of await store.list('flags', { slim: true })) {
+      const ours = flagId ? slim.id === flagId : (published && slim.published === published) || (ludant && slim.ludant === ludant);
+      if (!ours || slim.status !== 'open') continue;
+      const f = await store.get('flags', slim.id);
+      f.status = ['restore', 'approve', 'dismiss'].includes(action) ? 'dismissed' : 'acted'; f.closed = now(); await store.put('flags', f.id, f); done.push(`closed ${f.id}`);
     }
     return { done };
   }
@@ -878,7 +888,7 @@ export function createCore({ store, settings }) {
     if (a === 'people') return people.route(method, parts, body, from);
     const tabled = await tables.route(method, parts, body, query, from);
     if (tabled !== undefined) return tabled;
-    if (a === 'events' && method === 'POST') return ops.events(body);
+    if (a === 'events' && method === 'POST') { limit('events', from.ip, EVENTS_A_DAY, 'enough of what this page noticed for today')(); return ops.events(body); }
     if (a === 'flags' && method === 'POST') return flag(body, from);
     if (a === 'admin' && (b === 'flags' || b === 'moderate' || b === 'csam' || b === 'preserved' || b === 'lines') && method === 'POST') {
       if (!isAdmin(settings, body.token)) throw httpError(403, 'not allowed');
@@ -1028,6 +1038,7 @@ export function createCore({ store, settings }) {
         const hash = String(body.hash ?? '');
         if (!/^[0-9a-f]{64}$/.test(hash)) throw httpError(400, 'a mark is a SHA-256 fingerprint, in hex');
         const ludant = await read('ludants', safe(body.ludant));
+        if (!owns(ludant, from)) throw notYours(ludant);
         const kept = await store.get('marks', hash);
         if (kept) return { hash, at: kept.at };
         limit('mark', from.person, MARKS_A_DAY, `that's ${MARKS_A_DAY} marks today; more tomorrow`)();
@@ -1100,7 +1111,7 @@ export function createCore({ store, settings }) {
         // What was said, sketched and saved is for its owners (every device with its key).
         // Anyone else with the link sees what a copy would get: its game and its art.
         if (!owns(ludant, from)) {
-          return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, familyNames, yours: false, unclaimed: !ludant.owner };
+          return { ...rest, surfaces: rest.surfaces?.stage ? { stage: rest.surfaces.stage } : {}, visitors: {}, checkpoints: (rest.checkpoints ?? []).map(({ n, at }) => ({ n, at })), restored: undefined, familyNames, yours: false, unclaimed: !ludant.owner };
         }
         // A copy following a line takes its newest version as it's opened.
         const updated = !holdState(b) ? await catchUp(ludant) : null;
@@ -1111,12 +1122,14 @@ export function createCore({ store, settings }) {
       }
       if (!c && method === 'PUT') {
         await requireHold(ludant, body, from);
+        if (!isObject(body.soma) || !isObject(body.soma.sections) || !isObject(body.surfaces)) throw httpError(400, 'a save has a soma (with its sections) and surfaces');
         if (isPublic && Object.keys(body.surfaces ?? {}).some((k) => !SEALED_SURFACES.has(k))) throw httpError(400, 'what\'s private is sealed before it\'s saved here; reload the page to get the version that does');
         const size = JSON.stringify(body.soma).length + JSON.stringify(body.surfaces).length;
         if (size > MAX_LUDANT) throw httpError(413, `too big to keep: ${size} characters of soma and surfaces (the limit is ${MAX_LUDANT})`);
         // Its given name is the server's to give (it's how families are told apart), and a
         // title is a name, not a document.
-        const soma = { ...body.soma, given: ludant.soma.given };
+        // A soma is its sections and its given name: nothing else is kept.
+        const soma = { sections: body.soma.sections, given: ludant.soma.given };
         if (soma.sections && typeof soma.sections.title === 'string') soma.sections = { ...soma.sections, title: soma.sections.title.slice(0, MAX_TITLE) };
         // A copy following a line changes its game only once its person has said yes (the
         // frame asks, and says so: madeOwn). Then it's its own, and stops following.
@@ -1148,7 +1161,7 @@ export function createCore({ store, settings }) {
         // Play time can't run faster than the clock: no more than has passed since its last beat.
         const last = beats.get(b) ?? 0, nowMs = Date.now();
         beats.set(b, nowMs);
-        await played(b, Math.min(Number(body.seconds) || 0, (nowMs - last) / 1000), Number(body.spent) || 0);
+        await played(b, Math.max(0, Math.min(Number(body.seconds) || 0, (nowMs - last) / 1000)), Math.max(0, Number(body.spent) || 0));
         return { held: true, mail: ludant.mail?.length ?? 0 };
       }
       // Art: pictures made for the ludant, kept apart from it (they're big) and listed on it.
@@ -1203,7 +1216,7 @@ export function createCore({ store, settings }) {
         await requireHold(ludant, body, from);
         const f = await store.get('flags', safe(body.id));
         if (!f || f.ludant !== b || f.from !== 'ludant' || f.chat?.length || f.image) throw httpError(404, 'no report waiting for that');
-        f.chat = (Array.isArray(body.chat) ? body.chat : []).slice(-REPORTED_CHAT).map((m) => ({ who: String(m?.who ?? '').slice(0, 60), text: String(m?.text ?? '').slice(0, 2000), at: m?.at ?? null }));
+        f.chat = (Array.isArray(body.chat) ? body.chat : []).slice(-REPORTED_CHAT).map((m) => ({ who: String(m?.who ?? '').slice(0, 60), text: String(m?.text ?? '').slice(0, 2000), at: typeof m?.at === 'string' ? m.at.slice(0, 40) : null }));
         f.image = typeof body.image === 'string' && body.image.startsWith('data:image/') && body.image.length <= MAX_FLAG_IMAGE ? body.image : null;
         await store.put('flags', f.id, f);
         return { added: true };
@@ -1212,11 +1225,12 @@ export function createCore({ store, settings }) {
       if (c === 'mail' && method === 'GET') { if (!owns(ludant, from)) throw notYours(ludant); return ludant.mail ?? []; }
       if (c === 'mail' && method === 'POST') {
         await requireHold(ludant, body, from);
-        const took = new Set((body.took ?? []).map(String));
+        const took = new Set((Array.isArray(body.took) ? body.took : []).map(String));
         ludant.mail = (ludant.mail ?? []).filter((m) => !took.has(m.id));
         await store.put('ludants', b, ludant);
-        for (const m of await store.list('issues')) {
-          if (m.ludant !== b || !m.replies?.some((x) => took.has(x.id))) continue;
+        for (const slim of await store.list('issues', { slim: true })) {
+          if (slim.ludant !== b || !slim.replies?.some((x) => took.has(x.id))) continue;
+          const m = await store.get('issues', slim.id);
           for (const x of m.replies) if (took.has(x.id)) x.delivered = now();
           await store.put('issues', m.id, m);
         }
@@ -1262,7 +1276,11 @@ export function createCore({ store, settings }) {
         const source = ludant.lineage?.from?.published;
         if (source && !(await store.get('thumbs', `p-${source}`))) {
           const pub = await store.get('published', source);
-          if (pub && sameBody(pub.soma, ludant.soma)) await keepThumb(`p-${source}`, p);
+          if (pub && sameBody(pub.soma, ludant.soma)) {
+            await keepThumb(`p-${source}`, p);
+            // A picture nobody has looked at yet: off the front rows until the check sees it.
+            if (pub.checked === 'clean' || pub.cleared) { pub.checked = 'unchecked'; delete pub.cleared; await store.put('published', pub.id, pub); }
+          }
         }
         return {};
       }
@@ -1339,14 +1357,20 @@ export function createCore({ store, settings }) {
       if (c === 'arrive' && method === 'POST') {
         await requireHold(ludant, body, from);
         const who = String(body.who || 'someone').slice(0, 40);
-        const seen = ludant.visitors[who];
+        const seen = Object.hasOwn(ludant.visitors, who) ? ludant.visitors[who] : undefined;
+        // The people who've sat with it, the most recent kept.
+        if (!seen && Object.keys(ludant.visitors).length >= MAX_VISITORS) {
+          const [oldest] = Object.entries(ludant.visitors).sort((x, y) => String(x[1].last).localeCompare(String(y[1].last)))[0];
+          delete ludant.visitors[oldest];
+        }
         ludant.visitors[who] = { first: seen?.first ?? now(), last: now(), visits: (seen?.visits ?? 0) + 1 };
         ludant.stats = { ...add(ludant.stats, 0, 0), sittings: (ludant.stats?.sittings ?? 0) + 1 };
         const n = await checkpoint(ludant, `as it was when ${who} sat down`, who);
         await store.put('ludants', b, ludant);
         return { firstVisit: !seen, visits: ludant.visitors[who].visits, checkpoint: n, people: Object.keys(ludant.visitors) };
       }
-      if (c === 'checkpoints' && method === 'GET') return ludant.checkpoints;
+      // Labels and who took them name the people who sat with it: its person's to see.
+      if (c === 'checkpoints' && method === 'GET') return owns(ludant, from) ? ludant.checkpoints : ludant.checkpoints.map(({ n, at }) => ({ n, at }));
       if (c === 'checkpoints' && method === 'POST') {
         await requireHold(ludant, body, from);
         const before = ludant.checkpoints.at(-1)?.n;
@@ -1398,7 +1422,7 @@ export function createCore({ store, settings }) {
         const trusted = await trustCheck();
         // A public game is its line's newest version that nobody's hidden; private games and
         // older versions aren't listed.
-        const open = new Set((await store.list('lines')).filter((l) => l.public).map((l) => l.id));
+        const open = new Set((await store.list('lines', { slim: true })).filter((l) => l.public).map((l) => l.id));
         // Copies and play are counted per version, and summed per game here, so a game
         // doesn't start over as "new" each time its maker sends an update.
         const newest = new Map(), copies = new Map(), play = new Map();
@@ -1409,13 +1433,13 @@ export function createCore({ store, settings }) {
           if (p.hidden) continue;
           if (!newest.has(p.line) || p.version > newest.get(p.line).version) newest.set(p.line, p);
         }
-        return [...newest.values()].map(({ soma, stats, play: _, assets, cleared, checked, ...p }) => ({ ...p, copies: copies.get(p.line) ?? 0, cost: perHour(play.get(p.line)), trusted: trusted({ ...p, cleared, checked }) }))
+        return [...newest.values()].map(({ soma, stats, play: _, assets, cleared, checked, ludant: _l, ...p }) => ({ ...p, copies: copies.get(p.line) ?? 0, cost: perHour(play.get(p.line)), trusted: trusted({ ...p, cleared, checked }) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') throw httpError(410, 'games are shared now (POST ludants/<id>/share), not published one snapshot at a time');
       const pub = await read('published', b);
       if (pub.hidden) throw httpError(451, `${pub.name} has been taken down`, { hidden: true });
-      if (!c && method === 'GET') { const { soma, stats, play, ...meta } = pub; return { ...meta, cost: perHour(play) }; }
+      if (!c && method === 'GET') { const { soma, stats, play, ludant: _l, ...meta } = pub; return { ...meta, cost: perHour(play) }; }
       // An old link to one version: a copy of its game's newest, following it.
       if (c === 'copy' && method === 'POST') return copyFrom(pub.line ? (await lineHead(pub.line)) ?? pub : pub, pub.line ?? null, body, from);
     }
@@ -1428,11 +1452,11 @@ export function createCore({ store, settings }) {
   async function checkSome(n = 10) {
     if (!settings.check) return { checked: 0 };
     // Only the version each line shows: older ones nobody sees aren't worth the allowance.
-    const all = await store.list('published'), byId = new Map(all.map((p) => [p.id, p]));
+    const all = await store.list('published', { slim: true }), byId = new Map(all.map((p) => [p.id, p]));
     const shown = new Set((await store.list('lines')).map((l) => [...l.versions].reverse().find((id) => byId.get(id) && !byId.get(id).hidden)));
     const due = all.filter((p) => !p.hidden && !p.cleared && (!p.line || shown.has(p.id)) && (p.checked ?? 'unchecked') === 'unchecked').slice(0, n);
     // A check that couldn't run (out of the day's allowance, most likely) won't run for the next one either.
-    for (const p of due) if ((await recheck(p))?.failed) break;
+    for (const { id } of due) if ((await recheck(await store.get('published', id)))?.failed) break;
     await ops.flush(true);
     return { checked: due.length };
   }
@@ -1509,8 +1533,10 @@ export function pageHeaders(sandboxOrigin = '', https = false, artBase = '', hos
 // network (no fetch, no sockets, no images from elsewhere), so the ludant's code can't
 // reach the relay, OpenRouter, or anywhere to send what it sees. It may load the
 // platform's own scripts ('self' is the page's own URL, even with an opaque origin), and
-// must be allowed eval: its code sections are compiled.
-export const SANDBOX_POLICY = [
+// must be allowed eval: its code sections are compiled. The page sandboxes itself too, so it
+// is opaque however it's embedded, and (hosted) only the site may frame it: another site
+// framing it without a sandbox would otherwise run its own code as the box's origin.
+export const sandboxPolicy = (site) => [
   "default-src 'none'",
   "script-src 'self' 'unsafe-eval'",
   'img-src data: blob:',
@@ -1518,4 +1544,6 @@ export const SANDBOX_POLICY = [
   "connect-src 'none'",
   "form-action 'none'",
   "base-uri 'none'",
+  'sandbox allow-scripts',
+  ...(site ? [`frame-ancestors ${site}`] : []),
 ].join('; ');

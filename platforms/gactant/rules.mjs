@@ -32,6 +32,7 @@ import { newQuickJSWASMModuleFromVariant, newVariant } from './vendor/quickjs/in
 
 export const RULE_FUNCTIONS = ['init', 'join', 'move', 'view', 'result'];
 export const MAX_STEPS = 1000;   // a call's steps: about 5 million simple operations
+const MAX_MESSAGE = 2_000;    // characters of an error the rules throw
 const MAX_MEMORY = 16 * 1024 * 1024;
 const MAX_STACK = 512 * 1024;
 const MAX_DEPTH = 200;      // nesting of what comes out (deeper can bring QuickJS down)
@@ -114,9 +115,10 @@ export async function createRules(wasmModule) {
         const err = vm.dump(out.error);
         out.error.dispose();
         if (steps > MAX_STEPS || Date.now() - began > MAX_WALL_MS) throw new RuleError(`the rules ran too long (over ${MAX_STEPS} steps, or ${MAX_WALL_MS / 1000} seconds, in one call)`, { kind: 'broken', steps: Math.max(steps, MAX_STEPS) });
-        const message = typeof err === 'object' && err ? String(err.message ?? JSON.stringify(err)) : String(err);
+        // What it said, cut short: an error is a message, not a way around the size of a view.
+        const message = (typeof err === 'object' && err ? String(err.message ?? JSON.stringify(err)) : String(err)).slice(0, MAX_MESSAGE);
         // Where in the rulebook it happened, in the rulebook's own lines.
-        const at = String(err?.stack ?? '').match(/rulebook\.js:(\d+):(\d+)/);
+        const at = String(err?.stack ?? '').slice(0, MAX_MESSAGE).match(/rulebook\.js:(\d+):(\d+)/);
         const line = at ? Number(at[1]) - PRELUDE_LINES : undefined;
         const kind = /out of memory|stack overflow/.test(message) || /^(SyntaxError|ReferenceError|TypeError|RangeError|InternalError)$/.test(err?.name ?? '') ? 'broken' : 'refused';
         throw new RuleError(message, { kind, steps, ...(line > 0 ? { line, column: Number(at[2]) } : {}) });

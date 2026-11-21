@@ -326,9 +326,9 @@ export async function forgetDevice() {
 }
 
 /** Looking after themselves, signed in: people/me, pair, name, remove, recovery. What could
- *  take the account (pair, remove, recovery, hand) goes with a fresh proof by this device. */
+ *  take the account (pair, remove, recovery, hand, box) goes with a fresh proof by this device. */
 export async function mine(path, body) {
-  if (['pair', 'remove', 'recovery', 'hand'].includes(path)) {
+  if (['pair', 'remove', 'recovery', 'hand', 'box'].includes(path)) {
     const device = await load();
     if (device) body = { ...(body ?? {}), ...(await proof(device)) };
   }

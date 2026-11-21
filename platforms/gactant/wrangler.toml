@@ -85,4 +85,5 @@ crons = ["17 * * * *"]
 [vars]
 GACTANT_PUBLIC = "1"
 SANDBOX_ORIGIN = "https://gactantbox.com"
+SITE_ORIGIN = "https://gactant.com"     # the only site that may frame the sandbox
 ART_BASE = "https://art.gactant.com/"

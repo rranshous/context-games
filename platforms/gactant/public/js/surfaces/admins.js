@@ -166,7 +166,7 @@ export class Admins {
   async send(who, issue) {
     const f = this.frame;
     const drafts = await api('GET', 'drafts').catch(() => []);
-    const withSource = await Promise.all((Array.isArray(drafts) ? drafts : []).slice(0, 10).map((d) => api('GET', `drafts/${d.id}`).catch(() => d)));
+    const withSource = await Promise.all((Array.isArray(drafts) ? drafts : []).slice(0, 10).map((d) => api('GET', `drafts/${encodeURIComponent(d.id)}`).catch(() => d)));
     const matches = [...f.table.seen].map(([id, s]) => ({ id, rulebook: s.rulebook, name: s.name, n: s.n, you: s.you, over: Boolean(s.result), following: f.table.watching.has(id) }));
     const doings = f.inspector.doings.filter((d) => d.kind !== 'wake' && d.kind !== 'thought' && !(d.kind === 'did' && TALK.test(d.text)))
       .slice(-DOINGS).map((d) => ({ at: new Date(d.at).toISOString(), kind: d.kind, text: d.text }));

@@ -69,7 +69,7 @@ export async function readPass(token, secret) {
 
 import { isRecoveryProof, recoveryProof } from './public/js/recovery.js';
 
-const GUARDED = ['pair', 'remove', 'recovery', 'hand'];   // routes that ask for a fresh proof
+const GUARDED = ['pair', 'remove', 'recovery', 'hand', 'box'];   // routes that ask for a fresh proof
 
 export function createPeople({ store, settings, httpError, limit }) {
   const isPublic = Boolean(settings.public);
@@ -82,8 +82,11 @@ export function createPeople({ store, settings, httpError, limit }) {
   const cache = new Map();   // person id -> doc, so checking a pass doesn't read the store each time
   const get = async (id) => {
     if (!/^p-[a-f0-9]{16}$/.test(String(id))) return null;
-    if (!cache.has(id)) cache.set(id, await store.get('people', id));
-    return cache.get(id);
+    if (cache.has(id)) return cache.get(id);
+    const p = await store.get('people', id);
+    // Only people who exist are kept (any made-up id could be asked about), and not too many.
+    if (p) { if (cache.size > 5000) cache.clear(); cache.set(id, p); }
+    return p;
   };
   const put = async (p) => { cache.set(p.id, p); await store.put('people', p.id, p); };
   const shown = (p, device) => ({
@@ -259,7 +262,7 @@ export function createPeople({ store, settings, httpError, limit }) {
     const p = await get(me.person);
     if (b === 'me') return shown(p, me.device);
     // What could take someone's account from them (a code to add a device, removing one, a new
-    // recovery code, handing over their key) needs this device to prove itself again, now: a
+    // recovery code, handing over their key or asking for it) needs this device to prove itself again, now: a
     // pass alone, copied off a phone, isn't enough.
     if (GUARDED.includes(b)) {
       const d = p.devices.find((x) => x.id === me.device);

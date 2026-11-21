@@ -24,6 +24,12 @@ import { Store } from './surfaces/store.js';
 
 const KEEP_CHAT = 200;
 
+// The page's policy takes away the network, but not peer connections (a STUN lookup goes
+// wherever it's pointed): gone before any of the ludant's code runs.
+for (const k of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCSessionDescription', 'RTCIceCandidate']) {
+  try { delete globalThis[k]; } catch {}
+}
+
 async function loadLibraries() {
   const libs = {};
   try { libs.THREE = await import('/vendor/three/three.module.js'); }

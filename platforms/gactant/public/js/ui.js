@@ -14,6 +14,8 @@ export function el(tag, attrs = {}, ...children) {
 }
 
 export const api = async (method, path, body) => {
+  // A path names one route: no '.' or '..' step (plain or escaped) can turn it into another.
+  if (String(path).split(/[?#]/)[0].split('/').some((seg) => /^(\.|%2e){1,2}$/i.test(seg) || seg.includes('\\'))) throw new Error(`not a route: ${String(path).slice(0, 60)}`);
   // Every request says who's asking, with this device's pass (identity.js), if it has one.
   const ask = (p) => fetch(`/api/${path}`, {
     method, headers: { 'Content-Type': 'application/json', ...(p ? { 'X-Gactant-Pass': p } : {}) }, body: body === undefined ? undefined : JSON.stringify(body),

@@ -4002,3 +4002,32 @@ Robby: "save instead of share? or in addition to? sometimes i want to make a sav
 **Built: 💾 on the top bar** (Robby: "a floppy disk save button on the top bar"). One click takes a checkpoint, no label, and a toast says which number it's kept as. A checkpoint is already taken when someone sits down, and the server doesn't take one when nothing changed, so a save right after sitting down was silently the same number: the route now returns `already`, and the toast says "nothing's changed since #n, so it's already kept". It's not in the "more" group, so it shows on phones too. Tested locally: the already case, then a change and a new #2 in history.
 
 **Deployed** as version fca8cc1b. The first try stopped at the smoke test (1 failed; which one wasn't captured), and the rerun passed in full: a flake, worth watching.
+
+## Security audit (2026-11-21)
+
+Robby: "do a security audit across the entire project. spin up subagents ... make it more secure without changing the functionality" (he's thinking of moving gactant out of the public monorepo). Four read-only auditors: server API and auth; tables and the rules sandbox; the browser client; repo hygiene and config. I checked each finding against the code before fixing.
+
+**Repo:** no secrets anywhere in gactant's public history (no keys, no .env ever committed, no data). Nothing to rotate. Fixed: admin tools send the token only over https (or to this machine); the smoke test refuses `--base` at the live site; the local server no longer dies on a directory request. Before the move: `git filter-repo --subdirectory-filter platforms/gactant`, and copy the root's ignores (node_modules, *.log, .playwright-mcp, .claude) into gactant's own .gitignore.
+
+**Fixed, client (the worst ones):**
+- A game could call any API route as the person: table.js put sandbox-given ids straight into paths, and `drafts/../people/box` climbs out. That reached the person's other ludants (read, abandon, make public) and, with `people/box`, their content key. Ids must look like ids now, and `api()` refuses `.`/`..` steps.
+- Another site could frame `/sandbox.html` without a sandbox and run its own code as gactant.com. The page's policy now sandboxes itself and has `frame-ancestors https://gactant.com` (SITE_ORIGIN); the site's host redirects /sandbox.html to the box.
+- A game could forge "wrote by hand" marks: `by` in a soma notice was the sandbox's word. Now a change is the person's only while their write is on its way.
+- Model calls from the sandbox: only data: pictures (an image URL would be fetched, carrying data out) and only function tools. WebRTC deleted from the sandbox realm. `?shard=` only on a local install. Page policy picked by content type too.
+
+**Fixed, server:**
+- `people/box` (asking for the content key) needs a fresh device proof, like `hand`: a copied pass could otherwise get the key handed to it by the person's other devices.
+- The lobby handed out each publication's source ludant id (its owner's working copy, readable and copyable, even after a takedown). Gone from published answers and from copies' lineage; the lobby groups by line.
+- Memory: a save could carry any extra top-level soma keys, and the ludants slim kept them, so padded somas could OOM the World on lobby loads. A soma is now its sections and given name; slim lists keep only given and title. Report evidence `at` must be a short string, and flag/issue/line/draft/match-index lists are slim (a rules result could be 1.9 MB and sat in the index; now a result over 10,000 characters doesn't count, and lists say only whether there is one).
+- A copier's thumbnail on a picture-less publication puts it back to unchecked until the hourly check sees it. Marks only on your own ludant. Install-wide report count only counts real reports. Heartbeats can't go negative. Bad PUT bodies get a 400. Checkpoint labels and `restored` (which name visitors) only for the owner. Visitors capped at 200. People cache keeps no nulls. Telemetry posts limited per address. IPv6 limits by /64.
+
+**Fixed, tables:** errors from rules cut to 2,000 characters (a thrown 8 MB message went to every socket); one practice run at a time per person, options and steps 4,000; matches counted before they're made (parallel opens passed the day's check together); 200 sockets a match (8 a person, 100 unsigned) and one look per person when pushing.
+
+Tested: smoke test (186 checks) passes; in the browser, a climbing id is refused, drafts work, a person's edit is still marked theirs, Little Catch runs in the sandbox under the new policy, the lobby renders and `/api/published` has no ludant ids.
+
+**Not done, for Robby:**
+- The local dev server listens on the LAN with the house key and without GACTANT_PUBLIC: anyone on the network can spend the key and read local ludants and logs. Binding to localhost would change how he reaches it (http://lilg:port).
+- No per-person storage quota (51 checkpoints × 1.5 MB per ludant; one address could fill the World's SQLite over days). Needs a limit he'd pick.
+- Match seeds are 32 bits with mulberry32: hidden cards are guessable from a few public rolls. A real fix changes the rules contract (wipe).
+- Looks on a match run the rules' view with no budget charged or rate limit; builtins can burn CPU well past what 1,000 steps suggests.
+- Cloudflare's analytics beacon runs on pages that hold the key.

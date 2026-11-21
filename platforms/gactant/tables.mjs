@@ -151,6 +151,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
     };
   }
   const steps = (person, n) => { add('steps', person, n || 0); settings.count?.('table steps', n || 0); };
+  const practicing = new Set();   // people with a practice run going
   const enoughSteps = (person) => within('steps', person, STEPS_A_DAY, `that's the ${STEPS_A_DAY} steps of rules you may run in a day; more tomorrow`);
 
   async function myDraft(id, from) {
@@ -168,7 +169,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
   const listed = (idx) => ({ id: idx.id, at: idx.at, updated: idx.updated, n: idx.n, over: Boolean(idx.result), players: Object.values(idx.members ?? {}), view: idx.onlooker ?? null, ...(idx.archived ? { archived: true } : {}) });
   async function openAtOnce(person) {
     const lately = Date.now() - OPEN_LATELY_MS;
-    return (await store.list('match-index')).filter((m) => !m.practice && m.members?.[person] !== undefined && !m.result && !m.archived && Date.parse(m.updated ?? m.at) > lately).length;
+    return (await store.list('match-index', { slim: true })).filter((m) => !m.practice && m.members?.[person] !== undefined && !m.result && !m.archived && Date.parse(m.updated ?? m.at) > lately).length;
   }
 
   async function act(id, body, from) {
@@ -293,10 +294,10 @@ export function createTables({ store, people, httpError, owns, settings }) {
     if (a === 'drafts') {
       need(from);
       if (!b && method === 'GET') {
-        return (await store.list('drafts')).filter((d) => d.owner === from.person).map(({ id, name, updated }) => ({ id, name, updated })).sort((x, y) => y.updated.localeCompare(x.updated));
+        return (await store.list('drafts', { slim: true })).filter((d) => d.owner === from.person).map(({ id, name, updated }) => ({ id, name, updated })).sort((x, y) => y.updated.localeCompare(x.updated));
       }
       if (!b && method === 'POST') {
-        const mine = (await store.list('drafts')).filter((d) => d.owner === from.person).length;
+        const mine = (await store.list('drafts', { slim: true })).filter((d) => d.owner === from.person).length;
         if (mine >= MAX_DRAFTS) throw httpError(413, `you keep up to ${MAX_DRAFTS} drafts; remove one first`);
         let src = source(body.source);
         if (body.from) src = (await read('rulebooks', String(body.from))).source;
@@ -316,7 +317,15 @@ export function createTables({ store, people, httpError, owns, settings }) {
       if (c === 'try' && method === 'POST') {
         within('practice', from.person, PRACTICE_A_DAY, `that's ${PRACTICE_A_DAY} practice runs today; more tomorrow`);
         enoughSteps(from.person);
-        const run = await fromMatch(host.practice(from.person, { source: d.source, seed: body.seed, options: body.options ?? {}, steps: Array.isArray(body.steps) ? body.steps : [] }));
+        // One run at a time each: a run's steps are counted when it's done, so runs side by
+        // side would all pass the check before any was counted.
+        if (practicing.has(from.person)) throw httpError(429, 'one practice run at a time: wait for the last to finish');
+        const options = body.options && typeof body.options === 'object' ? body.options : {};
+        const tried = (Array.isArray(body.steps) ? body.steps : []).filter((s) => s && typeof s === 'object');
+        if (JSON.stringify(options).length > MAX_ACTION || tried.some((s) => JSON.stringify(s).length > MAX_ACTION)) throw httpError(413, `options and each step are up to ${MAX_ACTION} characters of JSON`);
+        practicing.add(from.person);
+        let run;
+        try { run = await fromMatch(host.practice(from.person, { source: d.source, seed: body.seed, options, steps: tried })); } finally { practicing.delete(from.person); }
         const spent = (run.init?.steps ?? 0) + run.steps.reduce((n, s) => n + (s.steps ?? 0), 0);
         steps(from.person, spent);
         add('practice', from.person);
@@ -351,8 +360,9 @@ export function createTables({ store, people, httpError, owns, settings }) {
         return { rulebook: rb.id, name: rb.name, matches: (await store.get('standings', rb.id))?.matches ?? 0, players: all.slice(0, n), you: mine };
       }
       if (c === 'matches') {
-        return (await store.list('match-index')).filter((m) => m.rulebook === rb.id && !m.practice)
-          .sort((x, y) => (y.updated ?? y.at).localeCompare(x.updated ?? x.at)).slice(0, LISTED).map(listed);
+        const some = (await store.list('match-index', { slim: true })).filter((m) => m.rulebook === rb.id && !m.practice)
+          .sort((x, y) => (y.updated ?? y.at).localeCompare(x.updated ?? x.at)).slice(0, LISTED);
+        return (await Promise.all(some.map((m) => store.get('match-index', m.id)))).filter(Boolean).map(listed);
       }
     }
 
@@ -372,10 +382,14 @@ export function createTables({ store, people, httpError, owns, settings }) {
         const options = body.options && typeof body.options === 'object' ? body.options : {};
         if (JSON.stringify(options).length > MAX_ACTION) throw httpError(413, `options are up to ${MAX_ACTION} characters of JSON`);
         enoughSteps(from.person);
-        const id = `m-${hex(6)}`, seed = crypto.getRandomValues(new Uint32Array(1))[0], salt = hex(16);
-        const made = await fromMatch(host.op(id, 'create', { id, rulebook: rb.id, name: rb.name, source: rb.source, seed, salt, options }));
-        steps(from.person, made.steps);
+        // Counted before it's made (and given back if it isn't), so matches opened side by
+        // side can't all pass the day's check first.
         add('matches', from.person); add('matches', 'world');
+        const id = `m-${hex(6)}`, seed = crypto.getRandomValues(new Uint32Array(1))[0], salt = hex(16);
+        let made;
+        try { made = await fromMatch(host.op(id, 'create', { id, rulebook: rb.id, name: rb.name, source: rb.source, seed, salt, options })); }
+        catch (err) { add('matches', from.person, -1); add('matches', 'world', -1); throw err; }
+        steps(from.person, made.steps);
         settings.count?.('table matches opened');
         await store.put('match-index', id, indexed({ id, rulebook: rb.id, name: rb.name, by: from.person, at: now(), genesis: made.genesis, ...(body.practice ? { practice: true } : {}) }, made));
         return { id, n: 0, head: made.head };
@@ -412,12 +426,13 @@ export function createTables({ store, people, httpError, owns, settings }) {
    *  never heard of is archived too, so nothing lingers unknown. Hourly, and tools/sweep-matches.mjs. */
   async function sweep(objects) {
     let done = 0, kept = 0;
-    const index = await store.list('match-index');
-    for (const idx of index) {
-      if (idx.archived) continue;
-      const idle = Date.now() - Date.parse(idx.updated ?? idx.at);
-      if ((idx.result && idle > (settings.archiveOverMs ?? ARCHIVE_OVER_MS)) || idle > ARCHIVE_IDLE_DAYS * 86400_000 || (idx.practice && idle > PRACTICE_IDLE_MS)) {
-        try { await archived(idx); done++; } catch (err) { settings.opsLog?.({ trouble: 'archiving a match', match: idx.id, message: err.message }); }
+    const index = await store.list('match-index', { slim: true });
+    for (const slim of index) {
+      if (slim.archived) continue;
+      const idle = Date.now() - Date.parse(slim.updated ?? slim.at);
+      if ((slim.result && idle > (settings.archiveOverMs ?? ARCHIVE_OVER_MS)) || idle > ARCHIVE_IDLE_DAYS * 86400_000 || (slim.practice && idle > PRACTICE_IDLE_MS)) {
+        const idx = await store.get('match-index', slim.id);
+        try { await archived(idx); done++; } catch (err) { settings.opsLog?.({ trouble: 'archiving a match', match: slim.id, message: err.message }); }
       } else kept++;
     }
     const known = new Set(index.map((m) => m.id));

@@ -86,6 +86,19 @@ This is early and experimental. Things in the frame may be rough or change. If s
 const JUST_PLAY = 'gactant-just-play';   // sessionStorage: "just play" was chosen this session
 const MODEL = 'gactant-model';            // sessionStorage: the model ?model= chose for this tab
 
+
+// What the sandbox asks a model, kept inside the sandbox's walls: pictures only as data (a
+// picture's address would be fetched by whoever runs the model, carrying anything in it),
+// and only its own function tools.
+const isPicture = (url) => typeof url === 'string' && url.startsWith('data:image/');
+function contained(messages, tools) {
+  const part = (p) => (p?.type === 'image_url' && !isPicture(p.image_url?.url) ? { type: 'text', text: '(a picture from an address, left out: pictures go as data)' } : p);
+  return {
+    messages: (Array.isArray(messages) ? messages : []).map((m) => (Array.isArray(m?.content) ? { ...m, content: m.content.map(part) } : m)),
+    tools: Array.isArray(tools) ? tools.filter((t) => t?.type === 'function') : tools,
+  };
+}
+
 class Frame {
   constructor(record, seat) {
     this.recordId = record.id;
@@ -223,6 +236,7 @@ class Frame {
   /** Thinking, done for the ludant. The key stays on this side; the sandbox only ever
    *  sees the answer. */
   async infer({ messages, tools, ask }) {
+    ({ messages, tools } = contained(messages, tools));
     await this.thinkingReady(ask);
     let res, firstMs = null, answerMs = null;
     const started = Date.now();
@@ -286,6 +300,7 @@ class Frame {
   /** A picture from an image model, on whoever pays for thinking here. images: data URLs
    *  to paint from. Resolves with { url } (a data URL). */
   async imagine({ prompt, images = [], quality = 'fast' }) {
+    images = (Array.isArray(images) ? images : []).filter(isPicture);
     await this.thinkingReady();
     this.sandbox.allow();
     const model = ART_MODELS[quality] ?? ART_MODELS.fast;
@@ -1161,7 +1176,8 @@ async function boot() {
   frame.stage.sample();
   const perf = () => { const p = frame.stage.sample(); if (p) report('perf', p); };
   setTimeout(() => { perf(); setInterval(perf, 5 * 60 * 1000); }, 60 * 1000);
-  const brief = new URLSearchParams(location.search).get('shard');
+  // A shard from the link: a local install's testing aid, never from a link to the site.
+  const brief = config.public ? null : new URLSearchParams(location.search).get('shard');
   if (brief) window.explorer.shard(brief).then((r) => console.log('[shard]', r));
 }
 

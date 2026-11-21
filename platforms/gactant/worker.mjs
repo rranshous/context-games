@@ -20,7 +20,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { makeCheck } from './check.mjs';
-import { SANDBOX_POLICY, createCore, pageHeaders, sameOrigin } from './core.mjs';
+import { createCore, sandboxPolicy, pageHeaders, sameOrigin } from './core.mjs';
 import { archivedSummary, createMatch, practice, pushLooks, relayShare } from './match.mjs';
 import { readPass } from './people.mjs';
 import { createRules } from './rules.mjs';
@@ -33,14 +33,28 @@ const artStore = (bucket) => ({
   async remove(name) { await bucket.delete(name); },
 });
 
+/** An address, for per-address limits: IPv6 by its /64, since one place has a whole /64. */
+export function addressOf(ip) {
+  if (!ip.includes(':')) return ip;
+  const [head, tail = ''] = ip.split('::');
+  const h = head ? head.split(':') : [], t = tail ? tail.split(':') : [];
+  const full = ip.includes('::') ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t] : h;
+  return `${full.slice(0, 4).map((x) => x.toLowerCase().replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
+
 const json = (code, value) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
 
 // What a slim list keeps of each kind (core.mjs's slimmed() does the same for the local store).
 const SLIM = {
-  ludants: `json_set(json_remove(json, '$.surfaces', '$.assets', '$.mail', '$.soma.sections'), '$.soma.sections', json_object('title', json_extract(json, '$.soma.sections.title')))`,
+  ludants: `json_set(json_remove(json, '$.surfaces', '$.assets', '$.mail', '$.soma'), '$.soma', json_object('given', json_extract(json, '$.soma.given'), 'sections', json_object('title', json_extract(json, '$.soma.sections.title'))))`,
   published: `json_remove(json, '$.soma', '$.assets')`,
-  flags: `json_remove(json, '$.image')`,
+  flags: `json_remove(json, '$.image', '$.chat')`,
   reports: `json_remove(json, '$.report')`,
+  issues: `json_remove(json, '$.soma')`,
+  lines: `json_remove(json, '$.versions', '$.spinoffs')`,
+  drafts: `json_remove(json, '$.source', '$.lastTry')`,
+  // A match's result (and what onlookers see) can be big: a list says only whether there is one.
+  'match-index': `json_set(json_remove(json, '$.onlooker', '$.result'), '$.result', CASE WHEN json_type(json, '$.result') IS NULL OR json_type(json, '$.result') = 'null' THEN json('null') ELSE json('true') END)`,
 };
 
 /** Documents in a Durable Object's own SQLite, one table of them. Made when first written to,
@@ -87,6 +101,8 @@ async function readBody(request) {
  *  archive, practice, check) and by the Worker (look, and live: a socket that hears every
  *  action as it happens). Sockets use the hibernation API, so a quiet match isn't billed
  *  for them; pings are answered without waking it. */
+const MAX_SOCKETS = 200, SOCKETS_EACH = 8, SOCKETS_UNNAMED = 100;
+
 export class Match extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -123,6 +139,11 @@ export class Match extends DurableObject {
       if (this.gone) return json(404, { error: 'this match has been archived', gone: true });
       if (op === 'live') {
         await (await this.match).op('members');   // 404 if there's no match here
+        // Enough sockets for every player's devices and plenty watching, but not so many that
+        // each action's looks (one a socket) could stall the match.
+        const person = request.headers.get('x-gactant-person') || null;
+        const open = this.ctx.getWebSockets().map((ws) => ws.deserializeAttachment()?.person ?? null);
+        if (open.length >= MAX_SOCKETS || open.filter((p) => p === person).length >= (person ? SOCKETS_EACH : SOCKETS_UNNAMED)) return json(429, { error: 'too many connections to this match' });
         const [client, server] = Object.values(new WebSocketPair());
         this.ctx.acceptWebSocket(server);
         server.serializeAttachment({ person: request.headers.get('x-gactant-person') || null, device: request.headers.get('x-gactant-device') || null, until: Number(request.headers.get('x-gactant-until')) || 0 });
@@ -238,7 +259,7 @@ export class World extends DurableObject {
     if (url.pathname === '/internal/who') return json(200, (await this.core.whoIs((await request.json().catch(() => ({}))).pass)) ?? {});
     try {
       const body = request.method === 'POST' || request.method === 'PUT' ? await readBody(request) : {};
-      const from = { ip: request.headers.get('cf-connecting-ip') || '', pass: request.headers.get('x-gactant-pass') || '' };
+      const from = { ip: addressOf(request.headers.get('cf-connecting-ip') || ''), pass: request.headers.get('x-gactant-pass') || '' };
       return json(200, await this.core.route(request.method, url.pathname.slice(5).split('/').filter(Boolean), body, url.searchParams, from));
     } catch (err) {
       if (!err.code || err.code >= 500) console.error({ error: err.message, method: request.method, path: url.pathname });
@@ -259,8 +280,10 @@ async function asset(request, env, path) {
   // Cloudflare's Web Analytics beacon is for the site's pages, never the sandbox host's:
   // no-transform keeps Cloudflare from adding it there.
   if (env.SANDBOX_ORIGIN && url.host === new URL(env.SANDBOX_ORIGIN).host && url.pathname.endsWith('.html')) out.headers.set('Cache-Control', [res.headers.get('Cache-Control'), 'no-transform'].filter(Boolean).join(', '));
-  if (url.pathname === '/sandbox.html') out.headers.set('Content-Security-Policy', SANDBOX_POLICY);
-  else if (url.pathname.endsWith('.html')) for (const [k, v] of Object.entries(pageHeaders(env.SANDBOX_ORIGIN, true, env.ART_BASE, url.host))) out.headers.set(k, v);
+  if (url.pathname === '/sandbox.html') out.headers.set('Content-Security-Policy', sandboxPolicy(env.SITE_ORIGIN || "'self'"));
+  // Any page (by what it is, not only its name: an escaped name could reach one) gets the
+  // site's policy.
+  else if (url.pathname.endsWith('.html') || /^text\/html/i.test(res.headers.get('Content-Type') ?? '')) for (const [k, v] of Object.entries(pageHeaders(env.SANDBOX_ORIGIN, true, env.ART_BASE, url.host))) out.headers.set(k, v);
   return out;
 }
 
@@ -339,6 +362,8 @@ export default {
       const ok = url.pathname === '/sandbox.html' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/js/') || url.pathname.startsWith('/vendor/');
       return ok ? asset(request, env, url.pathname) : Response.redirect(`${env.SANDBOX_ORIGIN}/`, 302);
     }
+    // The sandbox is the box's alone: the site's own copy would run games as the site.
+    if (sandboxHost && url.pathname === '/sandbox.html') return Response.redirect(`${env.SANDBOX_ORIGIN}/sandbox.html`, 302);
     if (url.pathname.startsWith('/art/')) {
       const o = await env.ART.get(url.pathname.slice(5));
       return o ? new Response(o.body, { headers: { 'Content-Type': o.httpMetadata?.contentType ?? 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*', 'X-Content-Type-Options': 'nosniff' } }) : new Response('not here', { status: 404 });

@@ -135,6 +135,7 @@ export class Body {
     this.soma = soma;
     this.faults = {};
     this.state = { life: 'asleep', thinking: false, pending: 0, restless: 0 };
+    this.writing = new Set();   // sections a person's write is on its way to
   }
 
   get name() { return nameOf(this.soma); }
@@ -143,6 +144,9 @@ export class Body {
   get restless() { return this.state.restless; }
 
   received({ soma, faults, changed, by }) {
+    // Who changed it is the frame's to say: a change is a person's only while one of theirs
+    // is on its way (the game can't sign a person's name to its own writing).
+    if (changed && by === this.frame.seat && !this.writing.has(changed)) by = this.name;
     this.soma = soma;
     this.faults = faults ?? {};
     const inspector = this.frame.inspector;
@@ -182,7 +186,8 @@ export class Body {
   /** A person's edit (the inspector): on a following copy, it asks them first. */
   async writeSection(name, content, by) {
     if (!['memory', 'letters_from_gactant_admins'].includes(name) && !await this.frame.askToChange(name)) return null;
-    return this.frame.sandbox.call('write', name, content, by);
+    this.writing.add(name);
+    try { return await this.frame.sandbox.call('write', name, content, by); } finally { this.writing.delete(name); }
   }
   load(soma) { return this.frame.sandbox.call('load', soma); }
   idle(ms) { return this.frame.sandbox.call('idle', ms); }

@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SANDBOX_POLICY, createCore, pageHeaders, safe, sameOrigin, slimmed } from './core.mjs';
+import { createCore, sandboxPolicy, pageHeaders, safe, sameOrigin, slimmed } from './core.mjs';
 import { createLocalMatches } from './match.mjs';
 import { createRulesThread } from './rules-thread.mjs';
 
@@ -130,7 +130,7 @@ function serveStatic(path, res, host = '') {
     // The sandbox's origin is opaque, so its module scripts load cross-origin. These are
     // the platform's public files, so anyone may.
     'Access-Control-Allow-Origin': '*',
-    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': SANDBOX_POLICY } : extname(f) === '.html' ? pageHeaders(process.env.GACTANT_SANDBOX || '', false, '', host) : {}),
+    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': sandboxPolicy(null) } : extname(f) === '.html' ? pageHeaders(process.env.GACTANT_SANDBOX || '', false, '', host) : {}),
   });
   res.end(readFileSync(f));
 }

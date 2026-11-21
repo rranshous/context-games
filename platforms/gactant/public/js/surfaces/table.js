@@ -47,6 +47,10 @@ import { pass, sign, signer } from '../identity.js';
 import { applyEdits } from '../edits.js';
 import { api } from '../ui.js';
 
+// Ids from the game go into API paths: only an id's own characters, so none can climb out of
+// its route ('..') to another one, asked as the person.
+const idOf = (x) => { const s = String(x); if (!/^[A-Za-z0-9_-]{1,80}$/.test(s)) throw new Error(`not an id: ${s.slice(0, 40)}`); return s; };
+
 /** The answer with the rules' view's own fields on it too (see the top of this file). */
 const forgiving = (o) => (o && o.view && typeof o.view === 'object' && !Array.isArray(o.view) ? { ...o.view, ...o } : o);
 
@@ -122,25 +126,25 @@ export class Table {
       // A long draft can be read a part at a time: { from, to } (line numbers, as numbered)
       // gives those lines, numbered, instead of the whole source.
       readDraft: async (id, part) => {
-        const d = await api('GET', `drafts/${id}`);
+        const d = await api('GET', `drafts/${idOf(id)}`);
         if (d?.name) this.draftNames.set(id, d.name);
         if (!part || typeof d?.source !== 'string') return d;
         const ls = d.source.split('\n'), a = Math.max(1, Math.floor(part.from ?? 1)), b = Math.min(ls.length, Math.floor(part.to ?? a + 299));
         const { source, ...rest } = d;
         return { ...rest, lines: `lines ${a}–${b} of ${ls.length}:\n${ls.slice(a - 1, b).map((l, i) => `${String(a + i).padStart(5)}│${l}`).join('\n')}` };
       },
-      writeDraft: (id, o = {}) => { this.working('writing', id, o.name); return api('PUT', `drafts/${id}`, { name: o.name, source: o.source }); },
+      writeDraft: (id, o = {}) => { this.working('writing', id, o.name); return api('PUT', `drafts/${idOf(id)}`, { name: o.name, source: o.source }); },
       editDraft: async (id, edits) => {
-        const d = await api('GET', `drafts/${id}`);
+        const d = await api('GET', `drafts/${idOf(id)}`);
         this.working('writing', id, d?.name);
         const { text, spans } = applyEdits(d.source ?? '', edits);
-        return { ...(await api('PUT', `drafts/${id}`, { source: text })), changed: spans.map((s) => `edit ${s.edit}: now lines ${s.lines[0]}-${s.lines[1]}`) };
+        return { ...(await api('PUT', `drafts/${idOf(id)}`, { source: text })), changed: spans.map((s) => `edit ${s.edit}: now lines ${s.lines[0]}-${s.lines[1]}`) };
       },
-      tryDraft: (id, o = {}) => { this.working('testing', id); return api('POST', `drafts/${id}/try`, o); },
-      lock: (id) => { this.working('locking', id); return api('POST', `drafts/${id}/lock`, {}); },
-      removeDraft: (id) => api('POST', `drafts/${id}/remove`, {}),
-      rulebook: (hash) => api('GET', `rulebooks/${hash}`),
-      matches: (hash) => api('GET', `rulebooks/${hash}/matches`),
+      tryDraft: (id, o = {}) => { this.working('testing', id); return api('POST', `drafts/${idOf(id)}/try`, o); },
+      lock: (id) => { this.working('locking', id); return api('POST', `drafts/${idOf(id)}/lock`, {}); },
+      removeDraft: (id) => api('POST', `drafts/${idOf(id)}/remove`, {}),
+      rulebook: (hash) => api('GET', `rulebooks/${idOf(hash)}`),
+      matches: (hash) => api('GET', `rulebooks/${idOf(hash)}/matches`),
       open: (hash, options, how) => this.open(hash, options, how),
       watch: async (match) => forgiving(await this.watch(match)),
       unwatch: (match) => this.unwatch(match),
@@ -151,7 +155,7 @@ export class Table {
       look: async (match) => forgiving(structuredClone(this.seen.get(match) ?? await this.fetch(match))),
       share: (match, value) => this.share(match, value),
       budget: () => api('GET', 'tables/budget'),
-      standings: (hash, n, by) => api('GET', `rulebooks/${hash}/standings?${new URLSearchParams({ ...(n ? { n } : {}), ...(by ? { by } : {}) })}`),
+      standings: (hash, n, by) => api('GET', `rulebooks/${idOf(hash)}/standings?${new URLSearchParams({ ...(n ? { n } : {}), ...(by ? { by } : {}) })}`),
     };
   }
 
@@ -194,7 +198,7 @@ export class Table {
   }
 
   async fetch(match, after) {
-    return this.took(match, await api('GET', `matches/${match}${after != null ? `?after=${after}` : ''}`));
+    return this.took(match, await api('GET', `matches/${idOf(match)}${after != null ? `?after=${Number(after)}` : ''}`));
   }
 
   /** The match as the server says it is now (asked, or pushed over its socket). */
@@ -344,7 +348,7 @@ export class Table {
     for (let i = 0; ; i++) {
       const text = signedText({ match, n: s.n, prev: s.head, ...(await signer()), kind, data });
       try {
-        const out = await api('POST', `matches/${match}/act`, { kind, data, n: s.n, prev: s.head, signature: await sign(text), ludant: this.frame.recordId, ...(as != null ? { as: String(as) } : {}) });
+        const out = await api('POST', `matches/${idOf(match)}/act`, { kind, data, n: s.n, prev: s.head, signature: await sign(text), ludant: this.frame.recordId, ...(as != null ? { as: String(as) } : {}) });
         // The long look sees it too; this makes sure the one acting hears it at once.
         await this.fetch(match);
         if (!this.watching.has(match)) await this.watch(match);

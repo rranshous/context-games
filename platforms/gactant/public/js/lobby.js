@@ -102,8 +102,8 @@ async function render() {
 
   // For someone coming back, "new" means not theirs: not their own ludants' publications.
   // (Games they follow stay: a game's card is the way back to their copy of it.)
-  const mineIds = new Set(yours.map((l) => l.id));
-  const pubsOf = (id) => published.filter((p) => p.ludant === id).sort((a, b) => a.at.localeCompare(b.at));
+  const mineLines = new Set(yours.filter((l) => l.line).map((l) => l.line));
+  const pubsOf = (l) => (l.line ? published.filter((p) => p.line === l.line) : []).sort((a, b) => a.at.localeCompare(b.at));
   const returning = yours.length > 0;
   const shaping = yours.filter((l) => !l.following);
   // The front rows are the same for everyone, your own included, so the page you'd point
@@ -113,10 +113,10 @@ async function render() {
   // the ones they shape.
   const trusted = published.filter((p) => p.trusted);
   const latest = new Map();
-  for (const p of trusted) if (!latest.has(p.ludant) || p.at > latest.get(p.ludant).at) latest.set(p.ludant, p);
+  for (const p of trusted) if (!latest.has(p.line) || p.at > latest.get(p.line).at) latest.set(p.line, p);
   const fresh = [...latest.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, FEATURED);
   const inFresh = new Set(fresh.map((p) => p.id));
-  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !mineIds.has(p.ludant))
+  const popular = trusted.filter((p) => !inFresh.has(p.id) && played(p) >= POPULAR_FROM && !mineLines.has(p.line))
     .sort((a, b) => played(b) - played(a)).slice(0, FEATURED);
   const parts = [];
 
@@ -181,7 +181,7 @@ async function render() {
   }
   if (everyone.length) {
     parts.push(section('Everyone here', 'Every game on this install (you\'re running it yourself, so you see them all).',
-      el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l.id))))));
+      el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l))))));
   }
   parts.push(el('footer', { class: 'lobby-foot' }, el('a', { href: '/how.html' }, 'how it works'), ' · ', el('a', { href: '/rules.html' }, 'the rules'), ' · ', el('a', { href: '/privacy.html' }, 'privacy'), ' · ', el('a', { href: '/terms.html' }, 'terms'), ' · ', el('a', { href: 'mailto:admin@gactant.com' }, 'admin@gactant.com'), ' · see something that doesn\'t belong? press ⚑ in its top bar'));
   document.getElementById('lobby').replaceChildren(...parts);

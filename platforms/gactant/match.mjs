@@ -49,6 +49,7 @@ import { MAX_STEPS, RuleError } from './rules.mjs';
 
 export const MAX_STATE = 200_000;     // characters of JSON in a match's state
 export const MAX_VIEW = 50_000;       // characters of JSON in one view
+export const MAX_RESULT = 10_000;    // characters of JSON in a result
 export const MAX_ACTIONS = 20_000;    // actions in one match
 const MAX_ONLOOKER = 4_000;           // an onlooker's view small enough to list with the match
 const WAIT_MS = 50_000;               // how long a look waits for something to happen
@@ -138,7 +139,8 @@ export function createMatch({ store, rules }) {
             used += out.steps;
             if (size(out.value) > MAX_STATE) { outcomes.push({ refused: `the rules made a state too big to keep (over ${MAX_STATE} characters)`, broken: true }); continue; }
             state = out.value;
-            try { const r = rules.call(m.source, 'result', [state, time]); result = r.value ?? null; used += r.steps; } catch (err) { used += said(err).steps; }
+            // A result too big to keep is no result yet (it's kept with every match listed).
+            try { const r = rules.call(m.source, 'result', [state, time]); if (size(r.value ?? null) <= MAX_RESULT) result = r.value ?? null; used += r.steps; } catch (err) { used += said(err).steps; }
             outcomes.push({ ok: true });
           } catch (err) {
             const s = said(err);
@@ -272,8 +274,13 @@ export const SHARES_A_SECOND = 20;     // from one socket
 
 /** Every socket hears the match as its person sees it now. */
 export async function pushLooks(match, sockets) {
+  // A look depends only on whose it is: one each, however many sockets they (or nobody) have.
+  const looks = new Map();
   for (const s of sockets) {
-    try { s.send(JSON.stringify({ type: 'look', ...(await match.op('look', { person: s.person })) })); } catch {}
+    try {
+      if (!looks.has(s.person)) looks.set(s.person, JSON.stringify({ type: 'look', ...(await match.op('look', { person: s.person })) }));
+      s.send(looks.get(s.person));
+    } catch {}
   }
 }
 
