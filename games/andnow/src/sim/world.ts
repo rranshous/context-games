@@ -1504,6 +1504,12 @@ export class World {
     // (pop/push are called directly: closures here would allocate on every instruction.)
 
     switch (g) {
+      // (Most bodies loop on these four, and a switch on strings tests its cases in order.)
+      case 'M': wr.lastOk = this.opShift(wr, this.pop(wr)); break;
+      // Copying costs a cycle per cell; a failed attempt costs 1.
+      case 'D': { const before = wr.cellCount; wr.lastOk = this.opDivide(wr, this.pop(wr)); cost = wr.lastOk ? Math.max(1, before) : 1; break; }
+      case 'm': this.push(wr, Math.floor(wr.maxSize)); break;
+      case 'C': wr.lastOk = this.opCollect(wr); break;
       case '>': wr.dir = 0; break;
       case 'v': wr.dir = 1; break;
       case '<': wr.dir = 2; break;
@@ -1538,7 +1544,6 @@ export class World {
       }
       case 'y': { const n = this.pop(wr); this.push(wr, n > 0 ? Math.floor(this.rng() * n) : 0); break; }
       case 's': this.push(wr, wr.cellCount); break;
-      case 'm': this.push(wr, Math.floor(wr.maxSize)); break;
       case 'f': this.push(wr, Math.floor(wr.speed * 10)); break;
       case 'd': this.push(wr, wr.dir); break;
       case 'e': this.push(wr, wr.lastOk ? 1 : 0); break;
@@ -1552,7 +1557,6 @@ export class World {
         else this.push(wr, dy > 0 ? 1 : 3);
         break;
       }
-      case 'M': wr.lastOk = this.opShift(wr, this.pop(wr)); break;
       case 'A': wr.lastOk = this.opOoze(wr, this.pop(wr)); break;
       case 'F': { const d = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opFlow(wr, dx, dy, d); break; }
       case 'X': {
@@ -1561,7 +1565,6 @@ export class World {
         break;
       }
       case 'G': wr.lastOk = this.opGrow(wr, this.pop(wr)); break;
-      case 'C': wr.lastOk = this.opCollect(wr); break;
       case 'B': {
         if (!wr.stack.length) { wr.lastOk = this.opBombNearest(wr); break; } // empty stack: the nearest foreign cell
         const dy = this.pop(wr), dx = this.pop(wr);
@@ -1570,8 +1573,6 @@ export class World {
         break;
       }
       case 'W': { const c = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opWrite(wr, dx, dy, c); break; }
-      // Copying costs a cycle per cell; a failed attempt costs 1.
-      case 'D': { const before = wr.cellCount; wr.lastOk = this.opDivide(wr, this.pop(wr)); cost = wr.lastOk ? Math.max(1, before) : 1; break; }
       default:
         if (g >= '0' && g <= '9') this.push(wr, g.charCodeAt(0) - 48);
         break;
