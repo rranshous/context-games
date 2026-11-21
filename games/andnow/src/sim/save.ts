@@ -33,7 +33,8 @@ const MAGIC = new TextEncoder().encode('andnow save 3\n');
 export function* saveChunks(world: World, query: string): Generator<Uint8Array> {
   const ids = new Map<object, number>();
   const queue: (object | null)[] = [];
-  const blobs: (Typed | Paged)[] = [];
+  type Bytes = { byteLength: number; bytes(): Iterable<Uint8Array> }; // (a Paged, or owner as ids)
+  const blobs: (Typed | Bytes)[] = [];
   let offset = 0;
   const ref = (v: unknown): Enc => {
     if (v === undefined) return { $u: 1 };
@@ -46,6 +47,13 @@ export function* saveChunks(world: World, query: string): Generator<Uint8Array> 
     return { $r: id };
   };
   const entry = (o: object): Enc => {
+    if (o === world.owner) { // (slots in memory, ids in the save: see World.owner)
+      offset = Math.ceil(offset / 8) * 8;
+      const e = { $ta: 'Float64Array', off: offset, len: world.owner.length };
+      blobs.push({ byteLength: 8 * world.owner.length, bytes: () => world.ownerBytes() });
+      offset += 8 * world.owner.length;
+      return e;
+    }
     if (o instanceof Paged) { // (saved as the plain array it stands for)
       offset = Math.ceil(offset / 8) * 8;
       const e = { $ta: o.kind, off: offset, len: o.length };
@@ -88,8 +96,8 @@ export function* saveChunks(world: World, query: string): Generator<Uint8Array> 
   yield pad(blobAt);
   for (const a of blobs) {
     yield pad(blobAt + Math.ceil((at - blobAt) / 8) * 8);
-    if (a instanceof Paged) yield* a.bytes();
-    else yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    if (ArrayBuffer.isView(a)) yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    else yield* a.bytes();
     at += a.byteLength;
   }
   const header: SaveHeader = { version: 3, query, t: world.t, config, root, tableBytes, rng: world.rng.state };
@@ -179,13 +187,14 @@ export function loadWorld(bytes: Uint8Array, share = false): World {
   if (!(g.ripe instanceof Paged)) g.ripe = Paged.from(g.ripe, RIPE_BITS);
   if (g.narrow && !(g.narrow instanceof Paged)) g.narrow = Paged.from(g.narrow);
   if (g.flesh && !(g.flesh instanceof Paged)) g.flesh = Paged.from(g.flesh);
-  // Owners were Int32 until ids passed 2^31 and wrapped (s2 crashed on one at 1.897M): unwrap.
+  // Owners were Int32 ids until ids passed 2^31 and wrapped (s2 crashed on one at 1.897M): unwrap.
   const was = world.owner as ArrayLike<number>;
   if (!(was instanceof Float64Array)) {
     const o = new Float64Array(was.length);
     for (let i = 0; i < o.length; i++) { const v = was[i]; o[i] = v < DEBRIS ? v + 2 ** 32 : v; }
-    world.owner = o;
+    (world as unknown as { owner: Float64Array }).owner = o;
   }
+  world.slotOwners(); // (ids in the save, slots in memory)
   // Runs on rules before ids by zone (RULES < 3) kept bodies in one array by id: enough to
   // look at them (src/diet.ts compares runs across rules), never to carry them on.
   const old = world as unknown as { warriors?: unknown[] };

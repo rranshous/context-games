@@ -58,7 +58,7 @@ function picture(t: number, genomes: Map<number, string>, name = `t${t}`) {
   const rgb = new Uint8Array(W * H * 3);
   const tox = world.board.toxin;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = world.idx(x, y), o = world.owner[i];
+    const i = world.idx(x, y), o = world.ownerOf(i);
     let c: number[];
     if (world.board.terrain[i] === WALL) c = [0, 0, 0];
     else if (o >= 0) c = hue(genomes.get(o) ?? '');
@@ -68,7 +68,7 @@ function picture(t: number, genomes: Map<number, string>, name = `t${t}`) {
     for (let dy = 0; dy < PX; dy++) for (let dx = 0; dx < PX; dx++) {
       const p = ((y * PX + dy) * W + x * PX + dx) * 3;
       // Cell borders: darken the last row/column of each owned cell so bodies read as shapes.
-      const edge = o >= 0 && PX >= 3 && (dx === PX - 1 || dy === PX - 1) && world.owner[world.idx(x + (dx === PX - 1 ? 1 : 0), y + (dy === PX - 1 ? 1 : 0))] !== o;
+      const edge = o >= 0 && PX >= 3 && (dx === PX - 1 || dy === PX - 1) && world.ownerOf(world.idx(x + (dx === PX - 1 ? 1 : 0), y + (dy === PX - 1 ? 1 : 0))) !== o;
       rgb[p] = edge ? c[0] * 0.4 : c[0]; rgb[p + 1] = edge ? c[1] * 0.4 : c[1]; rgb[p + 2] = edge ? c[2] * 0.4 : c[2];
     }
   }

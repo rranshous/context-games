@@ -12,7 +12,7 @@ export function asciiMap(world: World, opts: { glyphs?: boolean } = {}): string 
     let row = '';
     for (let x = 0; x < world.w; x++) {
       const i = world.idx(x, y);
-      const o = world.owner[i];
+      const o = world.ownerOf(i);
       if (!world.isFloor(x, y)) row += '#';
       else if (o >= 0) {
         if (opts.glyphs) row += glyphOf(world.code[i]);
@@ -39,7 +39,7 @@ export function asciiBody(world: World, id: number): string {
     let row = '';
     for (let x = x0; x <= x1; x++) {
       const i = world.idx(x, y);
-      row += world.owner[i] === id ? glyphOf(world.code[i]) : ' ';
+      row += world.ownerOf(i) === id ? glyphOf(world.code[i]) : ' ';
     }
     rows.push(row.replace(/\s+$/, ''));
   }

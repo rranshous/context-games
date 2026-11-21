@@ -140,12 +140,12 @@ wrap('die', (orig) => (wr, reason) => {
   return orig(wr, reason);
 });
 wrap('destroy', (orig) => (i, by, cause) => {
-  const o: number = w.owner[i as number];
+  const o: number = w.ownerOf(i as number);
   if (o >= 0) plan(body(o)); // (before the cold or a bite takes its cells one by one: a newborn can freeze in its first tick)
   return orig(i, by, cause);
 });
 wrap('toDebris', (orig) => (i) => {
-  const o: number = w.owner[i as number];
+  const o: number = w.ownerOf(i as number);
   if (o >= 0) plan(body(o));
   const ok = orig(i);
   if (ok && o >= 0) prov.set(i as number, o);
@@ -153,21 +153,21 @@ wrap('toDebris', (orig) => (i) => {
 });
 wrap('sink', (orig) => (dead) => {
   const cs = dead as number[];
-  const was = cs.map((c) => (prov.has(c) && w.owner[c + W] === NONE ? prov.get(c)! : -1));
+  const was = cs.map((c) => (prov.has(c) && w.ownerOf(c + W) === NONE ? prov.get(c)! : -1));
   const r = orig(dead);
   cs.forEach((c, k) => {
-    if (w.owner[c] === DEBRIS) return;
+    if (w.ownerOf(c) === DEBRIS) return;
     prov.delete(c);
-    if (was[k] >= 0 && w.owner[c + W] === DEBRIS) prov.set(c + W, was[k]);
+    if (was[k] >= 0 && w.ownerOf(c + W) === DEBRIS) prov.set(c + W, was[k]);
   });
   return r;
 });
 wrap('opCollect', (orig) => (wr) => {
   const me = wr as Warrior, near: number[] = [];
-  for (const c of w.mineOf(me)) for (const d of [1, -1, W, -W]) if (w.owner[c + d] === DEBRIS) near.push(c + d);
+  for (const c of w.mineOf(me)) for (const d of [1, -1, W, -W]) if (w.ownerOf(c + d) === DEBRIS) near.push(c + d);
   const ok = orig(wr);
   for (const c of near) {
-    if (w.owner[c] === DEBRIS) continue;
+    if (w.ownerOf(c) === DEBRIS) continue;
     const from = prov.get(c);
     prov.delete(c);
     bump(scav, pairKey(plan(me), from === undefined ? '?' : from === me.id ? 'self' : plan(body(from))));
@@ -179,7 +179,7 @@ wrap('opShift', (orig) => (wr, d) => {
   if (!ok) {
     const me = wr as Warrior, dd = (((d as number) % 4) + 4) % 4, step = [1, W, -1, -W][dd];
     for (const c of w.mineOf(me)) {
-      const o = w.owner[c + step];
+      const o = w.ownerOf(c + step);
       if (o >= 0 && o !== me.id) { const v = body(o); const k = pairKey(plan(me), plan(v)); bump(blocks, k); relate(k, me, v); break; }
     }
   }
@@ -195,7 +195,7 @@ for (const b of start) if (!nameOf(plan(b)).split('+')[0].includes('C')) isHusk.
 const husksNear = (b: Warrior) => {
   let n = 0;
   for (let y = Math.max(0, b.ipY - 10); y <= Math.min(w.h - 1, b.ipY + 10); y++) for (let x = Math.max(0, b.ipX - 10); x <= Math.min(W - 1, b.ipX + 10); x++) {
-    const o = w.owner[y * W + x];
+    const o = w.ownerOf(y * W + x);
     if (o >= 0 && isHusk.has(o)) n++;
   }
   return n;
@@ -204,7 +204,7 @@ const TILE = 64;
 const touching = (b: Warrior) => {
   const s = new Set<number>();
   for (const c of w.mineOf(b)) for (const d of [1, -1, W, -W]) {
-    const o = w.owner[c + d];
+    const o = w.ownerOf(c + d);
     if (o < 0 || o === b.id) continue;
     const v = body(o);
     if (v.parent === b.id || b.parent === o) continue;

@@ -133,7 +133,7 @@ export function genomeOf(world: World, id: number, sep = '/'): string {
   const rows: string[] = [];
   for (let y = y0; y <= y1; y++) {
     let r = '';
-    for (let x = x0; x <= x1; x++) { const i = world.idx(x, y); r += world.owner[i] === id ? glyphOf(world.code[i]) : ' '; }
+    for (let x = x0; x <= x1; x++) { const i = world.idx(x, y); r += world.ownerOf(i) === id ? glyphOf(world.code[i]) : ' '; }
     rows.push(r.replace(/\s+$/, ''));
   }
   return rows.join(sep);

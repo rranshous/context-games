@@ -259,7 +259,7 @@ function render() {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = world.idx(x, y), px = x * CELL, py = y * CELL;
-      const o = world.owner[i];
+      const o = world.ownerOf(i);
       if (!world.isFloor(x, y)) { ctx.fillStyle = '#1a1f29'; ctx.fillRect(px, py, CELL, CELL); continue; }
       ctx.fillStyle = tox ? TOXIN_TINT[Math.min(TOXIN_TINT.length - 1, tox[i])] : '#0e1117';
       ctx.fillRect(px, py, CELL, CELL);
@@ -343,7 +343,7 @@ function renderIsland() {
   for (const wr of world.living()) armor.set(wr.id, armorOf(world, wr.id));
   const put = (i: number, c: RGB) => { d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; };
   for (let i = 0; i < w * h; i++) {
-    const o = world.owner[i];
+    const o = world.ownerOf(i);
     if (o >= 0) {
       const wo = world.warrior(o), a = Math.min(5, armor.get(o) ?? 0);
       let c = (wo.realm ? SHARK_COLORS : SEAL_COLORS)[a];
@@ -354,7 +354,7 @@ function renderIsland() {
       // Kelp: dark green when fresh, ripening to gold; a ripe one grows a frond above it.
       const r = Math.min(1, (world.ripe.get(i) - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
       put(i, r < 0.5 ? mix([25, 120, 55], [80, 210, 90], r * 2) : mix([80, 210, 90], [250, 210, 60], (r - 0.5) * 2));
-      if (r > 0.6 && i >= w && world.owner[i - w] === -1 && !world.resource[i - w] && world.isFloor((i - w) % w, ((i - w) / w) | 0)) put(i - w, mix([d[(i - w) * 4], d[(i - w) * 4 + 1], d[(i - w) * 4 + 2]], [200, 190, 70], 0.5));
+      if (r > 0.6 && i >= w && world.ownerOf(i - w) === -1 && !world.resource[i - w] && world.isFloor((i - w) % w, ((i - w) / w) | 0)) put(i - w, mix([d[(i - w) * 4], d[(i - w) * 4 + 1], d[(i - w) * 4 + 2]], [200, 190, 70], 0.5));
     }
     else if (world.resource[i] === 2) put(i, [240, 210, 70]);
   }
@@ -409,7 +409,7 @@ function genomeOf(id: number): string {
   const rows: string[] = [];
   for (let y = y0; y <= y1; y++) {
     let r = '';
-    for (let x = x0; x <= x1; x++) { const i = world.idx(x, y); r += world.owner[i] === id ? glyphOf(world.code[i]) : ' '; }
+    for (let x = x0; x <= x1; x++) { const i = world.idx(x, y); r += world.ownerOf(i) === id ? glyphOf(world.code[i]) : ' '; }
     rows.push(r.replace(/\s+$/, ''));
   }
   return rows.join(' / ');
@@ -481,7 +481,7 @@ canvas.onmousemove = (ev) => {
   const r = canvas.getBoundingClientRect();
   const [x, y] = CLIMB && climbView ? climbView.cellAt(ev.clientX - r.left, ev.clientY - r.top) : [Math.floor((ev.clientX - r.left) / CELL), Math.floor((ev.clientY - r.top) / CELL)];
   if (!world.inBounds(x, y)) { tip.style.display = 'none'; return; }
-  const i = world.idx(x, y), o = world.owner[i];
+  const i = world.idx(x, y), o = world.ownerOf(i);
   let text = '';
   if (o >= 0 || o === DEBRIS) {
     const g = glyphOf(world.code[i]);
