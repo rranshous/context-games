@@ -187,6 +187,17 @@ T-crawlers at step 3, where they're densest, with lookers' masts among them.
 
 [A T-crawler in the viewer (1.9M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=1900000&pick=1752281385)
 
+#### The crawler's digit doesn't matter (s2)
+
+*Found 2026-11-21.*
+
+![](img/survey/crawler-c9-s2.png)
+
+`C9:mMMD`, `C5:mMMD` and `C1:mMMD` are one program. The digit only becomes a direction (mod 4), and 9, 5 and 1 all send the second MOVE and the DIVIDE south. The bodies match cell for cell and fare the same (step 2, pace 3.4–3.7, survival 0.78 against 0.70). `C9` is the older strain, here since 1.1M. Each digit holds its own colonies (98–99% of a tile's 5/9 crawlers share one digit), and by 2.0M drift has made `C9` twice as common as `C5`, while the three together stay at about 5,100–5,700.
+- `C0:mMMD` is different, since 0 is east. Its 426 bodies did worse beside their own row at 2.0M: −0.39 at z −3.2, with 55% survival against 79% alone. That's a bigger cost than the T-crawlers' and it hits survival too, but it's one scan so far. Sending children east, along the step, might line kin up on the same plants. One to watch.
+
+[A `C9` crawler in the viewer (2.0M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=2000000&pick=2337415915)
+
 ### Lookers in s4
 
 *Found 2026-11-15.*
@@ -312,6 +323,10 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-21 | s3 | Grazer pairs are two grazers chasing one plant, not kin, and it halves their births | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-21 | s7, s13 | Why runs stall: each boom is one founding into one meadow | [Breaking out](#how-runs-break-out-and-why-some-stall) |
 | 2026-11-20 | s2 | Lookers eat their dying kin: a looker beside a husk of its own lineage eats the corpse and divides on it (s1's version is a confound) | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-21 | s4 | A second starvation wave at steps 5–6: insulated husks starve before they can shed their insulation | [Up high, the insulated starve](#up-high-the-insulated-starve-outright-s4) |
+| 2026-11-21 | s4 | The `CmMD` old-age bump was a faster sprinter form taking over step 3 | [Height sets the pace of life](#height-sets-the-pace-of-life) |
+| 2026-11-21 | s4 | Nibblers: `M` → `R` sprinter mutants whose aimed bites hit the kin stacked above them | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-21 | s2 | The crawler's digit is neutral: `C9`, `C5`, `C1` are one program in separate colonies; `C0` (east) crowds itself | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 
 ## How they interact
 
@@ -365,6 +380,10 @@ Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [
 
 - **Vandals.** In sprinters and lookers, a copy error can turn a code-row glyph into `W` (write): `CMWm`, `CMDW`, `CWD`. Such a mutant loses its divide or its move, and its loop writes into the nearest body instead, again and again, up to 112 times in 200 ticks. The nearest body is usually its own parent or child. Mostly it writes fat over the victim's code. Some write `@`, which kills whatever runs it.
 - **Steerers (s2).** `CTDW` mutants write turn arrows (`>`, `<`, `^`) into their own children, rewriting the direction the child's code runs. It's the closest thing to one body controlling another so far, though nothing shows it helps the writer.
+- **Nibblers (s4).** An `M` → `R` copy error in a sprinter's row (`CmR?`, `CmRB`, `CmR[`) leaves `R`'s reading on the stack, and the row's `B` fires with it: an aimed bite. Only an empty-stack bite spares kin, so these bite whatever sits above them, which is usually a sprinter of the same plan travelling stacked in lockstep. One `CmR?` (1.984M) tried 309 bites in 200 ticks and hit kin 12 times, with no kills and nothing gained: its store fell 99 → 22. With no `D` it's a dead end, like the hunters. [In the viewer (1.984M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1984000&pick=1335298633)
+
+  ![](img/survey/mrbiter-s4.png)
+
 - **Hunters (s4, then s3).** Twice now, the same mutation has made a hunter out of a sprinter. Each time it hunted the relict of the other lineage.
   - **The mutation:** the `D` in the code row became `]` (turn right). Both hunters carry a `B` just below that slot, so the IP turns south straight onto it. An empty-stack bite never targets kin, so the bite lands on the nearest body of the other lineage.
   - **s4 (found 2026-11-14):** a Diver sprinter, `CmM]`, bit the relict Climbers' `C4SDTM` grazers 12 times in 200 ticks and killed 3.
@@ -412,9 +431,22 @@ Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [
 
 The death table says cold kills 82–99.5%. Nearly all of that is starvation, ending in the cold (s1, 2026-11-21).
 - **Hunger shrinks a body.** Its store (max size) burns down every tick, 2^|step| per cell. When the store falls below the body's cell count, the body sheds a cell: fat first, then plain and code cells, protection (`I`, `K`, an `x` beside one) last. The IP's cell is never shed.
-- **Then the IP's cell freezes.** Insulation is the body's `I`s, doubled for each `x` beside an `I`, so losing one `x` costs a whole level. Every cell rolls 0.005·10^(over−1) per tick to freeze, where over is the step less the insulation. A body down to no insulation at step 4 loses its IP cell within a few ticks: "core frozen". "Starved" needs the store below 1, which a body almost never reaches first.
+- **Then the IP's cell freezes.** Insulation is the body's `I`s, doubled for each `x` beside an `I`, so losing one `x` costs a whole level. Every cell rolls 0.005·10^(over−1) per tick to freeze, where over is the step less the insulation. A body down to no insulation at step 4 loses its IP cell within a few ticks: "core frozen". "Starved" needs the store below 1, which a body almost never reaches first, except at steps 5–6 (below).
 - **The numbers.** 95% of core-frozen deaths came after shedding protection, with insulation falling from about 3.6 at t0 to 0.35 at death. Bodies that never shed froze 6% of the time; those that shed protection, 89%.
 - **The test.** Filling the store of a random half of s1's 98,572 bodies cut core-frozen deaths from 26,636 to 17,827 in 200 ticks. Of the 10,572 deaths it prevented, 10,562 had shed protection in the unfed run. The freeze formula applied tick by tick predicts the fed deaths to 0.2%. Fat doesn't insulate, and fed bodies don't move to warmer steps.
+
+#### Up high, the insulated starve outright (s4)
+
+*Found 2026-11-21.*
+
+![](img/survey/starve-s4.png)
+
+At steps 5–6 the burn outruns the shedding. A 12-cell body at step 6 burns about 2 of its store a tick but can drop only one cell a tick, so once the store falls below its cell count it runs dry before shedding reaches its insulation. Bodies that keep their insulation die "starved", not frozen.
+- **A second wave in s4.** Starved deaths per 60 ticks went 142 (1.978M) → 212 → 303 → 1,184 (1.984M), 1.2% of all deaths, up from 0.1%. It's the world, not the speed round: the old code replays the same counts.
+- **Who.** 98% die at steps 5–6, and 85% have insulation exactly matched to their step. Three in four are husks with no `C`: shed lookers (`LMD`, `LM`, `L`, about 2,000) and sprinter husks (`mMD`, about 420). Median 12 cells, age 29.
+- **Not crowding this time.** The 1.86M famine had the same signature, but step 6 then held 2,426 bodies. It holds 1,440 now, and step 5 has joined in. What's making the extra insulated husks isn't known yet.
+
+[A starving `LMD+III[xx|` at step 6 (1.984M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1984000&pick=1382670666). No 100k checkpoint has the wave yet; re-pick at 2.0M.
 
 ### Height sets the pace of life
 
@@ -422,7 +454,14 @@ The death table says cold kills 82–99.5%. Nearly all of that is starvation, en
 - **Dividing starves the parent up high.** A parent keeps all its cells but only half its store, and the store burns 2^|step| per cell. Blocking DIVIDE for a random half raised survival from 0.45 to 0.59 in s1 (0.15 to 0.42 for fast forms at step 4) and from 0.24 to 0.38 in s2. It made no difference on steps 0–2.
 - **Most children die young.** 65–88% of the children counted as births are dead by the end of the 200-tick window, so births overstate success. Median age halves with every step (s2: 359, 208, 98, 56 and 30 ticks at steps 2–6).
 - **Why s2 dies four times faster.** It lives highest: 54% of it is at steps 5–6. Weight each body by 2^step and deaths per unit weight are the same in all four runs (0.10–0.12). Lookers aren't living above their insulation; 124k of 131k `CLDM` match it exactly, and children almost never land on a new step.
-- **s4's famine** (1.835–1.891M) was a surge of lookers onto step 6: bodies there went 1,104 → 2,426 → 1,369, occupied tiles 91 → 215, and about 87% of the extra starvation was there, in shed lookers (`LMD`, `LM`, `L`). An old-age bump at the same time (`CmMD` at step 3) is unexplained.
+- **s4's famine** (1.835–1.891M) was a surge of lookers onto step 6: bodies there went 1,104 → 2,426 → 1,369, occupied tiles 91 → 215, and about 87% of the extra starvation was there, in shed lookers (`LMD`, `LM`, `L`).
+- **s4's old-age bump at the same time** was a faster form taking over step 3, not famine stress. Age advances at a body's pace, so a fast body reaches old age in fewer ticks. Between 1.83M and 1.89M the slow single-`M` sprinter (`CmMD+BCIMxxxx`, pace 5.5–7) fell from about 2,260 to 180 at step 3, and the double-`M` form (`CmMD+BCIMMxxxxxx`, pace 10–12) rose from 2,120 to 4,140. Both have insulation 4, so at step 3 they rarely freeze and old age gets them. Old-age deaths at step 3 per 40 ticks went 477 → 754 and back to 483 by 1.984M as the slow form returned (about 1,550 at 1.94M).
+
+| slow `CmMD+BCIMxxxx`, pace 6.2 | fast `CmMD+BCIMMxxxxxx`, pace 10.7 |
+|---|---|
+| ![](img/survey/sprinter-slow-s4.png) | ![](img/survey/sprinter-fast-s4.png) |
+
+[The fast form in the viewer (1.9M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1900000&pick=1162626754) · [the slow form](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1900000&pick=1096233593)
 
 ### How runs break out, and why some stall
 

@@ -334,14 +334,16 @@ say(`${stuck.length} pairs touched in 90%+ of samples (${[...stuckRel].map(([r, 
 
 // Movement
 say(); say('## Movement by plan (the top plans, alive at t0)');
-interface PlanStats { key: string; n: number; moved: number; ticks: number; never: number; net: number; surv: number; births: number }
+// long*: only the bodies that lived 100+ ticks; a short life's net distance overstates its speed.
+interface PlanStats { key: string; n: number; moved: number; ticks: number; never: number; net: number; surv: number; births: number; longN: number; longNet: number; longTicks: number }
 const ps = new Map<string, PlanStats>();
 for (const b of start) {
   const key = plan(b), L = life.get(b.id)!;
   if ((rank.get(key) ?? Infinity) >= TOP) continue;
-  const s = ps.get(key) ?? { key, n: 0, moved: 0, ticks: 0, never: 0, net: 0, surv: 0, births: 0 };
+  const s = ps.get(key) ?? { key, n: 0, moved: 0, ticks: 0, never: 0, net: 0, surv: 0, births: 0, longN: 0, longNet: 0, longTicks: 0 };
   const lived = (deaths.get(b.id)?.t ?? T0 + R) - T0;
   s.n++; s.moved += L.moved; s.ticks += lived; if (!L.moved) s.never++; s.net += Math.hypot(...L.net); if (b.alive) s.surv++; s.births += L.births;
+  if (lived >= 100) { s.longN++; s.longNet += Math.hypot(...L.net); s.longTicks += lived; }
   ps.set(key, s);
 }
 say('| plan | n | cells moved per 100 ticks | never moved | mean net distance | survived | births per body |');

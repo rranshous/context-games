@@ -2917,3 +2917,14 @@ Not done:
 - A streaming load would cut the load peak.
 
 **Bakes back on speed round 3** (4:50am, 2026-11-21). All four resumed from their checkpoints (s1 6.948M, s2 1.996M, s3 7.717M, s4 1.979M), with `--max-semi-space-size=64` now in `bake.sh`. On main's build, s3 again ended at hash `0b72f6d57c619872` (740 CPU ms/tick against 1,309) and golden passed. A few minutes after loading they held 3.3, 8.5, 3.6 and 5.2 GB, 20.6 in all against 22–24 before.
+
+## Discovery round 11 (2026-11-21 morning)
+
+The first round on the speed-round-3 build, and the first with the calibrated z. Scan 7:47–8:27, s1 t6959000, s2 t2000000, s3 t7728000, s4 t1984000. Two subagents checked the candidates.
+
+- **s4: a second starvation wave.** Starved deaths per 60 ticks went 142 → 1,184 between 1.978M and 1.984M (0.1% → 1.2% of deaths). It isn't the new code: the pre-speed3 build replays the same counts. 98% are at steps 5–6, with insulation matched to the step, and three in four are husks (`LMD`, `LM`, `mMD`). Up there the store burns about twice as fast as a body can shed, so an insulated body runs dry before it can shed down to freezing. Step 6 isn't crowded this time (1,440 against 2,426 in the 1.86M famine), so the source of the husks is still open. In the survey, with a re-pick due at 2.0M.
+- **s4: the `CmMD` old-age bump is solved.** A fast double-`M` sprinter (pace 10–12) replaced the slow single-`M` one at step 3 between 1.83M and 1.89M. Age runs at pace, and both are over-insulated at step 3, so old age took them sooner. It faded as the slow form came back.
+- **s4: `CmR?` biting kin.** An `M` → `R` mutant aims its `B` with what `R` read, and aimed bites don't spare kin. One body, 12 hits in 309 tries, no kills, a dead end. Logged as "nibblers".
+- **s2: `C9:mMMD` in the top 10** is the crawler with a neutral digit (9 ≡ 5 ≡ 1 mod 4, all south), the older strain in its own colonies. `C0:mMMD` (east) does worse beside its own kind (z −3.2); first significant scan, one to watch.
+- **s2, noise or known:** `CLBM` biting shed `CLD` kin (the D→B mutant again); `5` written 39 times by one `W` vandal writing its own cell count; the speed record (0.262, step-6 lookers drifting west).
+- **Detector fix.** The speed record came from bodies that died young: 124 of the 126 froze, and those that lived 100+ ticks scored only 0.199. The ecology scan now keeps net distance and ticks for bodies that lived 100+ ticks, and novelty's speed records use only those. The old speed records in runs/ecology/known.json were cleared, so the next scans will set new ones.

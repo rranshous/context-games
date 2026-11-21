@@ -73,7 +73,7 @@ type Report = {
   bites: { pair: string[]; hits: number; killed: number; rel: string; ex?: { by: number; on: number; t: number } }[];
   writes: { pair: string[]; n: number; victims: number; glyphs: Record<string, number>; rel: string; ex?: { by: number; on: number; t: number } }[];
   deaths: Record<string, number>;
-  movement: { key: string; n: number; moved: number; ticks: number; never: number; net: number; surv: number; births: number }[];
+  movement: { key: string; n: number; moved: number; ticks: number; never: number; net: number; surv: number; births: number; longN?: number; longNet?: number; longTicks?: number }[];
   eco: { a: string; b: string; kind: string; onB?: { n: number; d: number; z: number }; onA?: { n: number; d: number; z: number } }[];
   species?: Record<string, number>;
 };
@@ -196,9 +196,10 @@ for (const f of files) {
   let never = 0, all = 0;
   for (const m of r.movement) {
     never += m.never; all += m.n;
-    if (m.n < 20 || !m.ticks) continue;
-    const speed = m.net / m.ticks;
-    record(seed, `s${seed}|speed`, speed, where, `fastest yet in s${seed}: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick net (${m.n} bodies)${known(rowOf(m.key))}`, 1.2);
+    // Only bodies that lived 100+ ticks count: a plan of short-lived bodies scores high on a few steps.
+    if (!m.longN || m.longN < 20) continue;
+    const speed = m.longNet! / m.longTicks!;
+    record(seed, `s${seed}|speed`, speed, where, `fastest yet in s${seed}: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick net (${m.longN} bodies that lived 100+ ticks)${known(rowOf(m.key))}`, 1.2);
     record(seed, 'all|speed', speed, where, `fastest in any run: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick (s${seed})${known(rowOf(m.key))}`, 1.2);
   }
   if (all) {
