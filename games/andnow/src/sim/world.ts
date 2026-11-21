@@ -77,6 +77,25 @@ const OP_COST = Array.from(GLYPHS, (g) => COST[g] ?? 1);
 const OP_ACTS = Uint8Array.from(GLYPHS, (g) => +'MFXGCBWDA'.includes(g));
 let SHIFT_CODES = new Uint8Array(1024); // (opShift's scratch: the moving body's codes)
 const SCAN_KEYS = new Float64Array(64 * 64); // (ringScan's scratch: its window is at most 61×61)
+let SORT_SCRATCH = new Int32Array(1024);
+/**
+ * Cell indices in board order, as a new array (one allocation: Array.from of a sorted Int32Array
+ * went through an iterator and was a tenth of all a tick allocated). Small bodies by insertion,
+ * big ones by a native typed sort in scratch.
+ */
+function boardOrder(items: number[]): number[] {
+  const out = items.slice(), n = out.length;
+  if (n <= 48) {
+    for (let k = 1; k < n; k++) { const v = out[k]; let j = k - 1; while (j >= 0 && out[j] > v) { out[j + 1] = out[j]; j--; } out[j + 1] = v; }
+    return out;
+  }
+  if (SORT_SCRATCH.length < n) SORT_SCRATCH = new Int32Array(2 * n);
+  const a = SORT_SCRATCH;
+  for (let k = 0; k < n; k++) a[k] = out[k];
+  a.subarray(0, n).sort();
+  for (let k = 0; k < n; k++) out[k] = a[k];
+  return out;
+}
 
 export const CONFIG = {
   sight: 14,            // LoS range from each cell (Chebyshev)
@@ -624,15 +643,14 @@ export class World {
   /** cellsOf for a body in hand (by its link, no lookup by id). */
   private mineOf(wr: Warrior): number[] {
     const c = this.cells(wr);
-    return c ? (c.sorted ??= Array.from(Int32Array.from(c.items).sort())) : [];
+    return c ? (c.sorted ??= boardOrder(c.items)) : [];
   }
 
   /** A warrior's (or DEBRIS's) cells in board order. Treat the array as read-only. */
   cellsOf(id: number): number[] {
     const set = this.cellSets.get(id);
     if (!set) return []; // (the dead: nothing cached for them)
-    // Typed-array sort is numeric and native (no comparator callback).
-    if (set instanceof Cells) return set.sorted ??= Array.from(Int32Array.from(set.items).sort());
+    if (set instanceof Cells) return set.sorted ??= boardOrder(set.items);
     let out = this.sortedCells.get(id);
     if (!out) {
       out = Array.from(Int32Array.from(set).sort());
@@ -1509,10 +1527,14 @@ export class World {
     const n = mine.length, codes = SHIFT_CODES.length >= n ? SHIFT_CODES : (SHIFT_CODES = new Uint8Array(2 * n));
     const owner = this.owner, code = this.code, id = wr.id, delta = DY[d] * this.w + DX[d];
     for (let k = 0; k < n; k++) { const c = mine[k]; codes[k] = code[c]; owner[c] = NONE; code[c] = 0; }
+    // (The set's items are overwritten in place, as a clear and n adds would leave them: a clear
+    // drops the array's store, and regrowing it was most of what a tick allocated.)
     let set = this.cells(wr);
     const fresh = !!set?.fresh;
-    if (set) set.clear(); else this.cellSets.set(id, set = new Cells());
-    for (let k = 0; k < n; k++) { const c = (mine[k] += delta); owner[c] = id; code[c] = codes[k]; set.add(c); }
+    if (!set) this.cellSets.set(id, set = new Cells());
+    const items = set.items;
+    items.length = n;
+    for (let k = 0; k < n; k++) { const c = (mine[k] += delta); owner[c] = id; code[c] = codes[k]; items[k] = c; }
     set.sorted = mine; set.fresh = fresh;
     wr.ipX += DX[d];
     wr.ipY += DY[d];
