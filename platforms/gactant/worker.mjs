@@ -46,8 +46,9 @@ const json = (code, value) => new Response(JSON.stringify(value), { status: code
 
 // What a slim list keeps of each kind (core.mjs's slimmed() does the same for the local store).
 const SLIM = {
-  ludants: `json_set(json_remove(json, '$.surfaces', '$.assets', '$.mail', '$.soma'), '$.soma', json_object('given', json_extract(json, '$.soma.given'), 'sections', json_object('title', json_extract(json, '$.soma.sections.title'))))`,
-  published: `json_remove(json, '$.soma', '$.assets')`,
+  // size: the whole document's characters, for what a person keeps (core.mjs storedBy).
+  ludants: `json_set(json_remove(json, '$.surfaces', '$.assets', '$.mail', '$.soma'), '$.soma', json_object('given', json_extract(json, '$.soma.given'), 'sections', json_object('title', json_extract(json, '$.soma.sections.title'))), '$.size', length(json))`,
+  published: `json_set(json_remove(json, '$.soma', '$.assets'), '$.size', length(json))`,
   flags: `json_remove(json, '$.image', '$.chat')`,
   reports: `json_remove(json, '$.report')`,
   issues: `json_remove(json, '$.soma')`,

@@ -77,6 +77,8 @@ const MATCHES_A_DAY = 300;          // matches opened
 const ACTIONS_A_DAY = 3_000;
 const ACTIONS_A_SECOND = 2;        // a person's actions refill at this rate (120 a minute)
 const ACTIONS_AT_ONCE = 10;        // and up to this many can go in a burst
+const LOOKS_A_SECOND = 4;          // looks at a match (each runs the rules' view) refill at this rate, per address
+const LOOKS_AT_ONCE = 40;          // and up to this many in a burst
 const STEPS_A_DAY = 50_000;         // steps of rules run for them, practice included
 const OPEN_AT_ONCE = 10;            // matches they're in that aren't over and were played in lately
 const OPEN_LATELY_MS = 60 * 60_000;  // one nobody acted in for this long doesn't count (some rules never end a match)
@@ -132,6 +134,19 @@ export function createTables({ store, people, httpError, owns, settings }) {
     buckets.set(person, b);
     if (buckets.size > 5000) for (const [k, v] of buckets) if (t - v.at > 60_000) buckets.delete(k);
     return () => { b.tokens = Math.min(ACTIONS_AT_ONCE, b.tokens + 1); };   // give it back
+  };
+  // Looks are free to make but each runs the rules' view, so they're paced too: per address
+  // (anyone may look, signed in or not). A frame asks rarely: it hears changes live, or by a
+  // long look that waits for one.
+  const lookBuckets = new Map();   // address -> { tokens, at }
+  const lookPace = (from) => {
+    const k = from.ip ?? from.person ?? 'nobody', t = Date.now(), b = lookBuckets.get(k) ?? { tokens: LOOKS_AT_ONCE, at: t };
+    b.tokens = Math.min(LOOKS_AT_ONCE, b.tokens + (t - b.at) / 1000 * LOOKS_A_SECOND);
+    b.at = t;
+    if (b.tokens < 1) throw httpError(429, `that's faster than ${LOOKS_A_SECOND} looks a second (bursts of ${LOOKS_AT_ONCE}); slow down a little`, { retryAfterMs: Math.ceil((1 - b.tokens) / LOOKS_A_SECOND * 1000) });
+    b.tokens -= 1;
+    lookBuckets.set(k, b);
+    if (lookBuckets.size > 5000) for (const [key, v] of lookBuckets) if (t - v.at > 60_000) lookBuckets.delete(key);
   };
   const tally = (what, who, at = day()) => used.get(`${at} ${what} ${who}`) ?? 0;
   const add = (what, who, n = 1, at = day()) => {
@@ -397,6 +412,7 @@ export function createTables({ store, people, httpError, owns, settings }) {
       const idx = await read('match-index', b);
       if (!c && method === 'GET') {
         if (idx.archived) return { ...listed(idx), rulebook: idx.rulebook, name: idx.name, head: idx.head, result: idx.result, you: Boolean(from.person && idx.members?.[from.person] !== undefined), last: null };
+        lookPace(from);
         return fromMatch(host.op(b, 'look', { person: from.person ?? null, after: query.get('after') }));
       }
       if (c === 'log' && method === 'GET') {

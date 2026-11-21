@@ -160,6 +160,7 @@ const MARKS_A_DAY = 2000;        // contributions one person may mark in a day
 const MAX_SPINOFFS = 2000;       // spin-offs a line remembers (past that, new ones go uncounted)
 const ART_BUDGET = 15_000_000;   // bytes of pictures one ludant keeps, all told
 const CHECKPOINTS_KEPT = 50;     // a ludant's newest checkpoints kept (and its first)
+const STORED_EACH = 50_000_000;  // characters one person keeps: their ludants, checkpoints and shared versions
 // Ludants nobody came back to: still exactly as they began (one checkpoint), with no save
 // and nobody sitting down this long, they're cleared away. A seed is a pulsing dot; a copy can be taken again.
 const UNTOUCHED_SEED_MS = 7 * 86400_000;
@@ -198,8 +199,8 @@ const unb64u = (s) => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(
 
 /** A document as a slim list has it: what worker.mjs's SLIM keeps, for the local store. */
 export function slimmed(kind, d) {
-  if (kind === 'ludants') { const { surfaces, assets, mail, ...rest } = d; return { ...rest, soma: { given: d.soma?.given ?? null, sections: { title: d.soma?.sections?.title ?? null } } }; }
-  if (kind === 'published') { const { soma, assets, ...rest } = d; return rest; }
+  if (kind === 'ludants') { const { surfaces, assets, mail, ...rest } = d; return { ...rest, soma: { given: d.soma?.given ?? null, sections: { title: d.soma?.sections?.title ?? null } }, size: JSON.stringify(d).length }; }
+  if (kind === 'published') { const { soma, assets, ...rest } = d; return { ...rest, size: JSON.stringify(d).length }; }
   if (kind === 'flags') { const { image, chat, ...rest } = d; return rest; }
   if (kind === 'reports') { const { report, ...rest } = d; return rest; }
   if (kind === 'issues') { const { soma, ...rest } = d; return rest; }
@@ -307,16 +308,19 @@ export function createCore({ store, settings }) {
 
   // ---------- checkpoints: somas kept apart from the ludant, which holds the list ----------
 
-  /** Take a checkpoint, unless the soma is exactly what the last one holds. */
-  async function checkpoint(ludant, label, by) {
+  /** Take a checkpoint, unless the soma is exactly what the last one holds. One that would
+   *  go past what its person may keep is refused (ifRoom: skipped, -> null). */
+  async function checkpoint(ludant, label, by, { ifRoom = false } = {}) {
     const last = ludant.checkpoints.at(-1);
     if (last) {
       const kept = await store.get('checkpoints', `${ludant.id}-${last.n}`);
       if (kept && sameSoma(kept.soma, ludant.soma)) return last.n;
     }
+    if (ludant.owner && !(await roomFor(ludant.owner, !ifRoom))) return null;
     const n = (last?.n ?? 0) + 1;
-    await store.put('checkpoints', `${ludant.id}-${n}`, { soma: structuredClone(ludant.soma) });
-    ludant.checkpoints.push({ n, label: label || '', by: by || null, at: now() });
+    const doc = { soma: structuredClone(ludant.soma) };
+    await store.put('checkpoints', `${ludant.id}-${n}`, doc);
+    ludant.checkpoints.push({ n, label: label || '', by: by || null, at: now(), size: JSON.stringify(doc).length });
     // The newest are kept, and the first (how it began).
     while (ludant.checkpoints.length > CHECKPOINTS_KEPT + 1) {
       const [old] = ludant.checkpoints.splice(1, 1);
@@ -325,6 +329,38 @@ export function createCore({ store, settings }) {
     return n;
   }
   const checkpointSoma = async (ludant, n) => (await store.get('checkpoints', `${ludant.id}-${n}`))?.soma;
+
+  // ---------- what a person keeps: STORED_EACH across their ludants ----------
+
+  /** Characters a person keeps: each of their ludants (its save), its checkpoints, and the
+   *  versions shared from it. Saves are always taken (they're bounded each, by MAX_LUDANT);
+   *  what's refused once a person is over is more: new ludants, copies, checkpoints. */
+  async function storedBy(person) {
+    const mine = (await store.list('ludants', { slim: true })).filter((l) => l.owner === person && !l.abandoned);
+    const ids = new Set(mine.map((l) => l.id));
+    let total = 0;
+    for (const l of mine) {
+      total += l.size ?? 0;
+      let cps = l.checkpoints ?? [];
+      // Checkpoints from before they were measured: measured once, and remembered.
+      if (cps.some((cp) => cp.size == null)) {
+        const full = await store.get('ludants', l.id);
+        for (const cp of full?.checkpoints ?? []) cp.size ??= JSON.stringify(await store.get('checkpoints', `${l.id}-${cp.n}`) ?? null).length;
+        if (full) await store.put('ludants', l.id, full);
+        cps = full?.checkpoints ?? [];
+      }
+      for (const cp of cps) total += cp.size ?? 0;
+    }
+    for (const p of await store.list('published', { slim: true })) if (ids.has(p.ludant)) total += p.size ?? 0;
+    return total;
+  }
+  /** Whether a person has room for more; refuse: throw if not. */
+  async function roomFor(person, refuse = true) {
+    const total = await storedBy(person);
+    if (total < STORED_EACH) return true;
+    if (!refuse) return false;
+    throw httpError(413, `you keep ${Math.round(total / 1e6)} MB of ludants, their checkpoints and what you've shared, and the most a person keeps is ${Math.round(STORED_EACH / 1e6)} MB: abandon a ludant you don't need to make room`, { full: true });
+  }
 
   /** A given name no lineage here uses yet. */
   async function freshGiven() {
@@ -511,6 +547,7 @@ export function createCore({ store, settings }) {
    *  is the ludant's; versions don't need names of their own. retitled: only its title is
    *  new (the same game otherwise is fine). -> { pub, held? } */
   async function newVersion(ludant, line, { by, note = '', retitled = false }, from) {
+    await roomFor(ludant.owner);
     const counted = limit('publish', from.ip, PUBLISH_A_DAY, `that's ${PUBLISH_A_DAY} updates from here today; more tomorrow`);
     const last = line.versions.length ? await store.get('published', line.versions.at(-1)) : null;
     if (last && !retitled && sameGame(last.soma, ludant.soma)) throw httpError(409, 'nothing has changed since the last update');
@@ -549,7 +586,8 @@ export function createCore({ store, settings }) {
     if (!ludant.follows) return null;
     const head = await lineHead(ludant.follows.line);
     if (!head || head.id === ludant.follows.version) return null;
-    await checkpoint(ludant, `before updating to ${head.by ?? 'its maker'}'s latest`, null);
+    // Without room for the checkpoint that undoes it, it waits (still behind) until there is.
+    if (await checkpoint(ludant, `before updating to ${head.by ?? 'its maker'}'s latest`, null, { ifRoom: true }) == null) return null;
     const sections = { ...head.soma.sections, memory: ludant.soma.sections?.memory ?? '' };
     if (ludant.soma.sections?.[LETTERS]) sections[LETTERS] = ludant.soma.sections[LETTERS];
     ludant.soma = { ...head.soma, given: ludant.soma.given, sections };
@@ -572,6 +610,7 @@ export function createCore({ store, settings }) {
    *  the people who were there. */
   async function copyFrom(pub, lineId, body, from) {
     ownedBy({}, from);
+    await roomFor(from.person);
     limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
     const id = newId(pub.given);
     const ludant = {
@@ -1086,6 +1125,7 @@ export function createCore({ store, settings }) {
       }
       if (!b && method === 'POST') {
         ownedBy({}, from);   // refused before anything is counted or written
+        await roomFor(from.person);
         const counted = limit('seed', from.ip, SEED_A_DAY, `that's ${SEED_A_DAY} new ludants from here today; more tomorrow`);
         counted();
         const by = short(body.by);
@@ -1342,6 +1382,7 @@ export function createCore({ store, settings }) {
       // whatever changes while they're here can be undone.
       if (c === 'copy' && method === 'POST') {
         ownedBy({}, from);
+        await roomFor(from.person);
         limit('copy', from.ip, COPY_A_DAY, `that's ${COPY_A_DAY} copies from here today; more tomorrow`)();
         const id = newId(ludant.soma.given);
         const copy = {
@@ -1365,7 +1406,7 @@ export function createCore({ store, settings }) {
         }
         ludant.visitors[who] = { first: seen?.first ?? now(), last: now(), visits: (seen?.visits ?? 0) + 1 };
         ludant.stats = { ...add(ludant.stats, 0, 0), sittings: (ludant.stats?.sittings ?? 0) + 1 };
-        const n = await checkpoint(ludant, `as it was when ${who} sat down`, who);
+        const n = await checkpoint(ludant, `as it was when ${who} sat down`, who, { ifRoom: true });
         await store.put('ludants', b, ludant);
         return { firstVisit: !seen, visits: ludant.visitors[who].visits, checkpoint: n, people: Object.keys(ludant.visitors) };
       }

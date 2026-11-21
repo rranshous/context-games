@@ -3,6 +3,9 @@
 //
 //   node server.mjs [--port 7780] [--data <dir>] [--env <file> | --env none]
 //
+// It listens on this machine only (127.0.0.1): it holds the house key and lists every ludant,
+// so nothing else on the network reaches it.
+//
 // .env (next to this file), all optional
 //   OPENROUTER_API_KEY=...        thinking for anyone who hasn't connected their own OpenRouter
 //   GACTANT_MODEL=anthropic/claude-sonnet-5.5
@@ -213,6 +216,6 @@ server.on('upgrade', async (req, socket) => {
   socket.on('error', () => room.closed());
 });
 
-server.listen(PORT, () => {
-  console.log(`gactant on http://lilg:${PORT}/  model ${MODEL}  key ${process.env.OPENROUTER_API_KEY ? 'present' : 'none (people connect their own OpenRouter)'}`);
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`gactant on http://localhost:${PORT}/  model ${MODEL}  key ${process.env.OPENROUTER_API_KEY ? 'present' : 'none (people connect their own OpenRouter)'}`);
 });

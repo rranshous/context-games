@@ -14,7 +14,7 @@ const env = Object.fromEntries((existsSync(join(HERE, '.env')) ? readFileSync(jo
 const [to = 'https://gactant.com', n = '5'] = process.argv.slice(2);
 const base = to.replace(/\/$/, '');
 // The admin token goes in the body: only over https, or to this machine.
-if (!/^https:\/\//.test(base) && !/^http:\/\/(127\.0\.0\.1|localhost|lilg)(:\d+)?$/.test(base)) { console.error(`refusing ${base}: the admin token only goes over https (or to this machine)`); process.exit(1); }
+if (!/^https:\/\//.test(base) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(base)) { console.error(`refusing ${base}: the admin token only goes over https (or to this machine)`); process.exit(1); }
 
 const res = await fetch(`${base}/api/admin/reports`, {
   method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base },

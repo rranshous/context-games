@@ -4031,3 +4031,23 @@ Tested: smoke test (186 checks) passes; in the browser, a climbing id is refused
 - Match seeds are 32 bits with mulberry32: hidden cards are guessable from a few public rolls. A real fix changes the rules contract (wipe).
 - Looks on a match run the rules' view with no budget charged or rate limit; builtins can burn CPU well past what 1,000 steps suggests.
 - Cloudflare's analytics beacon runs on pages that hold the key.
+
+### Robby's calls on the open items (2026-11-21)
+
+Robby: localhost only, "period"; a storage quota per person, yes; looks need a limit; the seed wipe "would suck", so is there a way to keep the data; and what does the beacon mean for trust.
+
+**Done:**
+- **Localhost only.** `server.mjs` listens on 127.0.0.1. Checked: localhost answers and the LAN address is refused. The admin tools no longer accept `http://lilg` either (the token would cross the LAN in the clear).
+- **Storage per person: 50M characters** across their ludants' saves, checkpoints and the versions shared from them. Live, the whole site is 13.8 MB (average checkpoint 31 KB, average ludant 51 KB), so that's about four times everything there is today, and 100 people at the limit still fit the free plan's 5 GB.
+  - Sizes come from the slim lists: SQLite adds `size` (the document's length) to ludants and publications. Checkpoints record their size when taken; older ones are measured once and remembered.
+  - Past the limit, saving still works, since losing work is worse and a save is bounded anyway. New ludants, copies, checkpoints and shared versions are refused with "abandon one to make room". Arriving skips its checkpoint, and a followed game's update waits, rather than fail to open.
+  - No meter in the frame yet.
+- **Looks paced** per address: a bucket of 40 refilling at 4 a second. Only the server look runs the rules' view; a live follow is pushed once per person per action.
+- Smoke test: looks get a 429, a hoarder is refused at the limit but can still save and sit down, someone else still has room, and abandoning makes room. All good.
+
+**Answered, not done:**
+- **Seeds without a wipe:** two generators side by side. A numeric state keeps mulberry32, so open matches go on and finished ones replay the same. New matches get a 256-bit hex seed, and `random()` given a string runs a ChaCha-style generator. Rulebooks that do arithmetic on the seed would break on new matches: check the 41 locked ones first. Waiting on Robby.
+- **The beacon:** Cloudflare already serves every page and runs the Worker, so it adds little trust beyond that. The residual risks:
+  - the whole `static.cloudflareinsights.com` host is allowed, without integrity;
+  - it can read localStorage (the OpenRouter key and the pass), though not the device keys, which aren't extractable.
+  - It's per origin, so it's all pages or none. Waiting on Robby.

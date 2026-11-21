@@ -24,7 +24,7 @@ if (!to || ids[0] === '--list' || !ids.length) {
 
 // The admin token goes in the body: only over https, or to this machine.
 const base = to.replace(/\/$/, '');
-if (!/^https:\/\//.test(base) && !/^http:\/\/(127\.0\.0\.1|localhost|lilg)(:\d+)?$/.test(base)) { console.error(`refusing ${base}: the admin token only goes over https (or to this machine)`); process.exit(1); }
+if (!/^https:\/\//.test(base) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(base)) { console.error(`refusing ${base}: the admin token only goes over https (or to this machine)`); process.exit(1); }
 
 const published = ids.map((id) => all.find((p) => p.id === id) ?? (console.error(`no publication ${id} here`), process.exit(1)));
 const res = await fetch(`${to.replace(/\/$/, '')}/api/admin/import`, {

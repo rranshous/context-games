@@ -494,6 +494,33 @@ function result(s) { return s.count >= 2 ? { winners: [] } : null; }` }, as(pass
   ok('only with the admin token', (await call('POST', 'admin/csam', { token: 'nope', file: badFile })).status === 403);
   ok('abandon', (await call('POST', `ludants/${id}/abandon`, { token: 'w', by: 'smoke' }, as(pass))).status === 200);
   ok('its link says so', (await call('GET', `ludants/${id}`)).status === 410);
+
+  // Looks at a match run its rules' view: paced per address.
+  const looks = [];
+  const live = (await call('POST', 'matches', { rulebook: rb }, as(pass))).json;
+  for (let i = 0; i < 60; i++) looks.push((await call('GET', `matches/${live.id}`)).status);
+  ok('looks are paced', looks.includes(200) && looks.at(-1) === 429, looks.join(' '));
+
+  // What one person keeps is bounded: a ludant saved big and checkpointed until there's no room.
+  const Q = await device();
+  const q = (await call('POST', 'people', { name: 'Hoarder', label: 'smoke Q', key: Q.key, ...(await Q.prove()) })).json.pass;
+  const full = (await call('POST', 'ludants', { by: 'q' }, as(q))).json.id;
+  await call('POST', `ludants/${full}/hold`, { token: 'q', who: 'q' }, as(q));
+  const qSoma = (await call('GET', `ludants/${full}`, undefined, as(q))).json.soma;
+  let refused = null;
+  for (let i = 0; i < 60 && !refused; i++) {
+    const put = await call('PUT', `ludants/${full}`, { token: 'q', soma: { ...qSoma, sections: { ...qSoma.sections, memory: `${i} ${'x'.repeat(1_400_000)}` } }, surfaces: {} }, as(q));
+    if (put.status !== 200) { refused = put; break; }
+    const cp = await call('POST', `ludants/${full}/checkpoints`, { token: 'q', label: `big ${i}`, by: 'q' }, as(q));
+    if (cp.status !== 200) refused = cp;
+  }
+  ok('past what a person keeps, a checkpoint is refused', refused?.status === 413 && refused.json.full === true, JSON.stringify(refused?.json ?? 'never refused').slice(0, 200));
+  ok('and a new ludant', (await call('POST', 'ludants', { by: 'q' }, as(q))).status === 413);
+  ok('but saving still works', (await call('PUT', `ludants/${full}`, { token: 'q', soma: qSoma, surfaces: {} }, as(q))).status === 200);
+  ok('and sitting down', (await call('POST', `ludants/${full}/arrive`, { token: 'q', who: 'q' }, as(q))).status === 200);
+  ok('someone else has room', (await call('POST', 'ludants', { by: 'smoke' }, as(pass))).status === 200);
+  await call('POST', `ludants/${full}/abandon`, { token: 'q', by: 'q' }, as(q));
+  ok('abandoning one makes room', (await call('POST', 'ludants', { by: 'q' }, as(q))).status === 200);
 } catch (err) {
   ok('the run itself', false, err.stack);
 } finally {

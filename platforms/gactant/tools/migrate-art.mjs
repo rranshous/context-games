@@ -15,7 +15,7 @@ const env = Object.fromEntries((existsSync(join(HERE, '.env')) ? readFileSync(jo
   .map((l) => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2].replace(/^["']|["']$/g, '')]));
 const base = (process.argv[2] ?? 'https://gactant.rranshous.workers.dev').replace(/\/$/, '');
 // The admin token goes in the body: only over https, or to this machine.
-if (!/^https:\/\//.test(base) && !/^http:\/\/(127\.0\.0\.1|localhost|lilg)(:\d+)?$/.test(base)) { console.error(`refusing ${base}: the admin token only goes over https (or to this machine)`); process.exit(1); }
+if (!/^https:\/\//.test(base) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(base)) { console.error(`refusing ${base}: the admin token only goes over https (or to this machine)`); process.exit(1); }
 
 const token = process.env.GACTANT_ADMIN_TOKEN ?? env.GACTANT_ADMIN_TOKEN ?? '';
 
