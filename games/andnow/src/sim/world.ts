@@ -868,7 +868,9 @@ export class World {
     // first n are the bodies alive when each loop began.)
     const living = this.living(), n = living.length;
     for (let k = 0; k < n; k++) { const wr = living[(this.t + k) % n]; if (wr.alive) this.turn(wr); }
-    const after = this.living(), m = after.length;
+    // (Upkeep walks the list as it stands, dead and all, rather than filtering a copy: the same
+    // bodies in the same order, and a 100k-body list is one big allocation less a tick.)
+    const after = this.livingList, m = after.length;
     for (let k = 0; k < m; k++) { const wr = after[k]; if (wr.alive) this.upkeep(wr); }
     this.checkOver();
   }
@@ -1827,7 +1829,7 @@ export class World {
         const oldest = living.filter((w) => w !== wr).reduce((a, w) => (w.born < a.born ? w : a));
         this.kill(oldest, 'reaped (oldest)');
       }
-    } else if (this.living().length >= CONFIG.maxWarriors) return false;
+    } else if (this.livingList.length >= CONFIG.maxWarriors && this.living().length >= CONFIG.maxWarriors) return false; // (no filtering while there's surely room)
     // The Climb: crowding is local, so one booming population can't block (or reap) the rest.
     if (CONFIG.climb && CONFIG.crowd > 0 && (this.tileCount[this.tileOf(wr.ipX, wr.ipY)] ?? 0) >= CONFIG.crowd) return false;
     // (No per-cell x and y arrays: most tries fail, and they were a quarter of what a tick allocated.)
