@@ -4051,3 +4051,7 @@ Robby: localhost only, "period"; a storage quota per person, yes; looks need a l
   - the whole `static.cloudflareinsights.com` host is allowed, without integrity;
   - it can read localStorage (the OpenRouter key and the pass), though not the device keys, which aren't extractable.
   - It's per origin, so it's all pages or none. Waiting on Robby.
+
+**Beacon:** Robby keeps it.
+
+**Seeds, a cleaner way:** nothing outside matches depends on the generator: standings, rulebooks, drafts and ludants are untouched by it. Swapping it outright costs only the replay check (`tools/check-match.mjs`) for matches that ran before the swap. Open matches keep playing; only their future draws change. So the server gets one strong generator that takes any state, new matches get a 256-bit seed and a `v4` genesis, and only the offline checker keeps mulberry32, for v2/v3 logs. Proposed to Robby.
