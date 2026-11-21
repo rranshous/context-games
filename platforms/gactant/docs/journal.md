@@ -4079,3 +4079,5 @@ Deployed the quota, looks and admin/rulebooks first (eb6f7f6c), then read all 41
 - Smoke: all good.
 
 Open matches carry on with the new generator from their numeric state (Robby isn't worried about them). Docs: README, the table tool's description and changes.js.
+
+**Deployed** the new seeds (62c5abbc). Live: the old Cannon Clash match still checks out, and the lobby loads.
