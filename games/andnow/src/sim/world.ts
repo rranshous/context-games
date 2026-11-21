@@ -58,6 +58,8 @@ export class Cells {
    * world recomputes everyone once.
    */
   fresh = false;
+  /** The Climb: Σ burn factor of its codes (upkeep's, before the step's 2^|n|), NaN unknown. Valid while fresh (freshTraits resets it). */
+  burnSum = NaN;
   constructor(public items: number[] = []) {}
   get size() { return this.items.length; }
   add(i: number) { this.items.push(i); this.sorted = null; this.fresh = false; return this; }
@@ -65,6 +67,15 @@ export class Cells {
   clear() { this.items.length = 0; this.sorted = null; this.fresh = false; }
   [Symbol.iterator]() { return this.items[Symbol.iterator](); }
 }
+/** A world's caches, not its state: under a symbol (not saved), made on first use (a loaded world has none). */
+const SCRATCH = Symbol('scratch');
+class Scratch {
+  rowsOf: Int8Array | undefined = undefined; // (the board.step that `rows` is of)
+  rows: Int8Array | null = null;             // the climb's step by row, or null if some row isn't all one step
+  narrowOf: Uint8Array | undefined = undefined;
+  narrowAny = true;                          // any narrow cell at all (a climb has none)
+}
+
 /** What `cellSets` holds: a body's Cells, or the dead cells' Set. */
 type CellSet = Cells | Set<number>;
 const newCells = (id: number): CellSet => (id === DEBRIS ? new Set<number>() : new Cells());
@@ -885,13 +896,32 @@ export class World {
       } else if (CONFIG.climb && !tox) {
         // (One pass for the narrow passages and the climb's cold and pressure below: the
         // same draws in the same order, from one walk of the cells instead of two.)
-        const tr = this.freshTraits(wr, cells as Cells), st = this.board.step!, insulation = tr.insulation, armor = tr.armor;
-        const shell = CONFIG.shellBurn, fat = CONFIG.fatBurn;
-        const items = (cells as Cells).items;
-        for (let j = 0; j < items.length; j++) {
+        const cs = cells as Cells, tr = this.freshTraits(wr, cs), st = this.board.step!, insulation = tr.insulation, armor = tr.armor;
+        const shell = CONFIG.shellBurn, fat = CONFIG.fatBurn, code = this.code;
+        const items = cs.items, rows = this.stepRows();
+        if (this.anyNarrow()) for (let j = 0; j < items.length; j++) if (narrowAt[items[j]]) narrow++;
+        // (Steps are whole rows. A body inside one step burns 2^|n| × its codes' burn sum, kept on
+        // its Cells while its codes are: no board reads. Exact, so the same bits, while the burn
+        // factors are dyadic; the same draws in the same order.)
+        let lo = Infinity, hi = -1;
+        for (let j = 0; j < items.length; j++) { const c = items[j]; if (c < lo) lo = c; if (c > hi) hi = c; }
+        const n = rows && hi >= 0 ? rows[(lo / w) | 0] : 0;
+        if (rows && hi >= 0 && rows[(hi / w) | 0] === n && Number.isInteger(shell * 1048576) && Number.isInteger(fat * 1048576)) {
+          let s = cs.burnSum;
+          if (s !== s) {
+            s = 0;
+            for (let j = 0; j < items.length; j++) { const g = code[items[j]]; s += g === K || g === INSUL ? shell : g === FAT ? fat : 1; }
+            cs.burnSum = s;
+          }
+          burn = s * (1 << (n < 0 ? -n : n));
+          const over = !n ? 0 : n > 0 ? n - insulation : -n - armor;
+          if (over > 0) {
+            const p = CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1);
+            for (let j = 0; j < items.length; j++) if (this.rng() < p) (doomed ??= []).push(items[j]);
+          }
+        } else for (let j = 0; j < items.length; j++) {
           const c = items[j];
-          if (narrowAt[c]) narrow++;
-          const n = st[c], g = this.code[c];
+          const n = st[c], g = code[c];
           burn += (g === K || g === INSUL ? shell : g === FAT ? fat : 1) * (1 << (n < 0 ? -n : n));
           if (!n) continue;
           const over = n > 0 ? n - insulation : -n - armor;
@@ -967,10 +997,36 @@ export class World {
     else wr.zone = this.zoneOf(wr.ipX);
   }
 
+  private [SCRATCH]?: Scratch;
+  private get scratch(): Scratch { return (this[SCRATCH] ??= new Scratch()); }
+
+  /** The Climb's step of each row (steps are whole rows), rebuilt when the grid grows; null if a row isn't one step. */
+  private stepRows(): Int8Array | null {
+    const f = this.scratch, st = this.board.step!;
+    if (f.rowsOf !== st) {
+      const w = this.w, h = Math.floor(st.length / w), rows = new Int8Array(h);
+      let ok = h * w === st.length;
+      for (let y = 0; y < h && ok; y++) {
+        const n = (rows[y] = st[y * w]);
+        for (let i = y * w + 1, e = i - 1 + w; i < e; i++) if (st[i] !== n) { ok = false; break; }
+      }
+      f.rowsOf = st; f.rows = ok ? rows : null;
+    }
+    return f.rows;
+  }
+
+  /** Whether any cell is a narrow passage (never in a climb: it skips them), checked again when the grid grows. */
+  private anyNarrow(): boolean {
+    const f = this.scratch, a = this.narrow;
+    if (f.narrowOf !== a) { let k = 0; while (k < a.length && !a[k]) k++; f.narrowOf = a; f.narrowAny = k < a.length; }
+    return f.narrowAny;
+  }
+
   /** The Climb: a body's traits, recomputed only if its cells changed since (see Cells.fresh). */
   private freshTraits(wr: Warrior, cells: Cells): Traits {
     if (wr.traits && cells.fresh) return wr.traits;
     cells.fresh = true;
+    cells.burnSum = NaN;
     return wr.traits = this.traitsOf(wr);
   }
 
