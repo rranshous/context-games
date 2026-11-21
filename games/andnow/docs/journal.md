@@ -2794,3 +2794,27 @@ Robby asked for a proper chase of "husks do better beside the living". Three sub
 - **Open: feeding also cuts cold deaths** (core-frozen deaths fall 15–30% when fed), and why isn't worked out.
 
 **Fix for the misreading.** `ecology.ts`'s table now heads its columns "B's score beside an A" and "A's score beside a B". Novelty's lines name the body that gains: "`C4SDTM` beside `DmM` +0.35".
+
+## Mystery night (2026-11-21)
+
+Robby: "keep trying to figure out mysteries!" Subagents took one mystery each. All four bakes were paused from about 1:30am for the memory (s1 6.948M, s2 1.996M, s3 7.717M, s4 1.979M). One agent swept the survey, journal and scan reports for open questions; the rest are in the survey.
+
+**Solved:**
+- **Cold deaths are hunger.** A starving body sheds cells, keeping protection till last. Once it sheds its `I`/`x` its IP cell freezes in a few ticks, which counts as "core frozen". Filling the store of half of s1 cut those deaths by a third, and the freeze formula predicts the result to 0.2%.
+- **Height sets the pace of life.** Survival against births across plans is the step, not pace. A divide halves the parent's store, which starves it at high steps; blocking divides raised survival. s2 dies four times faster only because it lives highest.
+- **s4's famine** was a surge of lookers onto step 6.
+- **Breakouts** are single meadow foundings. s7 went down because divers drop children south. s13 isn't missing anything and is probably just unlucky.
+- **Grazer convoys** are two grazers chasing the same plant, not kin. Blinding one's scan breaks the pair; shifting its phase doesn't. It costs them half their births. Sprinter convoys are a real lockstep, since heading is the store mod 4.
+- **East travellers:** popping an empty stack gives 0, which is east. The table picks out mutants with a stuck heading.
+- **Grazer one-way competition** was noise. `C4SDTM` and `C6SDTM` are the same program on climb boards, and what's real is plain crowding. That makes the third false positive from the ecology table, after the `DmM`/`C4SDTM` row and the backwards husk reading. A separate agent is calibrating the ecology z.
+- **`@` deaths** match the copy-error rate.
+
+**Methods that worked:** paired interventions on a loaded checkpoint, i.e. change half the bodies and replay the same world (determinism checked: two control runs matched on all 77,732 bodies). The baseline was an RNG-only change, because any pair selected on one replay regresses toward the mean. The kill path was `World.kill` with `CONFIG.corpse` 0 or 1.
+
+**Still open:**
+- the old-age bump in s4's `CmMD` at 1.88M;
+- why s2's `:` is giving way to `m` in slot 1;
+- s1's husk rows reshuffling.
+The list is in the session scratchpad at `m2/mysteries.md`.
+
+**Measure.** "Survived + births" counts a child that dies like a survivor, and 65–88% of children die within the window. The lineage's living mass at the end, compared within a step, would be a better ecology fitness. Not adopted yet.

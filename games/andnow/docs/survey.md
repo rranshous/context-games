@@ -307,6 +307,10 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-15 | s3 | A second hunter, made by the same `D` → `]` mutation as s4's: it hunts the relict Divers | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-16 | s2 | T-crawlers: the crawler with `T` for `m`, walking at random, one step higher (5% of s2) | [T-crawlers](#t-crawlers-s2) |
 | 2026-11-16 | s2 | Hungry lookers shed their row from the ends (`CLDM` → `CLD` → `LD` → `L`): 4.6% of s2 | [Hungry lookers](#hungry-lookers-shed-their-row-s2) |
+| 2026-11-21 | all | Why they die of cold: it's hunger, ending when the insulation is shed | [Why they die of cold](#why-they-die-of-cold-its-hunger) |
+| 2026-11-21 | all | Height sets the pace of life: survival against births is the step, and dividing starves the parent up high | [Height sets the pace of life](#height-sets-the-pace-of-life) |
+| 2026-11-21 | s3 | Grazer pairs are two grazers chasing one plant, not kin, and it halves their births | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-21 | s7, s13 | Why runs stall: each boom is one founding into one meadow | [Breaking out](#how-runs-break-out-and-why-some-stall) |
 | 2026-11-20 | s2 | Lookers eat their dying kin: a looker beside a husk of its own lineage eats the corpse and divides on it (s1's version is a confound) | [Ecology scan](#what-the-ecology-scan-found) |
 
 ## How they interact
@@ -370,7 +374,7 @@ Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [
   ![](img/survey/hunter-s3.png)
 
   *The s3 hunter: `C M x ] m`, with `= C B` below. At `]` the IP turns south onto the `B`. Next to it in the run (not shown) was an unmutated `C M x D m` deep sprinter, with a `D` where the hunter has `]`.*
-- Most deaths by `@` are the dead body's own copy errors, not poisonings.
+- Most deaths by `@` are the dead body's own copy errors, not poisonings. The numbers fit: they are 0.14–0.16% of deaths in every seed, against about 0.13% expected from the copy-error rate (0.02 ÷ 62 glyphs, over a 4-glyph row).
 
 **Scavenging.** Of the dead cells eaten, 42–49% came from a body of another plan, 9–17% from the same plan, and the rest were already there when the replay began. Sprinters mostly eat the dead husks their own lineage keeps producing (`D`, `Dm`, `mMD`: no `C`, never move, all dead within 200 ticks).
 
@@ -384,11 +388,52 @@ Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [
   - **The experiment.** We replayed the same world twice, changing the husks beside a random half of the touching lookers. Making those husks vanish at t0, so they leave no corpse, wiped out the gain: births −0.17 (z −8.3), survival −0.04. Turning them into dead cells at t0 instead raised it: births +0.24, survival +0.08. So it's the corpse as food, not the husk being there. Bodies without `B` gain nothing; they do slightly worse.
   - **s1's version is a confound.** s1's sprinters touching husks show +0.11 births (z 6.4), but vanishing the husks barely changes it. Its neighbours eat only 0.11 of a husk's cells on average, against 0.85 in s2. Matched on pace (stacked move doublers) and the number of husk cells nearby, the effect is 0. Fast strains breed more and sit in husk-dense patches; lone bodies merely near husks show the same gain.
   - **Tonight's s1 `DmM` / `C4SDTM` row is noise.** The grazers have no `B` and ate no dead cells. The row is not significant in the next checkpoint (z 1.4, n 204), so it's one false hit among about 76 tests.
-  - **Open.** Fed bodies also freeze less (core-frozen deaths fall about 15–30% in the debris arm), and why food protects against cold isn't worked out yet.
+  - **Fed bodies also freeze less**, because "core frozen" is mostly how starvation ends (see [why they die of cold](#why-they-die-of-cold-its-hunger)).
 - **Big growers seem to gain from neighbours, but it's their size** (s4, 2026-11-19). `CmGD` growers touching anything (sprinters, husks, other growers) did 0.24–0.32 better than lone ones in the replay, while smothering the sprinters beside them (−0.20). It isn't an interaction. The 358 touching growers are big, old and high up: median 131 cells, 2,919 ticks old, with a max size of about 1,670. The 30 lone ones are small and young: 77 cells, 879 ticks, max size about 790. A big body touches more and outlives a 200-tick replay more often.
-- **Two grazers compete** (s1). `C6SDTM` grazers touching `C4SDTM` grazers do 0.22 worse; the reverse is neutral.
+- **Grazers crowd each other** (s1, corrected 2026-11-21). This read as "`C6SDTM` suffers beside `C4SDTM`, not the reverse", but the one-way part is noise.
+  - **The two are one program.** The digit is the SCAN type: 4 looks for plants, 6 for plants or speed food. The climb grows only plants, so both scans find the same target, and lone bodies of the two forms match on everything.
+  - **The direction flips.** Across seven s1 scans, the side that suffers more changes, on 33–47 bodies a side. Matched on step, size, fat, age and local food, the two sides are −0.14±0.10 and −0.10±0.08.
+  - **What's real is plain crowding,** the same for every grazer pair: −0.11 to −0.15 in every checkpoint. Births about halve (DIVIDE finds no room), plant intake falls by a sixth (the neighbour eats the plant first) and moves fail more, while survival is unchanged.
+  - **The removal test agrees.** Taking a `C6`'s neighbours away helps it about as much (+0.2–0.3) whether they're `C4`s or `C6`s.
 
-**Moving together.** Thousands of kin pairs move in step for a while. s3's `C4SDTM` grazers travel in pairs, touching for most of the replay and moving together up to 78 times in 200 ticks. Pairs from different lineages almost never do.
+**Moving together.** Thousands of pairs move in step for a while. s3's `C4SDTM` grazers travel in pairs, touching for most of the replay and moving together up to 78 times in 200 ticks. It looked like kinship, but it's two grazers chasing the same plant (s3, 2026-11-21):
+- **Same target, same heading.** A grazer scans for the nearest plant, turns toward it and moves on almost every tick. Two grazers a few cells apart pick the same plant, so they move the same way on the same tick. When it's eaten, both pick the next one at once: 81% of target switches come within a tick of each other. Being close makes them chase the same plant, and chasing it keeps them close.
+- **Blocking holds them touching.** A move into a body is refused, so they ride stacked and the upper one is often stopped by the lower. They mostly shuttle between nearby plants: median path 120 cells, net 8.
+- **Not kin.** Siblings are 12% of convoys and 11% of touching pairs that don't convoy; partners were born a median 480 ticks apart. Different lineages convoy at the same rate, but s3 is 99.9% one lineage, so cross-lineage pairs are rare.
+- **The test.** In replays that changed one member of 126 convoy pairs:
+  - shifting its instruction phase changed nothing (8.3–8.9 moves together, against a baseline of 8.75);
+  - moving it two cells away didn't help: the pair was touching again within a median 2 ticks;
+  - blinding its scan to food broke the pair (2.1).
+- **It costs them.** Removing a grazer's partner raises its food by 29% and about triples its births. Matched on plan, age and size, convoy members have half the births of lone grazers.
+- **Sprinter convoys are a true lockstep.** A sprinter's heading is its food store mod 4, which drains at the same rate in bodies of the same plan, so matched sprinters turn together.
+- Viewer: [a grazer pair](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=3&bake=runs/bake/climb7-s3&t=7700000&pick=712374707) · [a sprinter pair](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=3&bake=runs/bake/climb7-s3&t=7700000&pick=658831751).
+
+### Why they die of cold: it's hunger
+
+The death table says cold kills 82–99.5%. Nearly all of that is starvation, ending in the cold (s1, 2026-11-21).
+- **Hunger shrinks a body.** Its store (max size) burns down every tick, 2^|step| per cell. When the store falls below the body's cell count, the body sheds a cell: fat first, then plain and code cells, protection (`I`, `K`, an `x` beside one) last. The IP's cell is never shed.
+- **Then the IP's cell freezes.** Insulation is the body's `I`s, doubled for each `x` beside an `I`, so losing one `x` costs a whole level. Every cell rolls 0.005·10^(over−1) per tick to freeze, where over is the step less the insulation. A body down to no insulation at step 4 loses its IP cell within a few ticks: "core frozen". "Starved" needs the store below 1, which a body almost never reaches first.
+- **The numbers.** 95% of core-frozen deaths came after shedding protection, with insulation falling from about 3.6 at t0 to 0.35 at death. Bodies that never shed froze 6% of the time; those that shed protection, 89%.
+- **The test.** Filling the store of a random half of s1's 98,572 bodies cut core-frozen deaths from 26,636 to 17,827 in 200 ticks. Of the 10,572 deaths it prevented, 10,562 had shed protection in the unfed run. The freeze formula applied tick by tick predicts the fed deaths to 0.2%. Fat doesn't insulate, and fed bodies don't move to warmer steps.
+
+### Height sets the pace of life
+
+- **Survival trades against births** across plans in every run (r −0.68 to −0.96, survival + births near 1.2–1.3). The axis is height. Step predicts survival at r −0.94 (s1) and −0.92 (s2). Fast forms only look short-lived because they live high, and within a step pace stops predicting survival.
+- **Dividing starves the parent up high.** A parent keeps all its cells but only half its store, and the store burns 2^|step| per cell. Blocking DIVIDE for a random half raised survival from 0.45 to 0.59 in s1 (0.15 to 0.42 for fast forms at step 4) and from 0.24 to 0.38 in s2. It made no difference on steps 0–2.
+- **Most children die young.** 65–88% of the children counted as births are dead by the end of the 200-tick window, so births overstate success. Median age halves with every step (s2: 359, 208, 98, 56 and 30 ticks at steps 2–6).
+- **Why s2 dies four times faster.** It lives highest: 54% of it is at steps 5–6. Weight each body by 2^step and deaths per unit weight are the same in all four runs (0.10–0.12). Lookers aren't living above their insulation; 124k of 131k `CLDM` match it exactly, and children almost never land on a new step.
+- **s4's famine** (1.835–1.891M) was a surge of lookers onto step 6: bodies there went 1,104 → 2,426 → 1,369, occupied tiles 91 → 215, and about 87% of the extra starvation was there, in shed lookers (`LMD`, `LM`, `L`). An old-age bump at the same time (`CmMD` at step 3) is unexplained.
+
+### How runs break out, and why some stall
+
+- **Each boom is one founding into one new meadow.** s1–s4 all broke upward with insulation 2. s1's two jumps (3.2M, 4.3M) were two separate foundings.
+- **s7 went down instead**, with armored `C6SDTM+Kx` divers. Divers divide only south or east, so one near the bottom of step −1 drops its children straight into step −2: 1,453 of 1,529 entries into −2 were births there. Going up means walking about 100 rows through a step's edge, which has about a quarter of the plants of its middle.
+- **s7 stalled** filling one meadow column (about a quarter of its tiles), fenced by a barren strip, and its children never go west.
+- **s13 isn't missing a glyph.** It has had insulation-2 bodies and `x` throughout, but none reached step ±2 in 30k ticks. s3 looked the same at 3.0M and broke out 1.6M ticks later, so it's probably luck and a small pool of founders.
+
+### The farthest travellers go east because the stack is empty
+
+About 90% of the scans' farthest travellers go straight east. The table ranks by net distance, so it only catches bodies whose heading never changes, and that is usually east. Popping an empty stack gives 0, which is east. Rows that lost the instruction setting their heading (`CDM`, `CM`, `M`, `CD_M`…) go straight east forever, and the few west and south travellers are the same with another constant left on the stack (`CD2M`, `CMD5`). The main sprinter rows head every way about equally. Right after a meal a store at its cap reads as east, then north, west and south as it burns, but that's only about 1% of moves.
 
 ## Method and caveats
 
