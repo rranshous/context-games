@@ -17,6 +17,7 @@ import { Board, climbStepH, FLOOR, makeBoard, makeClimb, makeClimbStep, makeIsla
 import {
   CLASSIC_GLYPHS, CODE, COST, DX, DY, GLYPHS, T_DEBRIS, T_ENEMY, T_NOTHING, T_RESOURCE, T_SIZE, T_SPEED, T_WALL,
 } from './glyphs';
+import { Paged } from './paged';
 import { makeRng, Rng, streamSeed } from './rng';
 import { WarriorSpec } from './warrior-file';
 
@@ -236,9 +237,10 @@ export class World {
    * An endless dish's dead (founders aside) keep only which lineage they were, as the index
    * of its shared record (see kill): deadAs[zone][n] is 1 + its place in tombList, 0 for no
    * such body. A byte a body while there are fewer than 255 lineages (a long climb has had
-   * 36 million births: a slot each ran to 400 MB and most of every save).
+   * 36 million births: a slot each ran to 400 MB and most of every save). Paged: runs of one
+   * lineage's dead fold to a number a page (s1 at 1 billion births: 944 MB as bytes).
    */
-  private deadAs: (Uint8Array | Uint16Array | Int32Array)[] = Array.from({ length: ZONES }, () => new Uint8Array(0));
+  private deadAs: Paged[] = Array.from({ length: ZONES }, () => new Paged());
   private tombList: Warrior[] = [];
   private tombIndex = new Map<number, number>(); // lineage → its place in tombList
   private zoneNext: number[] = new Array(ZONES).fill(1); // each zone's next n (0 is a founder's)
@@ -518,7 +520,7 @@ export class World {
   /** A body by id (a dead one in an endless dish: its lineage's shared record; undefined for an id no body has). */
   warrior(id: number): Warrior { return this.bodies.get(id) ?? this.buried(id); }
   private buried(id: number): Warrior {
-    const k = this.deadAs[id % ZONES]?.[Math.floor(id / ZONES)];
+    const k = this.deadAs[id % ZONES]?.get(Math.floor(id / ZONES));
     return (k ? this.tombList[k - 1] : undefined) as Warrior;
   }
   /** How many bodies have ever lived. */
@@ -543,13 +545,9 @@ export class World {
     if (k === undefined) { k = this.tombList.push(tomb) - 1; this.tombIndex.set(tomb.lineage, k); }
     const z = id % ZONES, n = Math.floor(id / ZONES);
     let a = this.deadAs[z];
-    const C = k + 1 > 65535 || a instanceof Int32Array ? Int32Array : k + 1 > 255 || a instanceof Uint16Array ? Uint16Array : Uint8Array;
-    if (n >= a.length || !(a instanceof C)) {
-      const b = new C(Math.max(n + 1, a.length * 2, 1024));
-      b.set(a);
-      a = this.deadAs[z] = b;
-    }
-    a[n] = k + 1;
+    const C = k + 1 > 65535 || a.kind === 'Int32Array' ? 'Int32Array' : k + 1 > 255 || a.kind === 'Uint16Array' ? 'Uint16Array' : 'Uint8Array';
+    if (n >= a.length || a.kind !== C) a = this.deadAs[z] = a.recast(C, Math.max(n + 1, a.length * 2, 1024));
+    a.set(n, k + 1);
     this.bodies.delete(id);
   }
 
@@ -559,10 +557,11 @@ export class World {
     const old = this as unknown as { zoneBodies?: Warrior[][] };
     if (old.zoneBodies) {
       const tombs = new Set(this.tombstones.values());
-      this.bodies = new Map(); this.tombList = []; this.tombIndex = new Map(); this.deadAs = Array.from({ length: ZONES }, () => new Uint8Array(0));
+      this.bodies = new Map(); this.tombList = []; this.tombIndex = new Map(); this.deadAs = Array.from({ length: ZONES }, () => new Paged());
       old.zoneBodies.forEach((zb, z) => { for (let n = 0; n < zb.length; n++) { const wr = zb[n]; if (!wr) continue; const id = n * ZONES + z; if (tombs.has(wr)) this.bury(id, wr); else this.bodies.set(id, wr); } });
       old.zoneBodies = undefined; // (not deleted: a delete drops the world to V8's slow dictionary properties, every tick 70% slower)
     }
+    this.deadAs = this.deadAs.map((a) => (a instanceof Paged ? a : Paged.from(a))); // (saved as plain arrays)
     this.livingList = this.living().map((wr) => { const s = shaped(wr); this.bodies.set(wr.id, s); return s; });
   }
 

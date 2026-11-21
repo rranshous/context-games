@@ -14,6 +14,7 @@
 // the world's own memory). The header goes last because only then is the table's length
 // known. (Version 1 had the table inside a header at the front, version 2 a line at a time
 // after it; both still load.)
+import { Paged } from './paged';
 import { makeRng } from './rng';
 import { Cells, CONFIG, DEBRIS, World } from './world';
 
@@ -32,7 +33,7 @@ const MAGIC = new TextEncoder().encode('andnow save 3\n');
 export function* saveChunks(world: World, query: string): Generator<Uint8Array> {
   const ids = new Map<object, number>();
   const queue: (object | null)[] = [];
-  const blobs: Typed[] = [];
+  const blobs: (Typed | Paged)[] = [];
   let offset = 0;
   const ref = (v: unknown): Enc => {
     if (v === undefined) return { $u: 1 };
@@ -45,6 +46,13 @@ export function* saveChunks(world: World, query: string): Generator<Uint8Array> 
     return { $r: id };
   };
   const entry = (o: object): Enc => {
+    if (o instanceof Paged) { // (saved as the plain array it stands for)
+      offset = Math.ceil(offset / 8) * 8;
+      const e = { $ta: o.kind, off: offset, len: o.length };
+      blobs.push(o);
+      offset += o.byteLength;
+      return e;
+    }
     if (ArrayBuffer.isView(o)) {
       const name = o.constructor.name as TypedName;
       if (!(name in TYPED)) throw new Error(`can't save a ${name}`);
@@ -80,7 +88,8 @@ export function* saveChunks(world: World, query: string): Generator<Uint8Array> 
   yield pad(blobAt);
   for (const a of blobs) {
     yield pad(blobAt + Math.ceil((at - blobAt) / 8) * 8);
-    yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    if (a instanceof Paged) yield* a.bytes();
+    else yield new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
     at += a.byteLength;
   }
   const header: SaveHeader = { version: 3, query, t: world.t, config, root, tableBytes, rng: world.rng.state };
