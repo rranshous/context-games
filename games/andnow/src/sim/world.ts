@@ -1770,16 +1770,19 @@ export class World {
     } else if (this.living().length >= CONFIG.maxWarriors) return false;
     // The Climb: crowding is local, so one booming population can't block (or reap) the rest.
     if (CONFIG.climb && CONFIG.crowd > 0 && (this.tileCount[this.tileOf(wr.ipX, wr.ipY)] ?? 0) >= CONFIG.crowd) return false;
-    const mine = this.mineOf(wr);
-    const xs = mine.map((c) => c % this.w), ys = mine.map((c) => (c / this.w) | 0);
-    const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
+    // (No per-cell x and y arrays: most tries fail, and they were a quarter of what a tick allocated.)
+    const mine = this.mineOf(wr), W = this.w;
+    let mx0 = Infinity, mx1 = -Infinity, my0 = Infinity, my1 = -Infinity;
+    for (const c of mine) { const x = c % W, y = (c / W) | 0; if (x < mx0) mx0 = x; if (x > mx1) mx1 = x; if (y < my0) my0 = y; if (y > my1) my1 = y; }
+    const bw = mx1 - mx0 + 1, bh = my1 - my0 + 1;
     const ox = DX[d] * (bw + 1), oy = DY[d] * (bh + 1); // one cell of gap beyond my body
-    for (let k = 0; k < mine.length; k++) if (!this.passable(wr, xs[k] + ox, ys[k] + oy)) return false;
+    for (const c of mine) if (!this.passable(wr, (c % W) + ox, ((c / W) | 0) + oy)) return false;
     // No copying through walls: the straight line from each cell to its copy must be open
     // floor, so a child is born in space its parent could reach, never in the next room over.
     const steps = Math.abs(ox) + Math.abs(oy);
-    for (let k = 0; k < mine.length; k++) {
-      for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
+    for (const c of mine) {
+      const x = c % W, y = (c / W) | 0;
+      for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(x + DX[d] * s, y + DY[d] * s)] !== FLOOR) return false;
     }
     const id = this.nextId(wr.zone);
     const child: Warrior = shaped({
@@ -1791,14 +1794,15 @@ export class World {
     });
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(this.lifeOf(child.realm) * (0.5 + this.rng()));
     // The room a child is born in isn't one it travelled to: no "entered another room" for it.
-    const cx0 = Math.min(...xs) + ox, cx1 = Math.max(...xs) + ox, cy0 = Math.min(...ys) + oy, cy1 = Math.max(...ys) + oy;
-    this.board.rooms.forEach((r, k) => {
+    const cx0 = mx0 + ox, cx1 = mx1 + ox, cy0 = my0 + oy, cy1 = my1 + oy, rooms = this.board.rooms;
+    for (let k = 0; k < rooms.length; k++) {
+      const r = rooms[k];
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
-    });
+    }
     this.enroll(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
-      const i = this.idx(xs[k] + ox, ys[k] + oy);
+      const i = this.idx((mine[k] % W) + ox, ((mine[k] / W) | 0) + oy);
       let code = this.code[mine[k]];
       if (this.rng() < CONFIG.copyError) { code = Math.floor(this.rng() * this.glyphCount()); mutations++; }
       this.setOwner(i, id);
