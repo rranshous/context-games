@@ -2915,3 +2915,5 @@ Not done:
 - `owner` as Int32 slots (dense living-body numbers, with a slot → id table) would halve it and pack more of the board into cache. Every `owner[i]` reader, viewers included, would need to change, and saves would convert back to Float64 ids.
 - Struct-of-arrays bodies: each turn reads a whole body, so SoA would spread one body across more cache lines. A packed record per body in body order is the version worth trying.
 - A streaming load would cut the load peak.
+
+**Bakes back on speed round 3** (4:50am, 2026-11-21). All four resumed from their checkpoints (s1 6.948M, s2 1.996M, s3 7.717M, s4 1.979M), with `--max-semi-space-size=64` now in `bake.sh`. On main's build, s3 again ended at hash `0b72f6d57c619872` (740 CPU ms/tick against 1,309) and golden passed. A few minutes after loading they held 3.3, 8.5, 3.6 and 5.2 GB, 20.6 in all against 22–24 before.
