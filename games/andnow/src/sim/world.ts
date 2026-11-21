@@ -75,6 +75,8 @@ export const DEBRIS = -2;
 // (step's per-code tables: an instruction's cycle cost, and whether it's an action.)
 const OP_COST = Array.from(GLYPHS, (g) => COST[g] ?? 1);
 const OP_ACTS = Uint8Array.from(GLYPHS, (g) => +'MFXGCBWDA'.includes(g));
+/** ripe's pages: 64 cells (plants are thin on the ground, one in a few hundred cells). */
+export const RIPE_BITS = 6;
 let SHIFT_CODES = new Uint8Array(1024); // (opShift's scratch: the moving body's codes)
 const SCAN_KEYS = new Float64Array(64 * 64); // (ringScan's scratch: its window is at most 61×61)
 let SORT_SCRATCH = new Int32Array(1024);
@@ -254,11 +256,12 @@ export class World {
   owner: Float64Array; // body id (ids pass 2^31 in a crowded run), NONE or DEBRIS
   code: Uint8Array;
   resource: Uint8Array; // 0 none, 1 size, 2 speed
-  ripe: Float32Array;   // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
+  // (ripe, narrow and flesh matter at a few cells of a big board: in pages, see Paged; saved as plain arrays)
+  ripe: Paged;   // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
-  narrow: Uint8Array;
+  narrow: Paged;
   /** Dead cells: what each is worth, in quarters of an ordinary dead cell (0: ordinary). A kill's corpse is rich, see die. */
-  flesh: Uint8Array;
+  flesh: Paged;
   /** Bodies by id: the living, the founders, and the dead outside endless dishes. */
   private bodies = new Map<number, Warrior>();
   /**
@@ -293,12 +296,12 @@ export class World {
     this.owner = new Float64Array(this.w * this.h).fill(NONE);
     this.code = new Uint8Array(this.w * this.h);
     this.resource = new Uint8Array(this.w * this.h);
-    this.ripe = new Float32Array(this.w * this.h).fill(1);
+    this.ripe = new Paged('Float32Array', this.w * this.h, 1, RIPE_BITS);
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
-    this.narrow = new Uint8Array(this.w * this.h);
-    this.flesh = new Uint8Array(this.w * this.h);
+    this.narrow = new Paged('Uint8Array', this.w * this.h);
+    this.flesh = new Paged('Uint8Array', this.w * this.h);
     if (CONFIG.climb) this.initTiles();
     for (let y = 0; y < this.h && !CONFIG.climb; y++) { // (narrow passages only feed a GA stat; too slow on a climb-sized world)
       for (let x = 0; x < this.w; x++) {
@@ -308,7 +311,7 @@ export class World {
         while (this.isFloor(b + 1, y)) b++;
         while (this.isFloor(x, c - 1)) c--;
         while (this.isFloor(x, d + 1)) d++;
-        if (b - a < 2 || d - c < 2) this.narrow[this.idx(x, y)] = 1;
+        if (b - a < 2 || d - c < 2) this.narrow.set(this.idx(x, y), 1);
       }
     }
     // Island survival: sea founders arrive at CONFIG.sharkArrive, once there's prey in the water.
@@ -371,8 +374,8 @@ export class World {
         const gap = this.t - this.tileLast[k];
         for (const sk of this.spawnsInTile[k]) {
           const s = this.board.spawns[sk], i = this.idx(s.x, s.y);
-          if (this.resource[i] === 0 && this.owner[i] === NONE && gap >= this.regrowAt(s.y)) { this.resource[i] = s.kind; this.ripe[i] = 1; this.spawnTimers[sk] = 0; }
-          if (this.resource[i] === 1 && CONFIG.foodRipen > 0) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + gap / CONFIG.foodRipen);
+          if (this.resource[i] === 0 && this.owner[i] === NONE && gap >= this.regrowAt(s.y)) { this.resource[i] = s.kind; this.ripe.set(i, 1); this.spawnTimers[sk] = 0; }
+          if (this.resource[i] === 1 && CONFIG.foodRipen > 0) this.ripe.set(i, Math.min(CONFIG.foodRipeMax, this.ripe.get(i) + gap / CONFIG.foodRipen));
         }
       }
     }
@@ -438,9 +441,9 @@ export class World {
     this.owner = grown(this.owner, NONE);
     this.code = grown(this.code, 0);
     this.resource = grown(this.resource, 0);
-    this.ripe = grown(this.ripe, 1);
-    this.narrow = grown(this.narrow, 0);
-    this.flesh = grown(this.flesh, 0);
+    this.ripe = this.ripe.grown(w * h, dI, 1);
+    this.narrow = this.narrow.grown(w * h, dI, 0);
+    this.flesh = this.flesh.grown(w * h, dI, 0);
     b.terrain = terrain; b.step = step; b.h = h; this.h = h;
     // Rows and cell indices that moved (each shared object once: homes are often the start rects).
     if (D) {
@@ -462,7 +465,7 @@ export class World {
       b.spawns.push(s);
       this.spawnTimers.push(0);
       const i = s.y * w + s.x;
-      this.resource[i] = s.kind; this.ripe[i] = 1;
+      this.resource[i] = s.kind; this.ripe.set(i, 1);
     }
     // Steps: index by step − stepLo.
     if (dir > 0) { b.stepTop = b.stepTop!.map((t) => t + H); b.stepTop.push(0); b.stepH!.push(H); b.stepHi = n; }
@@ -639,7 +642,7 @@ export class World {
   private setOwner(i: number, v: number) {
     const o = this.owner[i];
     if (o === v) return;
-    if (o !== NONE) { this.cellSets.get(o)!.delete(i); if (o === DEBRIS) { this.flesh[i] = 0; this.sortedCells.delete(DEBRIS); } }
+    if (o !== NONE) { this.cellSets.get(o)!.delete(i); if (o === DEBRIS) { this.flesh.set(i, 0); this.sortedCells.delete(DEBRIS); } }
     this.owner[i] = v;
     if (v !== NONE) {
       let set = this.cellSets.get(v);
@@ -765,7 +768,7 @@ export class World {
   }
 
   /** What eating the dead cell at i is worth, as a multiple of an ordinary one. */
-  private worth(i: number) { const f = this.flesh[i]; return f ? f / 4 : 1; }
+  private worth(i: number) { const f = this.flesh.get(i); return f ? f / 4 : 1; }
 
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = new Map<string, number>();
@@ -824,7 +827,7 @@ export class World {
     if (kill && kept.length) {
       const m = CONFIG.island || CONFIG.climb ? (cells.length + 1) / kept.length : 1 + CONFIG.killPay * wr.maxSize / (CONFIG.debrisPickup * kept.length);
       const q = Math.min(255, Math.round(4 * m));
-      for (const c of kept) this.flesh[c] = q;
+      for (const c of kept) this.flesh.set(c, q);
     }
     this.log('death', `${wr.name} died: ${reason}${kill && kept.length ? ', a rich corpse' : ''}`, wr.id);
   }
@@ -894,13 +897,13 @@ export class World {
     const i = this.idx(s.x, s.y);
     // Food left alone ripens (petri dish): picked-over ground stays poor, untouched ground
     // gets rich, so whoever first breaks into new territory feasts.
-    if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
+    if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe.set(i, Math.min(CONFIG.foodRipeMax, this.ripe.get(i) + 1 / CONFIG.foodRipen));
     let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
     for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
     if (touched) { this.spawnTimers[k] = 0; return; }
     if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
       this.resource[i] = s.kind;
-      this.ripe[i] = 1;
+      this.ripe.set(i, 1);
       this.spawnTimers[k] = 0;
     }
   }
@@ -933,7 +936,7 @@ export class World {
     const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
     let doomed: number[] | undefined, swept = false, burn = 0;
     if (cells) {
-      const hm = wr.home, w = this.w, narrowAt = this.narrow;
+      const hm = wr.home, w = this.w, narrowAt = this.narrow.isZero() ? undefined : this.narrow; // (none in a climb: skip the reads)
       let home = 0, narrow = 0, x0 = w, y0 = this.h, x1 = -1, y1 = -1;
       // (Where the cells are only matters until it has left home, or where there are rooms to visit.)
       if (wr.leftHomeAt === undefined || this.board.rooms.length) {
@@ -941,7 +944,7 @@ export class World {
           const y = (c / w) | 0, x = c - y * w;
           if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
           if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
-          if (narrowAt[c]) narrow++;
+          if (narrowAt?.get(c)) narrow++;
         }
       } else if (CONFIG.climb && !tox) {
         // (One pass for the narrow passages and the climb's cold and pressure below: the
@@ -951,7 +954,7 @@ export class World {
         const items = (cells as Cells).items;
         for (let j = 0; j < items.length; j++) {
           const c = items[j];
-          if (narrowAt[c]) narrow++;
+          if (narrowAt?.get(c)) narrow++;
           const n = st[c], g = this.code[c];
           burn += (g === K || g === INSUL ? shell : g === FAT ? fat : 1) * (1 << (n < 0 ? -n : n));
           if (!n) continue;
@@ -959,7 +962,7 @@ export class World {
           if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
         }
         swept = true;
-      } else for (const c of cells) if (narrowAt[c]) narrow++;
+      } else for (const c of cells) if (narrowAt?.get(c)) narrow++;
       if (wr.leftHomeAt === undefined && home === 0 && cells.size > 0) {
         wr.leftHomeAt = this.t;
         this.log('left', `${wr.name} left its start room (whole body)`, wr.id);
@@ -1172,7 +1175,7 @@ export class World {
       const below = c + this.w, x = c % this.w;
       // Through vegetation too (a dead cell may rest on a plant; whoever eats there gets both).
       if (this.isFloor(x, ((c / this.w) | 0) + 1) && this.owner[below] === NONE) {
-        this.setOwner(below, DEBRIS); this.code[below] = this.code[c]; this.flesh[below] = this.flesh[c];
+        this.setOwner(below, DEBRIS); this.code[below] = this.code[c]; this.flesh.set(below, this.flesh.get(c));
         this.setOwner(c, NONE); this.code[c] = 0;
         continue;
       }
@@ -1729,7 +1732,7 @@ export class World {
         if (CONFIG.climb && (owner[i] === DEBRIS ? !meatShare : !plantShare)) continue;
         if (this.resource[i] === 1) {
           const feed = CONFIG.climb ? CONFIG.kelpFeed * plantShare * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
-          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed * this.ripe[i]);
+          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed * this.ripe.get(i));
           this.log('collect', `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);

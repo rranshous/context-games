@@ -16,7 +16,7 @@
 // after it; both still load.)
 import { Paged } from './paged';
 import { makeRng } from './rng';
-import { Cells, CONFIG, DEBRIS, World } from './world';
+import { Cells, CONFIG, DEBRIS, RIPE_BITS, World } from './world';
 
 type Enc = unknown;
 const TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array } as const;
@@ -174,6 +174,11 @@ export function loadWorld(bytes: Uint8Array, share = false): World {
     b.climbBase = CONFIG.climbBase; b.foodSpacing = CONFIG.plateFood;
   }
   world.yShift ??= 0;
+  // (Saved as plain arrays, held in pages: see Paged.)
+  const g = world as unknown as Record<'ripe' | 'narrow' | 'flesh', Paged | Float32Array | Uint8Array>;
+  if (!(g.ripe instanceof Paged)) g.ripe = Paged.from(g.ripe, RIPE_BITS);
+  if (g.narrow && !(g.narrow instanceof Paged)) g.narrow = Paged.from(g.narrow);
+  if (g.flesh && !(g.flesh instanceof Paged)) g.flesh = Paged.from(g.flesh);
   // Owners were Int32 until ids passed 2^31 and wrapped (s2 crashed on one at 1.897M): unwrap.
   const was = world.owner as ArrayLike<number>;
   if (!(was instanceof Float64Array)) {

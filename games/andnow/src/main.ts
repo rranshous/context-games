@@ -279,7 +279,7 @@ function render() {
         const size = world.resource[i] === 1;
         ctx.fillStyle = size ? '#3fb950' : '#e3b341';
         ctx.beginPath();
-        if (size) { ctx.arc(px + CELL / 2, py + CELL / 2, (CELL / 3) * Math.min(1.6, Math.sqrt(world.ripe[i])), 0, Math.PI * 2); } // bigger = riper
+        if (size) { ctx.arc(px + CELL / 2, py + CELL / 2, (CELL / 3) * Math.min(1.6, Math.sqrt(world.ripe.get(i))), 0, Math.PI * 2); } // bigger = riper
         else { ctx.moveTo(px + CELL / 2, py + 2); ctx.lineTo(px + CELL - 2, py + CELL / 2); ctx.lineTo(px + CELL / 2, py + CELL - 2); ctx.lineTo(px + 2, py + CELL / 2); }
         ctx.fill();
       }
@@ -352,7 +352,7 @@ function renderIsland() {
     } else if (o === DEBRIS) put(i, mix([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [150, 140, 130], 0.3)); // marine snow, faint
     else if (world.resource[i] === 1) {
       // Kelp: dark green when fresh, ripening to gold; a ripe one grows a frond above it.
-      const r = Math.min(1, (world.ripe[i] - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
+      const r = Math.min(1, (world.ripe.get(i) - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
       put(i, r < 0.5 ? mix([25, 120, 55], [80, 210, 90], r * 2) : mix([80, 210, 90], [250, 210, 60], (r - 0.5) * 2));
       if (r > 0.6 && i >= w && world.owner[i - w] === -1 && !world.resource[i - w] && world.isFloor((i - w) % w, ((i - w) / w) | 0)) put(i - w, mix([d[(i - w) * 4], d[(i - w) * 4 + 1], d[(i - w) * 4 + 2]], [200, 190, 70], 0.5));
     }
@@ -490,7 +490,7 @@ canvas.onmousemove = (ev) => {
   if (o >= 0 && ISLAND) text = `${world.warrior(o).realm ? 'shark' : 'seal'} ${text}`;
   if (CLIMB) {
     const n = world.board.step?.[i] ?? 0;
-    if (world.resource[i]) text = `plant ×${(world.richness(i) * world.ripe[i]).toFixed(0)} food (ripeness ${world.ripe[i].toFixed(1)})`;
+    if (world.resource[i]) text = `plant ×${(world.richness(i) * world.ripe.get(i)).toFixed(0)} food (ripeness ${world.ripe.get(i).toFixed(1)})`;
     const t = o >= 0 ? world.warrior(o).traits : undefined;
     if (t) text += `\narmor ${t.armor} · insulation ${t.insulation} · bite ${t.bite} · pace ${t.pace.toFixed(2)} · eats ${t.plants && t.meat ? 'both' : t.meat ? 'meat' : t.plants ? 'plants' : 'nothing'}\nmax size ${Math.floor(world.warrior(o).maxSize)} · ${genomeOfCell(o)}`;
     text = `${text ? text + '\n' : ''}step ${n > 0 ? '+' + n : n}${world.board.terrain[i] ? ' · rock' : ''}`;
