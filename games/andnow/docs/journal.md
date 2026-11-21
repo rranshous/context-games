@@ -2928,3 +2928,26 @@ The first round on the speed-round-3 build, and the first with the calibrated z.
 - **s2: `C9:mMMD` in the top 10** is the crawler with a neutral digit (9 ≡ 5 ≡ 1 mod 4, all south), the older strain in its own colonies. `C0:mMMD` (east) does worse beside its own kind (z −3.2); first significant scan, one to watch.
 - **s2, noise or known:** `CLBM` biting shed `CLD` kin (the D→B mutant again); `5` written 39 times by one `W` vandal writing its own cell count; the speed record (0.262, step-6 lookers drifting west).
 - **Detector fix.** The speed record came from bodies that died young: 124 of the 126 froze, and those that lived 100+ ticks scored only 0.199. The ecology scan now keeps net distance and ticks for bodies that lived 100+ ticks, and novelty's speed records use only those. The old speed records in runs/ecology/known.json were cleared, so the next scans will set new ones.
+
+## Speed round 4: owner as slots (2026-11-21)
+
+`owner` was a Float64Array of body ids: 301 MB on s1's 37M-cell board. It's now an Int32Array of slots, a dense number for each body with cells on the board. Same bench as round 3, CPU ms/tick, two runs each in turn under one lock, with the bakes running (a noisier machine than last round: main alone ran 847–1,258 on s1).
+
+| checkpoint | main | slots | rss after | load peak |
+|---|---|---|---|---|
+| s1 t6942000, 100 ticks (`daa73a0a43769d72`) | 951 / 916 | 935 / 918 | 1,402–1,477 → 1,251–1,358 MB | 3,979 → 3,837 MB |
+| s3 t7717000, 60 ticks (`0b72f6d57c619872`) | 997 / 974 | 1,034 / 988 | 1,712–1,728 → 1,368–1,376 MB | 4,327 → 4,160 MB |
+
+So memory only: arrays 642 → 499 MB on s1 (774 → 607 on s3), and no change in CPU. Packing more of the board into cache didn't pay: the hot reads of `owner` land on scattered cells, a cache line each whatever an entry's size, and the sweeps already read the busy bytes. Hashes unchanged; golden 2,491 identical; eight fresh dishes (petri ×3, island ×2, climb ×3, one with forced steps), straight and with a save and load halfway, hash every 1,000 ticks, all the same as main's build. A checkpoint loaded and saved at once gives the same bytes on both builds.
+
+- **Slots.** `Slots` (under a symbol, not saved) holds slot → id and each slot's count of cells. A body's own slot is on its `Cells` (`slot`, NO_SLOT without cells), so id → slot is the body's link or `cellSets`, with no Map. A slot is freed when its last cell goes and is reused; nothing walks the slots, so which body gets which can't change a run.
+- **Who writes.** `setOwner` still takes ids. Shift's bulk move writes the slot and keeps the count. `addStep` carries each body's slot onto its new Cells.
+- **Who reads.** `ownerOf(i)` and `ownerAt(x, y)` give ids, for the viewers, the tools and the cold paths. The hot loops (unreached, shed and its articulation points, traits, ringScan, a shift's edges, ooze) compare slots.
+- **Saves are byte-identical.** `owner` is saved as the Float64 ids it was (`ownerBytes`, a MB at a time), and a load turns them back into slots (`slotOwners`, once the Cells are made). It reads the saved ids as a view onto the save, not a copy, so the load peak drops ~140 MB.
+- **An id → slot Map was slow.** s1's ids are past 2^30, so they're heap numbers in V8, not small integers. A Map lookup per shift made shifts ~8% slower; the slot on `Cells` costs nothing.
+
+Not done:
+- A packed record per body in body order. Skipped: today's noise (±10%) is bigger than what it could plausibly show.
+- A streaming load (the peak is still ~3.8 GB).
+
+**Merged and the bakes restarted** (2:02pm). On main's build, s3 t7717000 60 ticks ended at `0b72f6d57c619872` (963 CPU ms/tick) and golden passed. All four resumed from their checkpoints: s1 6.982M, s2 2.007M, s3 7.748M, s4 1.993M.
