@@ -94,7 +94,7 @@ class Scratch {
   foodOwner: Float64Array | undefined = undefined;
   foodRes: Uint8Array | undefined = undefined;
   foodW = 0;
-  // What's on each cell, a byte (1 a body or dead cell, 2 a resource, 4 not floor; 0 free), so
+  // What's on each cell, a byte (1 a body or dead cell, 8 a dead cell, 2 a resource, 4 not floor; 0 free), so
   // the hot loops read one byte, not the owner, resource and terrain grids. Kept by setOwner,
   // setResource and shifts while the grids are these.
   busy: Uint8Array | null = null;
@@ -653,7 +653,7 @@ export class World {
     if (o === v) return;
     if ((o === DEBRIS || v === DEBRIS) && this.resource[i] === 0) this.fed(i, v === DEBRIS ? 1 : -1);
     const busy = this.keptBusy();
-    if (busy) busy[i] = (busy[i] & 6) | (v !== NONE ? 1 : 0);
+    if (busy) busy[i] = (busy[i] & 6) | (v !== NONE ? 1 : 0) | (v === DEBRIS ? 8 : 0);
     if (o !== NONE) { this.cellSets.get(o)!.delete(i); if (o === DEBRIS) { this.flesh[i] = 0; this.sortedCells.delete(DEBRIS); } }
     this.owner[i] = v;
     if (v !== NONE) {
@@ -1069,7 +1069,7 @@ export class World {
     const f = this.scratch, owner = this.owner, resource = this.resource, terrain = this.board.terrain;
     if (!f.busy || f.busyOwner !== owner || f.busyRes !== resource || f.busyTer !== terrain || f.busyVer !== this.terrainVersion) {
       const n = owner.length, busy = new Uint8Array(n);
-      for (let i = 0; i < n; i++) busy[i] = (owner[i] !== NONE ? 1 : 0) | (resource[i] !== 0 ? 2 : 0) | (terrain[i] !== FLOOR ? 4 : 0);
+      for (let i = 0; i < n; i++) busy[i] = (owner[i] !== NONE ? 1 : 0) | (owner[i] === DEBRIS ? 8 : 0) | (resource[i] !== 0 ? 2 : 0) | (terrain[i] !== FLOOR ? 4 : 0);
       f.busy = busy; f.busyOwner = owner; f.busyRes = resource; f.busyTer = terrain; f.busyVer = this.terrainVersion;
     }
     return f.busy;
@@ -1095,7 +1095,7 @@ export class World {
     if (was === k) return;
     if ((was === 0) !== (k === 0) && this.owner[i] !== DEBRIS) this.fed(i, k ? 1 : -1);
     const busy = this.keptBusy();
-    if (busy) busy[i] = (busy[i] & 5) | (k !== 0 ? 2 : 0);
+    if (busy) busy[i] = (busy[i] & 13) | (k !== 0 ? 2 : 0);
     this.resource[i] = k;
   }
 
@@ -1672,9 +1672,9 @@ export class World {
     // One sweep of the window collects the matches, keyed (distance, board index), and they're
     // tried nearest first: the same order as searching ring by ring, at a fraction of the cost.
     // (classify, inlined: this is the hottest loop in a climb. The window is inside the board.)
-    // (The busy bytes first: a match needs a body or dead cell (1) or a resource (2) on floor (not 4).)
+    // (The busy bytes first: a match needs a body or dead cell (1), a dead cell (8) or a resource (2), on floor (not 4).)
     const owner = this.owner, resource = this.resource, me = wr.id, busy = this.busyGrid();
-    const need = type === T_ENEMY || type === T_DEBRIS ? 1 : type === T_SIZE || type === T_SPEED || type === T_RESOURCE ? 2 : 3;
+    const need = type === T_DEBRIS ? 8 : type === T_ENEMY ? 1 : type === T_SIZE || type === T_SPEED || type === T_RESOURCE ? 2 : 3;
     const keys = SCAN_KEYS;
     let n = 0;
     for (let y = y0; y <= y1; y++) {
@@ -1903,7 +1903,7 @@ export class World {
     const mine = this.mineOf(wr), set = this.cells(wr);
     if (!set || !mine.length || !this.foodNear(set, mine)) return false; // (nearly always: no food in the blocks round me)
     let got = false;
-    const W = this.w, H = this.h, owner = this.owner, resource = this.resource;
+    const W = this.w, H = this.h, owner = this.owner, busy = this.busyGrid();
     const meatShare = this.dietShare(wr, 'meat'), plantShare = this.dietShare(wr, 'plants');
     for (const c of mine) {
       const x = c % W, y = (c / W) | 0;
@@ -1911,7 +1911,7 @@ export class World {
         const nx = x + DX[d], ny = y + DY[d];
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const i = ny * W + nx;
-        if (resource[i] === 0 && owner[i] !== DEBRIS) continue; // (nothing to eat: most neighbours)
+        if (!(busy[i] & 10)) continue; // (nothing to eat, no resource (2) or dead cell (8): most neighbours)
         // Island survival: islanders eat only vegetation, sea creatures only dead cells.
         if (CONFIG.island && (wr.realm ? owner[i] !== DEBRIS : owner[i] === DEBRIS)) continue;
         // The Climb: you digest what your chemistry lets you (plants, meat, or both), and food is 10× richer each step out.
