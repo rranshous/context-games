@@ -3957,3 +3957,7 @@ Robby also passed on a doing line from a tanks ludant: "the cannons aren't linin
 **Deployed** as version b2a53062.
 
 **Workers Paid (2026-11-20).** Robby upgraded the account to the $5 plan, so checks past the free 10,000 neurons are billed instead of failing. Spend stays bounded by `MAX_CHECKS_A_DAY` (200). The backlog (Coinflip and Realmer in the lobby among them) clears on the next hourly sweep, at :17.
+
+## Haiku isn't worth it (2026-11-20)
+
+Robby, after building with Haiku 5.5 through `?model=haiku`: "i don't think the tradeoff is worth it. it just doesn't get it right enough. it takes a lot more back and forth." A cheaper, slightly quicker turn (9.2s against Sonnet's 12.3s) is lost to the extra rounds it takes to get a change right. Sonnet stays the default; the switch stays for trying models. It's what other projects here found too: Haiku is fine for cheap per-frame calls, not for a body changing itself. If a turn needs to be faster, reasoning effort on Sonnet is the lever to try, not a smaller model.
