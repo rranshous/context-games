@@ -60,6 +60,13 @@ export class Cells {
   fresh = false;
   /** The Climb: Σ burn factor of its codes (upkeep's, before the step's 2^|n|), NaN unknown. Valid while fresh (freshTraits resets it). */
   burnSum = NaN;
+  /**
+   * opShift's: per direction, the places in `sorted` whose next cell that way isn't the body's
+   * (the edge that leads, or, the other way, trails). The same shape has the same edges, so they're
+   * kept while `sorted` is the same array (a shift moves it in place).
+   */
+  edgesOf: number[] | null = null;
+  edges: (Int32Array | undefined)[] = [undefined, undefined, undefined, undefined];
   constructor(public items: number[] = []) {}
   get size() { return this.items.length; }
   add(i: number) { this.items.push(i); this.sorted = null; this.fresh = false; return this; }
@@ -1541,11 +1548,12 @@ export class World {
 
   private opShift(wr: Warrior, d: number): boolean {
     d = ((d % 4) + 4) % 4;
-    const mine = this.mineOf(wr);
-    for (const c of mine) {
-      const nx = (c % this.w) + DX[d], ny = ((c / this.w) | 0) + DY[d];
-      if (this.ownerAt(nx, ny) === wr.id) continue;
-      if (!this.passable(wr, nx, ny)) return false;
+    const mine = this.mineOf(wr), set = this.cells(wr), w = this.w;
+    // (Only the leading edge can be blocked: the rest moves into the body's own cells.)
+    const lead = set && mine.length ? this.edge(set, mine, d, wr.id) : undefined;
+    if (lead) for (let j = 0; j < lead.length; j++) {
+      const c = mine[lead[j]];
+      if (!this.passable(wr, (c % w) + DX[d], ((c / w) | 0) + DY[d])) return false;
     }
     // Island survival: a sea creature eats the dead cells it swims into.
     if (CONFIG.island && wr.realm === 1) {
@@ -1562,20 +1570,39 @@ export class World {
     // Bulk move, bypassing setOwner: every destination was free or mine, so no other
     // owner's cells change, and a translation keeps board order, so the moved list is
     // still sorted. (In place: the sorted list is ours, and the set is refilled in board
-    // order, as a fresh one would be.)
+    // order, as a fresh one would be. Owners change only on the edges: the trailing one
+    // is left, the leading one taken.)
     const n = mine.length, codes = SHIFT_CODES.length >= n ? SHIFT_CODES : (SHIFT_CODES = new Uint8Array(2 * n));
-    const owner = this.owner, code = this.code, id = wr.id, delta = DY[d] * this.w + DX[d];
-    for (let k = 0; k < n; k++) { const c = mine[k]; codes[k] = code[c]; owner[c] = NONE; code[c] = 0; }
-    let set = this.cells(wr);
-    const fresh = !!set?.fresh;
-    if (set) set.clear(); else this.cellSets.set(id, set = new Cells());
-    for (let k = 0; k < n; k++) { const c = (mine[k] += delta); owner[c] = id; code[c] = codes[k]; set.add(c); }
-    set.sorted = mine; set.fresh = fresh;
+    const owner = this.owner, code = this.code, id = wr.id, delta = DY[d] * w + DX[d];
+    if (!set) { this.cellSets.set(id, new Cells()); } // (no cells: nothing moves, but it gets a set, as before)
+    else if (n) {
+      const trail = this.edge(set, mine, (d + 2) % 4, id), items = set.items;
+      for (let k = 0; k < n; k++) codes[k] = code[mine[k]];
+      for (let j = 0; j < trail.length; j++) { const c = mine[trail[j]]; owner[c] = NONE; code[c] = 0; }
+      for (let k = 0; k < n; k++) { const c = (mine[k] += delta); code[c] = codes[k]; items[k] = c; }
+      for (let j = 0; j < lead!.length; j++) owner[mine[lead![j]]] = id;
+      set.sorted = mine;
+    }
     wr.ipX += DX[d];
     wr.ipY += DY[d];
     wr.ox += DX[d];
     wr.oy += DY[d];
     return true;
+  }
+
+  /** A body's edge facing d (see Cells.edges): `mine` is its sorted cells, as on the board now. */
+  private edge(set: Cells, mine: number[], d: number, id: number): Int32Array {
+    if (set.edgesOf !== mine) { set.edgesOf = mine; set.edges.fill(undefined); }
+    let e = set.edges[d];
+    if (!e) {
+      const w = this.w, h = this.h, owner = this.owner, out: number[] = [];
+      for (let k = 0; k < mine.length; k++) {
+        const c = mine[k], nx = (c % w) + DX[d], ny = ((c / w) | 0) + DY[d];
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || owner[ny * w + nx] !== id) out.push(k);
+      }
+      e = set.edges[d] = Int32Array.from(out);
+    }
+    return e;
   }
 
   /**
