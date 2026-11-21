@@ -865,19 +865,23 @@ export class World {
     // Respawn resources at empty spots. A spot doesn't regrow while anything sits on or
     // touches it, so camping a spawn doesn't work: you have to leave and come back.
     const spawns = this.board.spawns;
-    if (CONFIG.climb) { for (const t of this.activeTiles) for (const k of this.spawnsInTile[t]) this.regrowSpawn(k); }
+    if (CONFIG.climb) { const busy = this.busyGrid(); for (const t of this.activeTiles) for (const k of this.spawnsInTile[t]) this.regrowSpawn(k, busy); }
     else for (let k = 0; k < spawns.length; k++) this.regrowSpawn(k);
   }
 
   /** One spawn point's regrowth. */
-  private regrowSpawn(k: number) {
+  private regrowSpawn(k: number, busy?: Uint8Array) {
     const s = this.board.spawns[k];
     const i = this.idx(s.x, s.y);
     // Food left alone ripens (petri dish): picked-over ground stays poor, untouched ground
     // gets rich, so whoever first breaks into new territory feasts.
-    if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
-    let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
-    for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
+    // (With the busy bytes: a resource is 2, an owner 1; nothing reads the grids for an empty spot.)
+    if (CONFIG.foodRipen > 0 && (!busy || busy[i] & 2) && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
+    let touched = busy ? (busy[i] & 3) !== 0 : this.resource[i] !== 0 || this.owner[i] !== NONE;
+    for (let d = 0; d < 4 && !touched; d++) {
+      const x = s.x + DX[d], y = s.y + DY[d];
+      touched = busy ? this.inBounds(x, y) && (busy[y * this.w + x] & 1) !== 0 : this.ownerAt(x, y) !== NONE;
+    }
     if (touched) { this.spawnTimers[k] = 0; return; }
     if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
       this.setResource(i, s.kind);
