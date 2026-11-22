@@ -339,6 +339,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-21 | s4 | Nibblers: `M` → `R` sprinter mutants whose aimed bites hit the kin stacked above them | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-21 | s2 | The crawler's digit is neutral: `C9`, `C5`, `C1` are one program in separate colonies; `C0` (east) crowds itself | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-21 | s1 | The simplest giant: `C` → `[` sends a sprinter's IP down a 3-cell loop through a `G`, growing an east thread for 62k+ ticks | [Giants](#giants) |
+| 2026-11-22 | s4 | The starvation wave is a change of label: new step-6 looker layouts shed tails and keep insulation, so hunger ends in "starved" instead of "frozen" | [Up high, the insulated starve](#up-high-the-insulated-starve-outright-s4) |
 | 2026-11-22 | s2 | `Ce` crawlers: the child goes south after a step that went through, east after a blocked one (as common as `C9`) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 
 ## How they interact
@@ -457,9 +458,13 @@ The death table says cold kills 82–99.5%. Nearly all of that is starvation, en
 At steps 5–6 the burn outruns the shedding. A 12-cell body at step 6 burns about 2 of its store a tick but can drop only one cell a tick, so once the store falls below its cell count it runs dry before shedding reaches its insulation. Bodies that keep their insulation die "starved", not frozen.
 - **A second wave in s4.** Starved deaths per 60 ticks went 142 (1.978M) → 212 → 303 → 1,184 (1.984M), 1.2% of all deaths, up from 0.1%. It's the world, not the speed round: the old code replays the same counts.
 - **Who.** 98% die at steps 5–6, and 85% have insulation exactly matched to their step. Three in four are husks with no `C`: shed lookers (`LMD`, `LM`, `L`, about 2,000) and sprinter husks (`mMD`, about 420). Median 12 cells, age 29.
-- **Not crowding this time.** The 1.86M famine had the same signature, but step 6 then held 2,426 bodies. It holds 1,440 now, and step 5 has joined in. What's making the extra insulated husks isn't known yet.
+- **It's a change of label, not of hunger** (checked 2026-11-22, at 2.017M). Starved deaths at step 6 rose from 79 to 6,488 per 60 ticks between 1.978M and 2.017M, while frozen deaths there fell from 4,568 to 1,394. Deaths per step-6 body held at about 2.7 per 60 ticks throughout, and so did plants, meals per body and a child's store at birth.
+  - **The step-6 lookers changed their layout.** The old plans (`CLMD+BIIMxxxx` and kin) hung an `I` at the end of a dangling stalk, and shedding only takes a cell that doesn't split the body, so that `I` went about third. Insulation crashed and the body froze at insulation 2 or 0.
+  - The new plans (`CLMD+BIIMS[^sxxxx`, `CLMD+7BCIIMWxxxx` and kin) keep the `I` inside (`xMxI`) and carry plain cells on dangling tails. A hungry body sheds the tails first and runs dry with insulation 6 intact: 99% never shed a protection cell. At the same count of plain cells, old plans starved 1–4% of the time and new ones 73–87%, so it's the layout, not the cell count.
+  - Three in four are husks because the `C` is a code cell and goes in the first sheds. 62% are children born in the window, nearly all to `CLMD`.
+- **Step 6 is filling up.** It more than doubled since 2.0M (1,237 → 2,941 bodies, 118 → 258 tiles) while s4 holds at about 185k, which is why starved deaths keep rising (5.8% of deaths at 2.017M). Step 5's own spike at 1.984M went back down. Why step 6 is growing now is still open.
 
-[A starving `LMD+III[xx|` at step 6 (1.984M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1984000&pick=1382670666). No 100k checkpoint has the wave yet; re-pick at 2.0M.
+[A step-6 looker that sheds to `LMD` and starves 21 ticks later (2.0M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=2000000&pick=1218716775)
 
 ### Height sets the pace of life
 

@@ -184,13 +184,18 @@ for (const f of files) {
   }
 
   // Causes of death and their shares.
+  // A swing comes with the death rate per body, then and now: one cause can take over another's
+  // deaths (s4's step-6 lookers went from "core frozen" to "starved" at the same rate, 2.0M).
   const dead = Object.values(r.deaths).reduce((a, b) => a + b, 0) || 1;
+  const rk = `s${seed}|deathrate`, rate = dead / Math.max(1, r.alive), was = ledger.records[rk];
+  const rates = was ? `; all deaths per body ${was.v.toFixed(3)} → ${rate.toFixed(3)}` : '';
   for (const [cause, n] of Object.entries(r.deaths)) {
     note(seed, 'death', cause, where, `death by **${cause}** (${n})`);
     const share = n / dead, k = `s${seed}|death|${cause}`, prev = ledger.records[k];
-    if (prev && share > 0.01 && (share > prev.v * 2 || share < prev.v / 2)) at(seed).notes.push(`death by ${cause}: ${(share * 100).toFixed(1)}% of deaths, was ${(prev.v * 100).toFixed(1)}%`);
+    if (prev && share > 0.01 && (share > prev.v * 2 || share < prev.v / 2)) at(seed).notes.push(`death by ${cause}: ${(share * 100).toFixed(1)}% of deaths, was ${(prev.v * 100).toFixed(1)}%${rates}`);
     ledger.records[k] = { v: share, at: where };
   }
+  ledger.records[rk] = { v: rate, at: where };
 
   // Movement: the fastest plan (cells per tick, net), and the share that never moved.
   // (The scan's fastest plan only, against the record: plan by plan, each beat the one before.)

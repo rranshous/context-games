@@ -2960,3 +2960,12 @@ Scan 7:47–8:46, s1 t7003000, s2 t2014000, s3 t7769000, s4 t2003000, the first 
 - **s4's fastest sustained mover:** `CMD+BCIIMMnxxxx`, a sprinter that lost its `m`, 0.82 cells a tick net over 100+ ticks: an east traveller. A sentence in the east-travellers section.
 - **Detector fix.** With the speed records cleared last round, every plan beat the one before within one scan, giving a cascade of "records". Novelty now takes the scan's fastest plan per run and compares only that. The ledger now holds the right baselines (s1 0.19, s2 0.16, s3 0.18, s4 0.82).
 - The s4 starvation wave's viewer link is still at 1.984M. The 2.0M checkpoint exists now; re-pick next round.
+
+## Discovery round 13 (2026-11-22 morning)
+
+Scan 7:47–8:51, s1 t7037000, s2 t2025000, s3 t7800000, s4 t2017000. Two subagents checked the real candidates.
+
+- **s4: the starvation wave is a change of label.** Starved rose to 5.8% of deaths (21,669 per 200 ticks). At step 6, starved went 79 → 6,488 per 60 ticks from 1.978M to 2.017M while frozen fell 4,568 → 1,394, and deaths per step-6 body held at about 2.7 per 60 ticks. Plants, meals per body and a child's starting store didn't change either. The step-6 lookers turned over to plans that keep their `I` inside the body and carry plain cells on dangling tails: a hungry body sheds the tails and runs dry with insulation 6 intact (99% never shed protection). The old plans hung an `I` on an outlying stalk that went about third, so they froze. Step 6 also more than doubled since 2.0M (1,237 → 2,941). Why it's growing is open. The survey section is rewritten, with the viewer link at 2.0M.
+- **s2: `Ce:mMMD`** places its child by whether its last step went through (`e` reads the second MOVE's result; `C` comes after it). 57% of children go south, 43% east, with the same fitness as `C9`. Not new: 2,700–3,950 bodies since 1.9M. The same check found the survey wrong about the crawler's digit: the IP runs west, both MOVEs take max size, and only the DIVIDE takes the digit. Fixed. `C0`'s self-crowding didn't repeat (a blip; `C0` is down to 140).
+- **Known:** kin bites (`CTDB`, `CLM[`), vandals writing fat (`WCD`, `WCDM`, `MWDm`), `1` written in s4, and `mM` husks drifting at 0.47 cells a tick (store-steered, an east-traveller cousin).
+- **Detector:** a death-cause share swing now also gives all deaths per body, then and now, so a cause taking over another's deaths reads differently from more dying.
