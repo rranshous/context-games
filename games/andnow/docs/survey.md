@@ -254,6 +254,12 @@ The direction decides the shape:
 - They end the way that one did, cut by a single bite at a narrow point (see the [journal](journal.md)).
 - They're rare, about 1% of a run at any time, but they set every size record.
 
+**The simplest giant (s1, found 2026-11-21)** is a sprinter with one copy error. In `CDmM` the `C` became `[`, which turns the IP south. The IP then loops down a column of three cells, `[`, `G`, `C`, and never runs `D`, `m` or `M` again. The `G` pops an empty stack, 0, which is east, so the body grows one thread east forever, eating as it goes. At 7.0M it was 485 cells (479 × 3) and 62,658 ticks old, with a pace of 0.06. It's the same kind of mutation that made the hunters (`D` → `]`), here landing on a `C`.
+
+![](img/survey/giant-turn-s1-core.png)
+
+[The `[DmM` giant in the viewer (7.0M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=1&bake=runs/bake/climb7-s1&t=7000000&pick=633019399)
+
 [s3's pole in the viewer (6.5M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=3&bake=runs/bake/climb7-s3&t=6500000&pick=61967760)
 
 #### Combs (s2)
@@ -327,6 +333,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-21 | s4 | The `CmMD` old-age bump was a faster sprinter form taking over step 3 | [Height sets the pace of life](#height-sets-the-pace-of-life) |
 | 2026-11-21 | s4 | Nibblers: `M` → `R` sprinter mutants whose aimed bites hit the kin stacked above them | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-21 | s2 | The crawler's digit is neutral: `C9`, `C5`, `C1` are one program in separate colonies; `C0` (east) crowds itself | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
+| 2026-11-21 | s1 | The simplest giant: `C` → `[` sends a sprinter's IP down a 3-cell loop through a `G`, growing an east thread for 62k+ ticks | [Giants](#giants) |
 
 ## How they interact
 
@@ -472,7 +479,7 @@ At steps 5–6 the burn outruns the shedding. A 12-cell body at step 6 burns abo
 
 ### The farthest travellers go east because the stack is empty
 
-About 90% of the scans' farthest travellers go straight east. The table ranks by net distance, so it only catches bodies whose heading never changes, and that is usually east. Popping an empty stack gives 0, which is east. Rows that lost the instruction setting their heading (`CDM`, `CM`, `M`, `CD_M`…) go straight east forever, and the few west and south travellers are the same with another constant left on the stack (`CD2M`, `CMD5`). The main sprinter rows head every way about equally. Right after a meal a store at its cap reads as east, then north, west and south as it burns, but that's only about 1% of moves.
+About 90% of the scans' farthest travellers go straight east. The table ranks by net distance, so it only catches bodies whose heading never changes, and that is usually east. Popping an empty stack gives 0, which is east. Rows that lost the instruction setting their heading (`CDM`, `CM`, `M`, `CD_M`…) go straight east forever, and the few west and south travellers are the same with another constant left on the stack (`CD2M`, `CMD5`). The main sprinter rows head every way about equally. Right after a meal a store at its cap reads as east, then north, west and south as it burns, but that's only about 1% of moves. The fastest sustained mover found so far is one of these: s4's `CMD+BCIIMMnxxxx`, a sprinter that lost its `m`, at 0.82 cells a tick net over 100+ ticks (35 bodies, 2.0M).
 
 ## Method and caveats
 

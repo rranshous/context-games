@@ -2951,3 +2951,12 @@ Not done:
 - A streaming load (the peak is still ~3.8 GB).
 
 **Merged and the bakes restarted** (2:02pm). On main's build, s3 t7717000 60 ticks ended at `0b72f6d57c619872` (963 CPU ms/tick) and golden passed. All four resumed from their checkpoints: s1 6.982M, s2 2.007M, s3 7.748M, s4 1.993M.
+
+## Discovery round 12 (2026-11-21 evening)
+
+Scan 7:47–8:46, s1 t7003000, s2 t2014000, s3 t7769000, s4 t2003000, the first on the owner-slots build. Mostly known kinds:
+- **s1: a new giant row, `[DmM`.** A `CDmM` sprinter whose `C` became `[` (turn south). Its IP loops down a 3-cell column (`[`, `G`, `C`) and never reaches `D`/`m`/`M` again, and `G` pops an empty stack (0, east), so it grows one thread east. At 7.0M it's 485 cells (479 × 3) and 62,658 ticks old. In the survey under Giants, with an image of the code end. The other flagged giant (row `?`, 547 cells) had died by 7.0M; the form was seen in s3 before.
+- **Known:** kin bites in s2 (`Cm:7MBD`) and s3 (`CMvm`, a turn mutant like the nibblers); vandals writing `L`/`M` in s2 and a `CmW5` vandal in s4 (259 writes into 3 bodies); `CMxDm` crowding in s3 (−0.07, z −3.0, tiny).
+- **s4's fastest sustained mover:** `CMD+BCIIMMnxxxx`, a sprinter that lost its `m`, 0.82 cells a tick net over 100+ ticks: an east traveller. A sentence in the east-travellers section.
+- **Detector fix.** With the speed records cleared last round, every plan beat the one before within one scan, giving a cascade of "records". Novelty now takes the scan's fastest plan per run and compares only that. The ledger now holds the right baselines (s1 0.19, s2 0.16, s3 0.18, s4 0.82).
+- The s4 starvation wave's viewer link is still at 1.984M. The 2.0M checkpoint exists now; re-pick next round.

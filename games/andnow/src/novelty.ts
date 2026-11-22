@@ -193,12 +193,17 @@ for (const f of files) {
   }
 
   // Movement: the fastest plan (cells per tick, net), and the share that never moved.
-  let never = 0, all = 0;
+  // (The scan's fastest plan only, against the record: plan by plan, each beat the one before.)
+  let never = 0, all = 0, best: (typeof r.movement)[number] | undefined, top = 0;
   for (const m of r.movement) {
     never += m.never; all += m.n;
     // Only bodies that lived 100+ ticks count: a plan of short-lived bodies scores high on a few steps.
     if (!m.longN || m.longN < 20) continue;
     const speed = m.longNet! / m.longTicks!;
+    if (speed > top) { top = speed; best = m; }
+  }
+  if (best) {
+    const m = best, speed = top;
     record(seed, `s${seed}|speed`, speed, where, `fastest yet in s${seed}: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick net (${m.longN} bodies that lived 100+ ticks)${known(rowOf(m.key))}`, 1.2);
     record(seed, 'all|speed', speed, where, `fastest in any run: **${nameOf(m.key)}**, ${speed.toFixed(3)} cells a tick (s${seed})${known(rowOf(m.key))}`, 1.2);
   }
