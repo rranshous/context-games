@@ -193,8 +193,13 @@ T-crawlers at step 3, where they're densest, with lookers' masts among them.
 
 ![](img/survey/crawler-c9-s2.png)
 
-`C9:mMMD`, `C5:mMMD` and `C1:mMMD` are one program. The digit only becomes a direction (mod 4), and 9, 5 and 1 all send the second MOVE and the DIVIDE south. The bodies match cell for cell and fare the same (step 2, pace 3.4–3.7, survival 0.78 against 0.70). `C9` is the older strain, here since 1.1M. Each digit holds its own colonies (98–99% of a tile's 5/9 crawlers share one digit), and by 2.0M drift has made `C9` twice as common as `C5`, while the three together stay at about 5,100–5,700.
-- `C0:mMMD` is different, since 0 is east. Its 426 bodies did worse beside their own row at 2.0M: −0.39 at z −3.2, with 55% survival against 79% alone. That's a bigger cost than the T-crawlers' and it hits survival too, but it's one scan so far. Sending children east, along the step, might line kin up on the same plants. One to watch.
+`C9:mMMD`, `C5:mMMD` and `C1:mMMD` are one program. The crawler's IP runs west, so the row reads `D M M m : 9 C`: both MOVEs take the max size (pushed by `m`, doubled by `:`), and only the DIVIDE takes the digit. The digit only becomes a direction (mod 4), and 9, 5 and 1 all place the child south. The bodies match cell for cell and fare the same (step 2, pace 3.4–3.7, survival 0.78 against 0.70). `C9` is the older strain, here since 1.1M. Each digit holds its own colonies (98–99% of a tile's 5/9 crawlers share one digit), and by 2.0M drift has made `C9` twice as common as `C5`, while the three together stay at about 5,100–5,700.
+- `C0:mMMD` places its child east. Its 426 bodies did worse beside their own row at 2.0M (−0.39 at z −3.2), but it didn't repeat: −0.06 at z −0.4 at 2.014M, and by 2.025M `C0` was down to 140 bodies. A blip.
+- **`Ce:mMMD` places its child by whether its last step worked** (found 2026-11-22). `e` pushes 1 if the last action succeeded, else 0, and the last action before it is the second MOVE (`C` comes after `e`, so whether it ate never reaches the stack). So a child goes south after a step that went through and east after one that was blocked: 57% south and 43% east, where `C9`'s go 92% south. It isn't new: at 2,700–3,950 bodies in every scan since 1.9M it's as common as `C9`, and only its commonest plan just reached the top 10. It lives and breeds like `C9` (step 2, survival 0.77 against 0.78, 0.45 births a body against 0.46), so steering its children this way buys nothing measurable.
+
+  ![](img/survey/crawler-ce-s2.png)
+
+  [A `Ce` crawler in the viewer (2.0M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=2000000&pick=2108096874)
 
 [A `C9` crawler in the viewer (2.0M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=2000000&pick=2337415915)
 
@@ -334,6 +339,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-21 | s4 | Nibblers: `M` → `R` sprinter mutants whose aimed bites hit the kin stacked above them | [Ecology scan](#what-the-ecology-scan-found) |
 | 2026-11-21 | s2 | The crawler's digit is neutral: `C9`, `C5`, `C1` are one program in separate colonies; `C0` (east) crowds itself | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-21 | s1 | The simplest giant: `C` → `[` sends a sprinter's IP down a 3-cell loop through a `G`, growing an east thread for 62k+ ticks | [Giants](#giants) |
+| 2026-11-22 | s2 | `Ce` crawlers: the child goes south after a step that went through, east after a blocked one (as common as `C9`) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 
 ## How they interact
 
