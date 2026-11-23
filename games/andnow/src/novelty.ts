@@ -104,9 +104,16 @@ for (const f of files) {
   // beside CMDm+BCIMMnnxxxxx) is the same body with a longer or shorter tail: noted, but not listed.
   const shape = (name: string) => { const [row, rest = ''] = name.split('+'); return `${row}+${[...new Set(rest)].join('')}`; };
   const shapes = new Set(Object.keys(ledger.seen).filter((k) => k.startsWith('plan|')).map((k) => shape(k.slice(5))));
+  // A husk (no C) is what a starving body's protection holds onto; name the commonest living layout
+  // whose code cells it is a part of, since the husk rows follow their parents' layouts.
+  const huskOf = (p: Report['plans'][number]) => {
+    if (p.name.split('+')[0].includes('C')) return '';
+    const mine = p.key.split(';'), from = r.plans.find((q) => q.name.split('+')[0].includes('C') && mine.every((c) => q.key.split(';').includes(c)));
+    return from ? ` · *a husk of the layout **${from.name}** (${from.n.toLocaleString()}): it follows that layout's numbers*` : '';
+  };
   for (const p of r.plans.slice(0, 10)) {
     if (!ledger.seen[`plan|${p.name}`] && shapes.has(shape(p.name))) { ledger.seen[`plan|${p.name}`] = { first: where, seeds: [seed] }; continue; }
-    note(seed, 'plan', p.name, where, `body plan **${p.name}** in the top 10 (${p.n})`);
+    note(seed, 'plan', p.name, where, `body plan **${p.name}** in the top 10 (${p.n})${huskOf(p)}`);
   }
 
   // Bites and kills, by row pair.

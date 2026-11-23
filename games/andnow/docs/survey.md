@@ -238,6 +238,21 @@ The scan also caught `CLMB` mutants (the `D` turned to `B`) biting their `CLMD` 
 
 ![](img/survey/scene-s4-lookers.png)
 
+#### `CxLMD`: a looker with double insulation (s4)
+
+*Found 2026-11-23.* A new row: none at 2.017M, 493 at 2.032M, and 1,345 at 2.044M. It's a `CLMD` looker with an `x` after its `C`. The `x` sits on top of the `I`, and `x` doubles the trait of the cells beside it, so insulation 4 becomes 8.
+- **Where it lives.** 1,326 of the 1,345 are at step 6, the top step, with insulation 8.1 on average. Step 6 needs 6, which the `CLMD` lookers there have (6.1). That makes `CxLMD` 43% of step 6's lookers, against 1,774 `CLMD`.
+- **How it does.**
+  - It isn't doing better: step 6 is a sink for both. Over a 200-tick replay, 0.1% of `CxLMD` and 0.3% of `CLMD` at step 6 survived. Median age is 19 ticks.
+  - `CxLMD` comes from the lookers (median generation about 17,000, against 18,800 for `CLMD`), and half its living bodies have a `CxLMD` parent.
+  - Its rise is churn in a place where nearly everything dies young.
+- **Why watch it.** Insulation 8 is two steps' worth of spare. If the world opens a step 7, these would be the first lookers that could live there.
+- **A different `CxLMD`.** The row turns up again in 12 bodies at step −2: armored sprinters (gen about 7,500), not lookers.
+
+![](img/survey/cxlmd-s4.png)
+
+*A step-6 `CxLMD`: its `x` doubles the `I` below it.*
+
 *Lookers packed at step 5, s4 at 1.8M. Each body is its own colour. Many carry a second working row, `x M x B D T`.* [A looker in the viewer](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=4&bake=runs/bake/climb7-s4&t=1800000&pick=943101389)
 
 ### Giants
@@ -304,6 +319,20 @@ The heads differ: sprinter heads (`CvDM`, `C|DM`, `C^DM`) and a looker head (`CL
 
 **How common:** at any moment they're 12–18% of a sprinter run. In the grazer era 20–25% of every run were husks, mostly single cells (`S`, `D`, `$`). Those lasted far longer, median age 500–1,500 ticks, because one cell costs almost nothing to keep.
 
+**Why s1's husk rows reshuffle (2026-11-23).** A husk's shape is set by where its parent's `I` sits, so the husk rows follow the parents' layouts.
+- **Two layouts, one program.** s1's sprinter `CDmM` comes in two common layouts, and they differ only in where the `I` sits:
+  - in the left layout, below and left of the second `M`, so an `x` links that `M` to the insulation;
+  - in the right layout, beside the second `C`.
+- **What's left after shedding.** A starving body keeps its protection and the cells tied to it:
+  - The left layout leaves `DmM+IMxxx`, which keeps the lower `M`.
+  - The right layout leaves `DmM+Ixx`.
+- **The swap.** Over 100k ticks (t7.0M to t7.1M), the left layout's parents rose from about 7,800 to about 9,400 bodies, and its husk from 325 to 604. The right layout's parents fell from about 7,400 to 4,200, and its husk from 788 to 425. That put `DmM+IMxxx` into the top 10.
+- **No new form.** The living layouts do about the same in the replay: 23% and 27% survive 200 ticks, with about 1.3 children each. So the husk rows are mostly relabelling, as in [s4's starvation wave](#up-high-the-insulated-starve-outright-s4).
+
+![](img/survey/husk-layouts-s1.png)
+
+*From left: the left layout and its husk, then the right layout and its husk. These are code cells only; plain cells aren't shown.*
+
 ### Extinct: the Hunters
 
 ![](img/survey/hunter.png)
@@ -343,6 +372,8 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-22 | s4 | The starvation wave is a change of label: new step-6 looker layouts shed tails and keep insulation, so hunger ends in "starved" instead of "frozen" | [Up high, the insulated starve](#up-high-the-insulated-starve-outright-s4) |
 | 2026-11-22 | s2 | `:` → `m` in the crawlers is a synonym (same stack), so its spread is drift | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-22 | s2 | `Ce` crawlers: the child goes south after a step that went through, east after a blocked one (as common as `C9`) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
+| 2026-11-23 | s1 | The husk rows reshuffle because two layouts of the same sprinter trade places, and each leaves a different husk | [Husks](#husks) |
+| 2026-11-23 | s4 | `CxLMD`: step-6 lookers whose `x` doubles their insulation to 8, two steps beyond what step 6 needs; 43% of step 6's lookers, but no fitter there | [`CxLMD`](#cxlmd-a-looker-with-double-insulation-s4) |
 
 ## How they interact
 
