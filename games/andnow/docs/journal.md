@@ -2969,3 +2969,10 @@ Scan 7:47–8:51, s1 t7037000, s2 t2025000, s3 t7800000, s4 t2017000. Two subage
 - **s2: `Ce:mMMD`** places its child by whether its last step went through (`e` reads the second MOVE's result; `C` comes after it). 57% of children go south, 43% east, with the same fitness as `C9`. Not new: 2,700–3,950 bodies since 1.9M. The same check found the survey wrong about the crawler's digit: the IP runs west, both MOVEs take max size, and only the DIVIDE takes the digit. Fixed. `C0`'s self-crowding didn't repeat (a blip; `C0` is down to 140).
 - **Known:** kin bites (`CTDB`, `CLM[`), vandals writing fat (`WCD`, `WCDM`, `MWDm`), `1` written in s4, and `mM` husks drifting at 0.47 cells a tick (store-steered, an east-traveller cousin).
 - **Detector:** a death-cause share swing now also gives all deaths per body, then and now, so a cause taking over another's deaths reads differently from more dying.
+
+## Discovery round 14 (2026-11-22 evening)
+
+Scan 7:47–8:53, s1 t7073000, s2 t2037000, s3 t7833000, s4 t2032000 (the bakes had been paused with SIGSTOP for a while in the afternoon while Robby used the CPUs).
+- **s2: the `:` → `m` drift is solved.** `C9mmMMD` rose 612 → 1,123. Read west, its row is `D M M m m 9 C` against `C9:mMMD`'s `D M M m : 9 C`: push-push and push-dup leave the same stack, so the change is synonymous. Survival and births match (0.80/0.43 against 0.78/0.37 at 2.037M), so its spread is drift. The rise of `C::TMMD` (1,653 → 2,603) and fall of `Cs:mMMD` (1,387 → 540) are the same churn among equivalent rows.
+- **One to watch:** `CGDm` growers do better beside `CMDm` sprinters in s3 (+0.45, z 3.1, one scan).
+- **Known:** kin bites (`C5BmM`, `CLB`, `CM|m`, `CmM?`), `CL[M` killing 3 `CLDM` kin, `CTDW` steerers, small self-crowding in `C9:mMMD` and `CCLDM`; giants with rows `I4`, `IG`, `I` (threads, s3/s4) and s4's `C]M4` (992 cells), another turn mutant, noted under Giants.

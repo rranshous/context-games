@@ -194,6 +194,7 @@ T-crawlers at step 3, where they're densest, with lookers' masts among them.
 ![](img/survey/crawler-c9-s2.png)
 
 `C9:mMMD`, `C5:mMMD` and `C1:mMMD` are one program. The crawler's IP runs west, so the row reads `D M M m : 9 C`: both MOVEs take the max size (pushed by `m`, doubled by `:`), and only the DIVIDE takes the digit. The digit only becomes a direction (mod 4), and 9, 5 and 1 all place the child south. The bodies match cell for cell and fare the same (step 2, pace 3.4–3.7, survival 0.78 against 0.70). `C9` is the older strain, here since 1.1M. Each digit holds its own colonies (98–99% of a tile's 5/9 crawlers share one digit), and by 2.0M drift has made `C9` twice as common as `C5`, while the three together stay at about 5,100–5,700.
+- **`:` and `m` are synonyms here** (2026-11-22). Read west, `C9mmMMD` is `D M M m m 9 C`: two pushes of the max size where `C9:mMMD` has a push and a dup, so the stack is the same and so is the program. That's why the dup in this slot keeps turning into `m` in both crawler families. It's drift, not selection: `C9mmMMD` rose from 612 to 1,123 bodies between 2.025M and 2.037M while its survival and births matched `C9:mMMD`'s (0.80 and 0.43 against 0.78 and 0.37).
 - `C0:mMMD` places its child east. Its 426 bodies did worse beside their own row at 2.0M (−0.39 at z −3.2), but it didn't repeat: −0.06 at z −0.4 at 2.014M, and by 2.025M `C0` was down to 140 bodies. A blip.
 - **`Ce:mMMD` places its child by whether its last step worked** (found 2026-11-22). `e` pushes 1 if the last action succeeded, else 0, and the last action before it is the second MOVE (`C` comes after `e`, so whether it ate never reaches the stack). So a child goes south after a step that went through and east after one that was blocked: 57% south and 43% east, where `C9`'s go 92% south. It isn't new: at 2,700–3,950 bodies in every scan since 1.9M it's as common as `C9`, and only its commonest plan just reached the top 10. It lives and breeds like `C9` (step 2, survival 0.77 against 0.78, 0.45 births a body against 0.46), so steering its children this way buys nothing measurable.
 
@@ -259,7 +260,7 @@ The direction decides the shape:
 - They end the way that one did, cut by a single bite at a narrow point (see the [journal](journal.md)).
 - They're rare, about 1% of a run at any time, but they set every size record.
 
-**The simplest giant (s1, found 2026-11-21)** is a sprinter with one copy error. In `CDmM` the `C` became `[`, which turns the IP south. The IP then loops down a column of three cells, `[`, `G`, `C`, and never runs `D`, `m` or `M` again. The `G` pops an empty stack, 0, which is east, so the body grows one thread east forever, eating as it goes. At 7.0M it was 485 cells (479 × 3) and 62,658 ticks old, with a pace of 0.06. It's the same kind of mutation that made the hunters (`D` → `]`), here landing on a `C`.
+**The simplest giant (s1, found 2026-11-21)** is a sprinter with one copy error. In `CDmM` the `C` became `[`, which turns the IP south. The IP then loops down a column of three cells, `[`, `G`, `C`, and never runs `D`, `m` or `M` again. The `G` pops an empty stack, 0, which is east, so the body grows one thread east forever, eating as it goes. At 7.0M it was 485 cells (479 × 3) and 62,658 ticks old, with a pace of 0.06. It's the same kind of mutation that made the hunters (`D` → `]`), here landing on a `C`. s4's biggest body at 2.021M is another turn mutant: row `C]M4`, 992 cells in a thread 977 × 5.
 
 ![](img/survey/giant-turn-s1-core.png)
 
@@ -340,6 +341,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-21 | s2 | The crawler's digit is neutral: `C9`, `C5`, `C1` are one program in separate colonies; `C0` (east) crowds itself | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-21 | s1 | The simplest giant: `C` → `[` sends a sprinter's IP down a 3-cell loop through a `G`, growing an east thread for 62k+ ticks | [Giants](#giants) |
 | 2026-11-22 | s4 | The starvation wave is a change of label: new step-6 looker layouts shed tails and keep insulation, so hunger ends in "starved" instead of "frozen" | [Up high, the insulated starve](#up-high-the-insulated-starve-outright-s4) |
+| 2026-11-22 | s2 | `:` → `m` in the crawlers is a synonym (same stack), so its spread is drift | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-22 | s2 | `Ce` crawlers: the child goes south after a step that went through, east after a blocked one (as common as `C9`) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 
 ## How they interact
