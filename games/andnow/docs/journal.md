@@ -2992,3 +2992,12 @@ Scan 7:47–8:53, s1 t7133000, s2 t2057000, s3 t7889000, s4 t2056000. Written up
 - **Nothing new in kind.** Kin bites and kills in s2 by turn mutants (`C7:]MMD`, `C9m[MMM`, `C9:[MMD`, `CL]M`: a `D` or `m` turned into `[`/`]`, as with the nibblers), plus `CLBM`, `C?DM` and the sterile `CL?M`. s1 has a new thread giant, row `G6` (559 cells, 545 × 5), the same kind as `[DmM` and `C]M4`.
 - **One to watch:** `C9:mMMD` crawlers do worse beside `Ce:mMMD` (−0.37, z −3.1; the other way −0.04). Both run the same program apart from where the child goes. One scan, like `C0`'s self-crowding that turned out a blip.
 - s3 and s4 flagged nothing.
+
+## Discovery round 17 (2026-11-24 morning)
+
+Scan 7:47–8:53, s1 t7162000, s2 t2067000, s3 t7916000, s4 t2068000.
+- **s2: `Ce` crawlers are losing to `C9` by drift.** `Ce:mMMD` fell from 3,454 to 1,861 between 2.025M and 2.067M while `C9:mMMD` rose from 3,625 to 6,866. A 200-tick replay at 2.067M (scratch `rows.mjs`) found them equal at step 2: survival 0.725 vs 0.758, children 0.356 vs 0.323, 1.08 each. Last night's amensalism (`C9` worse beside `Ce`) points the wrong way to explain the swing. Noted under the crawler's digit.
+- **s1/s3: growers touching sprinters do better, scan after scan.** `CDmG` beside `CDmM` in s1 (+0.42, z 3.1) and the s3 growers beside `CMDm` (+0.18 to +0.45) lean the same way in each of the last three scans, and the sprinters a little worse. It's the s2/s4 smothering, weaker. Noted in the ecology section.
+- **s4: `CxLMD` crashed** from 1,386 to 227: churn in the step-6 sink, as expected.
+- **Known or false-new:** `Co:TMMD` was flagged as a new species, but it's a T-crawler already in the survey, now just over 1% (2,615). `LMD` looker husks are 1.2% in s4. Also vandals writing `.` (`CWD`, `CTWM`, `WMD`, `MxWm`), `FxmWD` writing glyphs into `CxmMD`, `C?D` biting husks, and `CM^m` (sterile) killing `CMDm`.
+- **Detector: leans.** Novelty only reported a pairing once it passed z 3 in one scan. Now, for each run, it averages z over every row pair by kind against kind (growers on sprinters, say) and notes a lean that goes the same way (mean |z| ≥ 1.5) three scans running. Tested on the last five scans of each run with a scratch ledger: it flags s2's and s4's smothering (mean z −5.6 and −1.8) and is building a streak for s1's.

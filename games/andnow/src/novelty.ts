@@ -176,6 +176,21 @@ for (const f of files) {
     const why = top && kinds.filter((k) => k === top).length * 3 >= same.length * 2 ? `mostly ${top}s` : 'touching anyone against being alone, not one partner';
     note(seed, 'fan', `${row}|${sg}`, where, `**${row}** does ${sg > 0 ? 'better' : 'worse'} beside ${same.length} different rows (${same.map((f) => `\`${f.by}\``).join(', ')}; ${pm(ds[0])} to ${pm(ds[ds.length - 1])}): ${why}${known(row)}`);
   }
+  // A lean too weak to pass z 3 in any one scan but the same way scan after scan: kind against kind
+  // (growers beside sprinters, say), averaged over every pair of rows. Three scans in a row is a note.
+  const leans = new Map<string, number[]>();
+  for (const e of r.eco) {
+    if (e.a === e.b || damage(e)) continue;
+    for (const [row, by, x] of [[e.b, e.a, e.onB], [e.a, e.b, e.onA]] as const)
+      if (x && !/husk/.test(kindOf(by))) { const k = `${kindOf(row) || 'plain'}<-${kindOf(by) || 'plain'}`; leans.set(k, [...(leans.get(k) ?? []), x.z]); }
+  }
+  for (const [k, zs] of leans) {
+    const z = zs.reduce((a, b) => a + b, 0) / zs.length, sg = zs.length >= 2 && z >= 1.5 ? 1 : zs.length >= 2 && z <= -1.5 ? -1 : 0;
+    const lk = `s${seed}|lean|${k}`, prev = ledger.records[lk]?.v ?? 0, streak = sg && Math.sign(prev) === sg ? prev + sg : sg;
+    ledger.records[lk] = { v: streak, at: where };
+    const [on, by] = k.split('<-');
+    if (Math.abs(streak) === 3) note(seed, 'lean', `${k}|${sg}`, where, `${on} rows lean ${sg > 0 ? 'better' : 'worse'} beside ${by} rows three scans running (mean z ${z.toFixed(1)} over ${zs.length} pairs now): the same way scan after scan`);
+  }
   for (const e of r.eco) {
     if (/neutral|same row: 0|same row: \?|too rare/.test(e.kind) || strength(e) < 3) continue;
     // Its pairs are covered by the line above when the fan row's side is all there is.

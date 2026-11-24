@@ -197,6 +197,12 @@ T-crawlers at step 3, where they're densest, with lookers' masts among them.
 - **`:` and `m` are synonyms here** (2026-11-22). Read west, `C9mmMMD` is `D M M m m 9 C`: two pushes of the max size where `C9:mMMD` has a push and a dup, so the stack is the same and so is the program. That's why the dup in this slot keeps turning into `m` in both crawler families. It's drift, not selection: `C9mmMMD` rose from 612 to 1,123 bodies between 2.025M and 2.037M while its survival and births matched `C9:mMMD`'s (0.80 and 0.43 against 0.78 and 0.37).
 - `C0:mMMD` places its child east. Its 426 bodies did worse beside their own row at 2.0M (−0.39 at z −3.2), but it didn't repeat: −0.06 at z −0.4 at 2.014M, and by 2.025M `C0` was down to 140 bodies. A blip.
 - **`Ce:mMMD` places its child by whether its last step worked** (found 2026-11-22). `e` pushes 1 if the last action succeeded, else 0, and the last action before it is the second MOVE (`C` comes after `e`, so whether it ate never reaches the stack). So a child goes south after a step that went through and east after one that was blocked: 57% south and 43% east, where `C9`'s go 92% south. It isn't new: at 2,700–3,950 bodies in every scan since 1.9M it's as common as `C9`, and only its commonest plan just reached the top 10. It lives and breeds like `C9` (step 2, survival 0.77 against 0.78, 0.45 births a body against 0.46), so steering its children this way buys nothing measurable.
+- **`Ce` is losing ground to `C9` by drift** (2026-11-24). Between 2.025M and 2.067M, `Ce:mMMD` fell from 3,454 to 1,861 while `C9:mMMD` rose from 3,625 to 6,866. In a 200-tick replay at 2.067M, they matched almost exactly at step 2, where nearly all of them live:
+  - survival: 0.725 for `Ce`, 0.758 for `C9`;
+  - children a body: 0.356 for `Ce`, 0.323 for `C9`;
+  - survival plus children: 1.08 each.
+
+  A scan at 2.057M found `C9` doing worse beside `Ce` (−0.37, z −3.1), which is the wrong way round to explain the swing.
 
   ![](img/survey/crawler-ce-s2.png)
 
@@ -247,6 +253,7 @@ The scan also caught `CLMB` mutants (the `D` turned to `B`) biting their `CLMD` 
   - `CxLMD` comes from the lookers (median generation about 17,000, against 18,800 for `CLMD`), and half its living bodies have a `CxLMD` parent.
   - Its rise is churn in a place where nearly everything dies young.
 - **Why watch it.** Insulation 8 is two steps' worth of spare. If the world opens a step 7, these would be the first lookers that could live there.
+- **It crashed** (2026-11-24): from 1,386 at 2.056M to 227 at 2.068M. The rise and fall are both churn in a step where almost nothing survives 200 ticks.
 - **A different `CxLMD`.** The row turns up again in 12 bodies at step −2: armored sprinters (gen about 7,500), not lookers.
 
 ![](img/survey/cxlmd-s4.png)
@@ -374,6 +381,8 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-22 | s2 | `Ce` crawlers: the child goes south after a step that went through, east after a blocked one (as common as `C9`) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-23 | s1 | The husk rows reshuffle because two layouts of the same sprinter trade places, and each leaves a different husk | [Husks](#husks) |
 | 2026-11-23 | s4 | `CxLMD`: step-6 lookers whose `x` doubles their insulation to 8, two steps beyond what step 6 needs; 43% of step 6's lookers, but no fitter there | [`CxLMD`](#cxlmd-a-looker-with-double-insulation-s4) |
+| 2026-11-24 | s2 | `Ce` crawlers halving while `C9` doubles is drift: same survival plus children (1.08) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
+| 2026-11-24 | s1, s3 | Growers touching sprinters lean better, and the sprinters a little worse, scan after scan: a weak form of s2/s4's smothering | [Ecology scan](#what-the-ecology-scan-found) |
 
 ## How they interact
 
@@ -455,6 +464,10 @@ Wider views: [s1](img/survey/scene-s1.png) · [s2](img/survey/scene-s2.png) · [
   - **s1's version is a confound.** s1's sprinters touching husks show +0.11 births (z 6.4), but vanishing the husks barely changes it. Its neighbours eat only 0.11 of a husk's cells on average, against 0.85 in s2. Matched on pace (stacked move doublers) and the number of husk cells nearby, the effect is 0. Fast strains breed more and sit in husk-dense patches; lone bodies merely near husks show the same gain.
   - **Tonight's s1 `DmM` / `C4SDTM` row is noise.** The grazers have no `B` and ate no dead cells. The row is not significant in the next checkpoint (z 1.4, n 204), so it's one false hit among about 76 tests.
   - **Fed bodies also freeze less**, because "core frozen" is mostly how starvation ends (see [why they die of cold](#why-they-die-of-cold-its-hunger)).
+- **Growers beside sprinters: a weak sign that keeps coming back** (s1 and s3, 2026-11-24). In the last three scans of each run, with lone bodies matched on size and pace, the result leans the same way:
+  - **Growers touching sprinters do better.** In s1 (`CDmG` beside `CDmM`) the gain is +0.42, at z 3.1 at 7.162M. In s3 (`CMGm`, `CMDG`, `CGDm` beside `CMDm`) it's +0.18 to +0.45, with z between 1.4 and 3.1.
+  - **The sprinters beside them do a little worse:** −0.03 to −0.26, with z from −2.3 to −0.3.
+  - Mostly one side is too rare to test, and the test passes z 3 only once a run. It looks like the smothering in s2 and s4 (the bullet above), only weaker. In those runs the sprinters' side reaches z −12 to −16, and the growers' side here is the first sign of what they gain from it. Not yet checked with a replay.
 - **Big growers seem to gain from neighbours, but it's their size** (s4, 2026-11-19). `CmGD` growers touching anything (sprinters, husks, other growers) did 0.24–0.32 better than lone ones in the replay, while smothering the sprinters beside them (−0.20). It isn't an interaction. The 358 touching growers are big, old and high up: median 131 cells, 2,919 ticks old, with a max size of about 1,670. The 30 lone ones are small and young: 77 cells, 879 ticks, max size about 790. A big body touches more and outlives a 200-tick replay more often.
 - **Grazers crowd each other** (s1, corrected 2026-11-21). This read as "`C6SDTM` suffers beside `C4SDTM`, not the reverse", but the one-way part is noise.
   - **The two are one program.** The digit is the SCAN type: 4 looks for plants, 6 for plants or speed food. The climb grows only plants, so both scans find the same target, and lone bodies of the two forms match on everything.
