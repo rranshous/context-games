@@ -2985,3 +2985,10 @@ Scan 7:47–8:51, s1 t7103000, s2 t2047000, s3 t7861000, s4 t2044000.
 - **Known:** `CL]` kin bites and a `CWD0` vandal in s2; a 677-cell thread giant (row `CL?M`); `>` written in s4 (first seen in s2). s2's new speed record, `CLDM+BCIIMxxx` at 0.214 cells a tick, rests on 31 long-lived bodies of a tall mast looker. Only 2 of 224 survived the replay.
 - **Detector:** a new top-10 plan with no `C` is now named as a husk of the commonest living layout whose code cells it contains, so a husk row that rises reads as its parent layout rising.
 - Mysteries left open: why s4's step 6 keeps growing; `CGDm` beside `CMDm` in s3 didn't repeat this scan.
+
+## Discovery round 16 (2026-11-23 evening)
+
+Scan 7:47–8:53, s1 t7133000, s2 t2057000, s3 t7889000, s4 t2056000. Written up the next morning: the waiter's notice never came through.
+- **Nothing new in kind.** Kin bites and kills in s2 by turn mutants (`C7:]MMD`, `C9m[MMM`, `C9:[MMD`, `CL]M`: a `D` or `m` turned into `[`/`]`, as with the nibblers), plus `CLBM`, `C?DM` and the sterile `CL?M`. s1 has a new thread giant, row `G6` (559 cells, 545 × 5), the same kind as `[DmM` and `C]M4`.
+- **One to watch:** `C9:mMMD` crawlers do worse beside `Ce:mMMD` (−0.37, z −3.1; the other way −0.04). Both run the same program apart from where the child goes. One scan, like `C0`'s self-crowding that turned out a blip.
+- s3 and s4 flagged nothing.
