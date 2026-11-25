@@ -3005,3 +3005,7 @@ Scan 7:47–8:53, s1 t7162000, s2 t2067000, s3 t7916000, s4 t2068000.
 ## Discovery round 18 (2026-11-24 evening): skipped
 
 The bakes have been paused (SIGSTOP) since this morning at Robby's request, so the checkpoints haven't moved since round 17. Also, discover.sh waits for s4's bake to exit, and a stopped process never does. Nothing was scanned. The next round runs once the bakes are resumed.
+
+## Discovery round 19 (2026-11-25 morning): skipped
+
+The bakes are still paused (SIGSTOP since the morning of 11-24), so there's nothing new to scan.
