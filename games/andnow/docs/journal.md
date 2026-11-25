@@ -3001,3 +3001,7 @@ Scan 7:47–8:53, s1 t7162000, s2 t2067000, s3 t7916000, s4 t2068000.
 - **s4: `CxLMD` crashed** from 1,386 to 227: churn in the step-6 sink, as expected.
 - **Known or false-new:** `Co:TMMD` was flagged as a new species, but it's a T-crawler already in the survey, now just over 1% (2,615). `LMD` looker husks are 1.2% in s4. Also vandals writing `.` (`CWD`, `CTWM`, `WMD`, `MxWm`), `FxmWD` writing glyphs into `CxmMD`, `C?D` biting husks, and `CM^m` (sterile) killing `CMDm`.
 - **Detector: leans.** Novelty only reported a pairing once it passed z 3 in one scan. Now, for each run, it averages z over every row pair by kind against kind (growers on sprinters, say) and notes a lean that goes the same way (mean |z| ≥ 1.5) three scans running. Tested on the last five scans of each run with a scratch ledger: it flags s2's and s4's smothering (mean z −5.6 and −1.8) and is building a streak for s1's.
+
+## Discovery round 18 (2026-11-24 evening): skipped
+
+The bakes have been paused (SIGSTOP) since this morning at Robby's request, so the checkpoints haven't moved since round 17. Also, discover.sh waits for s4's bake to exit, and a stopped process never does. Nothing was scanned. The next round runs once the bakes are resumed.
