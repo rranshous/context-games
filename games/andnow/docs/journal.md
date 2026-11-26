@@ -3009,3 +3009,10 @@ The bakes have been paused (SIGSTOP) since this morning at Robby's request, so t
 ## Discovery round 19 (2026-11-25 morning): skipped
 
 The bakes are still paused (SIGSTOP since the morning of 11-24), so there's nothing new to scan.
+
+## Discovery round 20 (2026-11-25 evening, s2 and s4 only)
+
+Robby had s2 and s4 resumed in the afternoon; s1 and s3 stay paused. Scan 6:45–7:24, `./discover.sh 2 4`: s2 t2076000, s4 t2078000. The 7:47 cron round is folded into this one.
+- **s2: `LDMC`, an old looker line, rising.** 150 → 815 → 1,208 → 1,542 since 2.047M. Its row is `CLDM`'s, with the `C` moved to the end (the same cycle). What sets it apart is an `xM` foot on the mast, giving move 5 against 1: pace about 1.8 against 0.67. Median generation is about 9,400 against `CLDM`'s 23,300, and it's longer-lived (age 98 against 39). Nearly all are at step 4, where survival matches `CLDM`'s there (0.236 against 0.212). It crowds itself more each scan (−0.27, z −3.8 now). In the survey under Lookers, with an image; the viewer link comes at 2.1M.
+- **Known:** a `CW` vandal writing 309 dots into its children, and a thread giant in s1's index record (row `RRA_CDG=[2~$\``, 386 cells; from s1's last checkpoint before the pause).
+- s4 flagged nothing.

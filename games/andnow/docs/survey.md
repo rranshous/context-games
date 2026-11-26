@@ -146,6 +146,23 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 ![](img/survey/scene-s2-close.png)
 
+#### `LDMC`: a faster looker from an old line (s2)
+
+*Found 2026-11-25.* The row has come and gone in small numbers since 1.97M (27, then 0, 170, 30, 0). From 2.047M it took off: 150 → 815 → 1,208 → 1,542 at 2.076M.
+- **The row.** It's `CLDM` with the `C` moved from the front to the end. Read as a loop, it's the same four instructions in the same order, and the mast still hangs from the `L`.
+- **What's different: a foot.** Every `LDMC` we looked at carries an `M` at the foot of its mast, beside an `x` (which doubles it) and the `I`. The `CLDM` feet have an `x`, a digit or another glyph there instead.
+  - So `LDMC` has move 5 where `CLDM` has 1, and pace 1.7–2.1 against 0.67.
+  - It's an old line: median generation about 9,400, against 23,300 for `CLDM`. It also lives longer (median age 98 ticks against 39), and 843 of its 1,540 bodies have an `LDMC` parent.
+- **Where and how it does.** 99% live at step 4. A 200-tick replay at 2.076M compared it with `CLDM`:
+  - survival at step 4: 0.236, against 0.212 for `CLDM` at the same step;
+  - children: 0.28 a body, against `CLDM`'s 0.15 overall. Most `CLDM` live higher, at steps 5–6, so that comparison flatters `LDMC`.
+- **It crowds itself.** Its colonies are dense (669 measured bodies in 102 tiles), and it does worse beside its own row: −0.15, −0.23, −0.27 over three scans, reaching z −3.8 at 2.076M.
+- A viewer link goes in at 2.1M, the first 100k checkpoint it's alive at.
+
+![](img/survey/looker-ldmc-s2.png)
+
+*An `LDMC` looker at step 4: the row on top, the mast hanging from the `L`, and the `xM` foot at the bottom.*
+
 #### Hungry lookers shed their row (s2)
 
 *Found 2026-11-16.*
@@ -383,6 +400,7 @@ New forms and behaviours, as they turn up. Each gets a write-up in its section a
 | 2026-11-23 | s4 | `CxLMD`: step-6 lookers whose `x` doubles their insulation to 8, two steps beyond what step 6 needs; 43% of step 6's lookers, but no fitter there | [`CxLMD`](#cxlmd-a-looker-with-double-insulation-s4) |
 | 2026-11-24 | s2 | `Ce` crawlers halving while `C9` doubles is drift: same survival plus children (1.08) | [The crawler's digit](#the-crawlers-digit-doesnt-matter-s2) |
 | 2026-11-24 | s1, s3 | Growers touching sprinters lean better, and the sprinters a little worse, scan after scan: a weak form of s2/s4's smothering | [Ecology scan](#what-the-ecology-scan-found) |
+| 2026-11-25 | s2 | `LDMC`: an old looker line with an `xM` foot (pace about 1.8 against 0.67) rising at step 4, 150 → 1,542; it crowds itself | [`LDMC`](#ldmc-a-faster-looker-from-an-old-line-s2) |
 
 ## How they interact
 
