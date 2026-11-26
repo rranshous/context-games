@@ -98,6 +98,15 @@ for (const f of files) {
     const k = `s${seed}|row|${row}`, prev = ledger.records[k];
     if (prev && n >= 1000 && n >= prev.v * 1.5) at(seed).notes.push(`**${row}** rising: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
     if (prev && prev.v >= 1000 && n <= prev.v / 2) at(seed).notes.push(`**${row}** falling: ${Math.round(prev.v).toLocaleString()} at ${prev.at} → ${n.toLocaleString()}`);
+    // A steady climb that never jumps 1.5× in one scan (LDMC in s2: 150 → 815 → 1,208 → 1,542):
+    // up 10%+ every scan, three or more running, and doubled since the climb began.
+    const ck = `${k}|climb`, c = ledger.records[ck], up = !!prev && n >= prev.v * 1.1;
+    if (up) {
+      const streak = (c?.v ?? 0) + 1, from = c && c.v > 0 ? c.at : `${Math.round(prev!.v)}@${prev!.at}`;
+      ledger.records[ck] = { v: streak, at: from };
+      const [n0, at0] = from.split('@');
+      if (streak >= 3 && n >= 1000 && n >= 2 * +n0) note(seed, 'climb', row, where, `**${row}** climbing steadily: ${Number(n0).toLocaleString()} at ${at0} → ${n.toLocaleString()} over ${streak} scans${known(row)}`);
+    } else if (c) ledger.records[ck] = { v: 0, at: '' };
     if (n >= 100 || prev) ledger.records[k] = { v: n, at: where };
   }
   // A plan that only has more or fewer of the same off-row glyphs than one seen before (CMDm+BCIMnxxxx
