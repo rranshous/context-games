@@ -3017,3 +3017,10 @@ Robby had s2 and s4 resumed in the afternoon; s1 and s3 stay paused. Scan 6:45�
 - **Known:** a `CW` vandal writing 309 dots into its children, and a thread giant in s1's index record (row `RRA_CDG=[2~$\``, 386 cells; from s1's last checkpoint before the pause).
 - s4 flagged nothing.
 - **Detector: steady climbers.** Novelty flagged a riser only on a 1.5× jump in one scan, so `LDMC` went by unflagged. A row up 10%+ in each of three or more scans running, doubled since its climb began and now 1,000+, is now a note. Tested on the last six s2/s4 scans with a scratch ledger: it flags `LDMC` (150 → 1,542) and `CsmmMMD` (348 → 1,202, a crawler row; likely more synonym drift).
+
+## Discovery round 21 (2026-11-26 morning, s2 and s4 only)
+
+Scan 7:47–8:25, s2 t2089000, s4 t2094000 (s1 and s3 still paused). Nothing new in kind.
+- **Known:** kin bites by turn and `?` mutants (`C9:?MMD`, `CLM]`, `CL[D`) and the `CBM6` biter. Thread giants: row `L^` in s2 (790 cells), `C]FD` (807) and `X` (811) in s4.
+- `C9mmMMD` fell from 1,414 to 695: the synonym crawler drifting back down.
+- `LDMC` is still climbing (1,878) and still crowding itself (z −3.4); one line in its survey entry.

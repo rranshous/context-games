@@ -156,7 +156,7 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 - **Where and how it does.** 99% live at step 4. A 200-tick replay at 2.076M compared it with `CLDM`:
   - survival at step 4: 0.236, against 0.212 for `CLDM` at the same step;
   - children: 0.28 a body, against `CLDM`'s 0.15 overall. Most `CLDM` live higher, at steps 5–6, so that comparison flatters `LDMC`.
-- **It crowds itself.** Its colonies are dense (669 measured bodies in 102 tiles), and it does worse beside its own row: −0.15, −0.23, −0.27 over three scans, reaching z −3.8 at 2.076M.
+- **It crowds itself.** Its colonies are dense (669 measured bodies in 102 tiles), and it does worse beside its own row: −0.15, −0.23, −0.27 over three scans, reaching z −3.8 at 2.076M. Still climbing at 2.089M (1,878), and still crowding itself (−0.22, z −3.4).
 - A viewer link goes in at 2.1M, the first 100k checkpoint it's alive at.
 
 ![](img/survey/looker-ldmc-s2.png)
