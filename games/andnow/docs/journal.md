@@ -3024,3 +3024,10 @@ Scan 7:47–8:25, s2 t2089000, s4 t2094000 (s1 and s3 still paused). Nothing new
 - **Known:** kin bites by turn and `?` mutants (`C9:?MMD`, `CLM]`, `CL[D`) and the `CBM6` biter. Thread giants: row `L^` in s2 (790 cells), `C]FD` (807) and `X` (811) in s4.
 - `C9mmMMD` fell from 1,414 to 695: the synonym crawler drifting back down.
 - `LDMC` is still climbing (1,878) and still crowding itself (z −3.4); one line in its survey entry.
+
+## Discovery round 22 (2026-11-26 evening, s2 and s4 only)
+
+Scan 7:47–8:20, s2 t2101000, s4 t2108000. Nothing new in kind.
+- **Leans:** the new detector reported s2's and s4's grower smothering (mean z −5.0 and −2.5), the known pattern firing once on the real ledger, as expected.
+- **Known:** `C[D` biting its own children, `CLM]` biting `CmMD` kin, and a new top-10 s4 sprinter layout (`CmMD+0BCIMMxxx`, 616; a `0` in a plain cell).
+- **Viewer links at 2.1M:** `LDMC` is 1,599 bodies, all at step 4, and has its link now (pick 2803306648). Not every one has the `xM` foot: one of two drawn had move 1, so the survey now says "the ones we drew". The step-6 `CxLMD` lookers are gone: only 4 armored step −2 sprinters with that row remain, so it gets no link.

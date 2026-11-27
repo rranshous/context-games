@@ -150,14 +150,14 @@ Below, the densest patch of s2: masts hanging side by side, and a row of `CLDM` 
 
 *Found 2026-11-25.* The row has come and gone in small numbers since 1.97M (27, then 0, 170, 30, 0). From 2.047M it took off: 150 → 815 → 1,208 → 1,542 at 2.076M.
 - **The row.** It's `CLDM` with the `C` moved from the front to the end. Read as a loop, it's the same four instructions in the same order, and the mast still hangs from the `L`.
-- **What's different: a foot.** Every `LDMC` we looked at carries an `M` at the foot of its mast, beside an `x` (which doubles it) and the `I`. The `CLDM` feet have an `x`, a digit or another glyph there instead.
+- **What's different: a foot.** The `LDMC`s we drew at 2.076M all carry an `M` at the foot of its mast, beside an `x` (which doubles it) and the `I`. The `CLDM` feet have an `x`, a digit or another glyph there instead.
   - So `LDMC` has move 5 where `CLDM` has 1, and pace 1.7–2.1 against 0.67.
   - It's an old line: median generation about 9,400, against 23,300 for `CLDM`. It also lives longer (median age 98 ticks against 39), and 843 of its 1,540 bodies have an `LDMC` parent.
 - **Where and how it does.** 99% live at step 4. A 200-tick replay at 2.076M compared it with `CLDM`:
   - survival at step 4: 0.236, against 0.212 for `CLDM` at the same step;
   - children: 0.28 a body, against `CLDM`'s 0.15 overall. Most `CLDM` live higher, at steps 5–6, so that comparison flatters `LDMC`.
 - **It crowds itself.** Its colonies are dense (669 measured bodies in 102 tiles), and it does worse beside its own row: −0.15, −0.23, −0.27 over three scans, reaching z −3.8 at 2.076M. Still climbing at 2.089M (1,878), and still crowding itself (−0.22, z −3.4).
-- A viewer link goes in at 2.1M, the first 100k checkpoint it's alive at.
+- At 2.1M: 1,599 bodies, all at step 4. Not every one has the foot: one of the two examples drawn there had move 1. [An `LDMC` with its foot in the viewer (2.1M)](http://lilg:8765/?climb=1&w=climber,diver,hunter&seed=2&bake=runs/bake/climb7-s2&t=2100000&pick=2803306648)
 
 ![](img/survey/looker-ldmc-s2.png)
 
@@ -271,6 +271,7 @@ The scan also caught `CLMB` mutants (the `D` turned to `B`) biting their `CLMD` 
   - Its rise is churn in a place where nearly everything dies young.
 - **Why watch it.** Insulation 8 is two steps' worth of spare. If the world opens a step 7, these would be the first lookers that could live there.
 - **It crashed** (2026-11-24): from 1,386 at 2.056M to 227 at 2.068M. The rise and fall are both churn in a step where almost nothing survives 200 ticks.
+- **Gone from step 6 by 2.1M.** At the 2.1M checkpoint only 4 `CxLMD` bodies were left, and all were the armored sprinters at step −2, so there's no viewer link for the looker form.
 - **A different `CxLMD`.** The row turns up again in 12 bodies at step −2: armored sprinters (gen about 7,500), not lookers.
 
 ![](img/survey/cxlmd-s4.png)
